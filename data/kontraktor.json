@@ -1,0 +1,575 @@
+{
+  "settings": {
+    "id": "default",
+    "companyName": "PT. ASTA BRATA MATAHARI TERBIT",
+    "tagline": "General Contractor & Interior Specialist",
+    "address": "Jl. Konstruksi Mandiri No. 88, Jakarta Selatan",
+    "phone": "0812-8899-7722",
+    "ownerName": "Bpk. Ir. H. Bambang Prakoso",
+    "assistantName": "Ahmad Fauzi",
+    "workHourStart": "08:00",
+    "workHourEnd": "16:00",
+    "wageMandorDaily": 200000,
+    "overtimeMandorHourly": 25000,
+    "wageTukangDaily": 150000,
+    "overtimeTukangHourly": 20000,
+    "wageHelperDaily": 125000,
+    "overtimeHelperHourly": 15000,
+    "wageDriverDaily": 140000,
+    "overtimeDriverHourly": 18000,
+    "wageKenekDaily": 125000,
+    "overtimeKenekHourly": 15000,
+    "minTenureDaysForKasbon": 7
+  },
+  "employees": [
+    {
+      "id": "PRJ001-TK-002",
+      "name": "Ragil",
+      "nik": "-",
+      "role": "Tukang",
+      "dailyWage": 150000,
+      "overtimeHourlyWage": 20000,
+      "startDate": "2026-10-25",
+      "status": "active",
+      "phone": "-",
+      "notes": "",
+      "createdAt": "2026-10-25T10:29:12.959Z"
+    },
+    {
+      "id": "PRJ001-TK-004",
+      "name": "Bagus",
+      "nik": "-",
+      "role": "Tukang",
+      "dailyWage": 150000,
+      "overtimeHourlyWage": 20000,
+      "startDate": "2026-10-25",
+      "status": "active",
+      "phone": "-",
+      "notes": "",
+      "createdAt": "2026-10-25T10:30:04.868Z"
+    },
+    {
+      "id": "PRJ001-TK-006",
+      "name": "Suryani",
+      "nik": "3601240107920061",
+      "role": "Tukang",
+      "dailyWage": 150000,
+      "overtimeHourlyWage": 20000,
+      "startDate": "2026-10-25",
+      "status": "active",
+      "phone": "-",
+      "notes": "",
+      "createdAt": "2026-10-25T10:31:03.116Z"
+    },
+    {
+      "id": "PRJ001-TK-007",
+      "name": "Jaja",
+      "nik": "-",
+      "role": "Tukang",
+      "dailyWage": 150000,
+      "overtimeHourlyWage": 20000,
+      "startDate": "2026-10-25",
+      "status": "active",
+      "phone": "-",
+      "notes": "",
+      "createdAt": "2026-10-25T10:32:09.017Z"
+    },
+    {
+      "id": "PRJ001-TK-008",
+      "name": "Suhaya",
+      "nik": "3601240107940-",
+      "role": "Tukang",
+      "dailyWage": 150000,
+      "overtimeHourlyWage": 20000,
+      "startDate": "2026-10-25",
+      "status": "active",
+      "phone": "-",
+      "notes": "",
+      "createdAt": "2026-10-25T10:34:30.105Z"
+    },
+    {
+      "id": "PRJ001-TK-009",
+      "name": "Habibi",
+      "nik": "3601240401960004",
+      "role": "Tukang",
+      "dailyWage": 150000,
+      "overtimeHourlyWage": 20000,
+      "startDate": "2026-10-25",
+      "status": "active",
+      "phone": "-",
+      "notes": "",
+      "createdAt": "2026-10-25T10:35:15.990Z"
+    },
+    {
+      "id": "PRJ001-TK-010",
+      "name": "Saleh",
+      "nik": "360124010780008",
+      "role": "Tukang",
+      "dailyWage": 150000,
+      "overtimeHourlyWage": 20000,
+      "startDate": "2026-10-25",
+      "status": "active",
+      "phone": "-",
+      "notes": "",
+      "createdAt": "2026-10-25T10:36:12.868Z"
+    },
+    {
+      "id": "PRJ001-TK-011",
+      "name": "Mamat",
+      "nik": "-",
+      "role": "Tukang",
+      "dailyWage": 150000,
+      "overtimeHourlyWage": 20000,
+      "startDate": "2026-10-25",
+      "status": "active",
+      "phone": "-",
+      "notes": "",
+      "createdAt": "2026-10-25T10:37:51.291Z"
+    },
+    {
+      "id": "PRJ001-TK-012",
+      "name": "Risam",
+      "nik": "-",
+      "role": "Tukang",
+      "dailyWage": 150000,
+      "overtimeHourlyWage": 20000,
+      "startDate": "2026-10-25",
+      "status": "active",
+      "phone": "-",
+      "notes": "",
+      "createdAt": "2026-10-25T10:38:26.831Z"
+    },
+    {
+      "id": "PRJ001-MD-001",
+      "name": "Endang",
+      "nik": "3604180607800012",
+      "role": "Mandor",
+      "dailyWage": 180000,
+      "overtimeHourlyWage": 25000,
+      "startDate": "2026-10-25",
+      "status": "active",
+      "phone": "-",
+      "notes": "",
+      "createdAt": "2026-10-25T10:26:48.267Z"
+    },
+    {
+      "id": "PRJ001-HL-001",
+      "name": "Aldi",
+      "nik": "3604161507970003",
+      "role": "Helper",
+      "dailyWage": 130000,
+      "overtimeHourlyWage": 15000,
+      "startDate": "2026-10-25",
+      "status": "active",
+      "phone": "-",
+      "notes": "",
+      "createdAt": "2026-10-25T10:39:57.711Z"
+    },
+    {
+      "id": "PRJ001-DR-001",
+      "name": "Andi Sugandi",
+      "nik": "3604161304930002",
+      "role": "Driver",
+      "dailyWage": 155000,
+      "overtimeHourlyWage": 0,
+      "startDate": "2026-10-25",
+      "status": "active",
+      "phone": "-",
+      "notes": "",
+      "createdAt": "2026-10-25T10:42:12.837Z"
+    }
+  ],
+  "attendance": [
+    {
+      "id": "ATT-1792927439026-18fb",
+      "date": "2026-10-24",
+      "employeeId": "PRJ001-HL-001",
+      "employeeName": "Aldi",
+      "employeeRole": "Helper",
+      "status": "Hadir",
+      "checkIn": "08:00",
+      "checkOut": "16:00",
+      "overtimeHours": 0,
+      "overtimeApproved": false,
+      "dailyWageSnapshot": 130000,
+      "overtimeWageSnapshot": 15000,
+      "totalDailyPay": 130000,
+      "notes": "",
+      "createdBy": "Administrator (Tim IT)",
+      "createdAt": "2026-10-25T11:23:59.119Z",
+      "updatedBy": "",
+      "updatedAt": ""
+    }
+  ],
+  "overtime": [],
+  "kasbon": [
+    {
+      "id": "KB-1792926518768-b8py",
+      "kasbonNumber": "KB-202610-004",
+      "requestDate": "2026-10-23",
+      "employeeId": "PRJ001-TK-004",
+      "employeeName": "Bagus",
+      "employeeRole": "Tukang",
+      "employeeStartDate": "2026-10-25",
+      "eligibilityDate": "",
+      "isEligible": false,
+      "eligibilityReason": "Masa kerja baru -2 hari (kurang dari syarat minimal 7 hari)",
+      "amount": 300000,
+      "reason": "-",
+      "status": "Disetujui",
+      "deductedAmount": 0,
+      "remainingAmount": 300000,
+      "adminNotes": "",
+      "projectId": "PRJ-1792923867786-2wbi",
+      "attachmentFilePath": "kasbon_PRJ-1792923867786-2wbi/1792926515799_c973077b9985_403c2594-4d1c-4306-98a3-0b5a40395d95.jpeg",
+      "attachmentFileName": "403c2594-4d1c-4306-98a3-0b5a40395d95.jpeg",
+      "attachmentFileSize": 171906,
+      "attachmentMimeType": "image/jpeg",
+      "attachments": [
+        {
+          "id": "KATT-1792926518959-zb58",
+          "expenseId": "KB-1792926518768-b8py",
+          "fileName": "403c2594-4d1c-4306-98a3-0b5a40395d95.jpeg",
+          "filePath": "kasbon_PRJ-1792923867786-2wbi/1792926515799_c973077b9985_403c2594-4d1c-4306-98a3-0b5a40395d95.jpeg",
+          "fileSize": 171906,
+          "mimeType": "image/jpeg",
+          "uploadedBy": "Administrator (Tim IT)",
+          "createdAt": "2026-10-25T11:08:39.052Z",
+          "viewUrl": "/api/projects/kasbon/attachments/KATT-1792926518959-zb58/view"
+        }
+      ],
+      "auditTrail": [
+        {
+          "user": "Administrator (Tim IT)",
+          "action": "Pencatatan kasbon KB-202610-004 sebesar Rp 300.001 untuk Bagus pada proyek PRJ-1792923867786-2wbi.",
+          "timestamp": "2026-10-25T11:08:38.768Z"
+        }
+      ]
+    },
+    {
+      "id": "KB-1792926480718-dkil",
+      "kasbonNumber": "KB-202610-003",
+      "requestDate": "2026-10-23",
+      "employeeId": "PRJ001-TK-002",
+      "employeeName": "Ragil",
+      "employeeRole": "Tukang",
+      "employeeStartDate": "2026-10-25",
+      "eligibilityDate": "",
+      "isEligible": false,
+      "eligibilityReason": "Masa kerja baru -2 hari (kurang dari syarat minimal 7 hari)",
+      "amount": 300000,
+      "reason": "-",
+      "status": "Disetujui",
+      "deductedAmount": 0,
+      "remainingAmount": 300000,
+      "adminNotes": "",
+      "projectId": "PRJ-1792923867786-2wbi",
+      "attachmentFilePath": "kasbon_PRJ-1792923867786-2wbi/1792926477207_533e486d457f_e44cc1ba-9840-4634-8d30-519cf1a6e8ae.jpeg",
+      "attachmentFileName": "e44cc1ba-9840-4634-8d30-519cf1a6e8ae.jpeg",
+      "attachmentFileSize": 110790,
+      "attachmentMimeType": "image/jpeg",
+      "attachments": [
+        {
+          "id": "KATT-1792926480907-3bk4",
+          "expenseId": "KB-1792926480718-dkil",
+          "fileName": "e44cc1ba-9840-4634-8d30-519cf1a6e8ae.jpeg",
+          "filePath": "kasbon_PRJ-1792923867786-2wbi/1792926477207_533e486d457f_e44cc1ba-9840-4634-8d30-519cf1a6e8ae.jpeg",
+          "fileSize": 110790,
+          "mimeType": "image/jpeg",
+          "uploadedBy": "Administrator (Tim IT)",
+          "createdAt": "2026-10-25T11:08:01.000Z",
+          "viewUrl": "/api/projects/kasbon/attachments/KATT-1792926480907-3bk4/view"
+        }
+      ],
+      "auditTrail": [
+        {
+          "user": "Administrator (Tim IT)",
+          "action": "Pencatatan kasbon KB-202610-003 sebesar Rp 300.001 untuk Ragil pada proyek PRJ-1792923867786-2wbi.",
+          "timestamp": "2026-10-25T11:08:00.718Z"
+        }
+      ]
+    },
+    {
+      "id": "KB-1792926427277-fygy",
+      "kasbonNumber": "KB-202610-002",
+      "requestDate": "2026-10-23",
+      "employeeId": "PRJ001-HL-001",
+      "employeeName": "Aldi",
+      "employeeRole": "Helper",
+      "employeeStartDate": "2026-10-25",
+      "eligibilityDate": "",
+      "isEligible": false,
+      "eligibilityReason": "Masa kerja baru -2 hari (kurang dari syarat minimal 7 hari)",
+      "amount": 300000,
+      "reason": "-",
+      "status": "Disetujui",
+      "deductedAmount": 0,
+      "remainingAmount": 300000,
+      "adminNotes": "",
+      "projectId": "PRJ-1792923867786-2wbi",
+      "attachmentFilePath": "kasbon_PRJ-1792923867786-2wbi/1792926423933_b7860c4139d4_d9d1b8c5-18e8-4cfa-ac1b-86f5126d5697.jpeg",
+      "attachmentFileName": "d9d1b8c5-18e8-4cfa-ac1b-86f5126d5697.jpeg",
+      "attachmentFileSize": 96612,
+      "attachmentMimeType": "image/jpeg",
+      "attachments": [
+        {
+          "id": "KATT-1792926427466-geyk",
+          "expenseId": "KB-1792926427277-fygy",
+          "fileName": "d9d1b8c5-18e8-4cfa-ac1b-86f5126d5697.jpeg",
+          "filePath": "kasbon_PRJ-1792923867786-2wbi/1792926423933_b7860c4139d4_d9d1b8c5-18e8-4cfa-ac1b-86f5126d5697.jpeg",
+          "fileSize": 96612,
+          "mimeType": "image/jpeg",
+          "uploadedBy": "Administrator (Tim IT)",
+          "createdAt": "2026-10-25T11:07:07.559Z",
+          "viewUrl": "/api/projects/kasbon/attachments/KATT-1792926427466-geyk/view"
+        }
+      ],
+      "auditTrail": [
+        {
+          "user": "Administrator (Tim IT)",
+          "action": "Pencatatan kasbon KB-202610-002 sebesar Rp 300.001 untuk Aldi pada proyek PRJ-1792923867786-2wbi.",
+          "timestamp": "2026-10-25T11:07:07.277Z"
+        }
+      ]
+    }
+  ],
+  "kasbonDeductions": [],
+  "salaryPayments": [],
+  "operationalExpenses": [
+    {
+      "id": "EXP-1792402440125-zxj0",
+      "transactionNumber": "EXP-202610-001",
+      "date": "2026-10-19",
+      "personType": "Owner",
+      "personName": "Bpk. Ir. H. Bambang Prakoso",
+      "category": "Rokok",
+      "description": "Bensin operasional lapangan",
+      "amount": 100000,
+      "paymentMethod": "Tunai",
+      "receiptProof": "",
+      "notes": "",
+      "createdBy": "Administrator Proyek",
+      "createdAt": "2026-10-19T09:34:00.125Z"
+    }
+  ],
+  "operationalExpenseAttachments": [],
+  "auditLogs": [
+    {
+      "id": "LOG-1792742007467-uhor",
+      "timestamp": "2026-10-23T07:53:27.467Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1792740690559-930m",
+      "timestamp": "2026-10-23T07:31:30.559Z",
+      "userName": "Bpk. Acil",
+      "userRole": "owner",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna owner (OWNER) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1792740690485-rdxe",
+      "timestamp": "2026-10-23T07:31:30.485Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1792740536886-n2nu",
+      "timestamp": "2026-10-23T07:28:56.886Z",
+      "userName": "Bpk. Acil",
+      "userRole": "owner",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna owner (OWNER) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1792740536810-oj35",
+      "timestamp": "2026-10-23T07:28:56.810Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1792740499667-jkpr",
+      "timestamp": "2026-10-23T07:28:19.667Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1792740492855-76mw",
+      "timestamp": "2026-10-23T07:28:12.855Z",
+      "userName": "Bpk. Acil",
+      "userRole": "owner",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna owner (OWNER) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1792740492783-2qz1",
+      "timestamp": "2026-10-23T07:28:12.783Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1792659105044-bq73",
+      "timestamp": "2026-10-22T08:51:45.044Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1792658983258-fk7z",
+      "timestamp": "2026-10-22T08:49:43.258Z",
+      "userName": "Bpk. Ir. H. Bambang Prakoso (Owner)",
+      "userRole": "owner",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna owner (OWNER) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1792658967925-yhk5",
+      "timestamp": "2026-10-22T08:49:27.925Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1792658683045-bgbr",
+      "timestamp": "2026-10-22T08:44:43.045Z",
+      "userName": "Administrator (Alalagi)",
+      "userRole": "admin",
+      "action": "Login Google",
+      "module": "Sistem",
+      "details": "Pengguna berhasil masuk dengan akun Google: alalagi20@gmail.com (ADMIN)"
+    },
+    {
+      "id": "LOG-1792656174306-gz2v",
+      "timestamp": "2026-10-22T08:02:54.306Z",
+      "userName": "Bpk. Ir. H. Bambang Prakoso (Owner)",
+      "userRole": "owner",
+      "action": "Login Google",
+      "module": "Sistem",
+      "details": "Pengguna berhasil masuk dengan akun Google: owner@astabrata.com (OWNER)"
+    },
+    {
+      "id": "LOG-1792656168304-jh71",
+      "timestamp": "2026-10-22T08:02:48.304Z",
+      "userName": "Administrator (Alalagi)",
+      "userRole": "admin",
+      "action": "Login Google",
+      "module": "Sistem",
+      "details": "Pengguna berhasil masuk dengan akun Google: alalagi20@gmail.com (ADMIN)"
+    },
+    {
+      "id": "LOG-1792655740134-cz2k",
+      "timestamp": "2026-10-22T07:55:40.134Z",
+      "userName": "Administrator Proyek",
+      "userRole": "admin",
+      "action": "Tambah Pengguna",
+      "module": "Pengguna",
+      "details": "Menambahkan pengguna baru: alalagi20 (ADMIN)"
+    },
+    {
+      "id": "LOG-1792402574928-s6zn",
+      "timestamp": "2026-10-19T09:36:14.928Z",
+      "userName": "Administrator",
+      "userRole": "Administrator",
+      "action": "Ubah Pengaturan",
+      "module": "Pengaturan",
+      "details": "Memperbarui profil perusahaan dan tarif"
+    },
+    {
+      "id": "LOG-1792402469894-kndx",
+      "timestamp": "2026-10-19T09:34:29.894Z",
+      "userName": "Administrator Proyek",
+      "userRole": "Administrator",
+      "action": "Catat Absensi Massal",
+      "module": "Absensi",
+      "details": "Mencatat absensi 10 karyawan pada tanggal 2026-10-19"
+    },
+    {
+      "id": "LOG-1792402440132-owpk",
+      "timestamp": "2026-10-19T09:34:00.132Z",
+      "userName": "Administrator Proyek",
+      "userRole": "Administrator",
+      "action": "Catat Pengeluaran Operasional",
+      "module": "Operasional",
+      "details": "Pengeluaran Owner (Rokok) senilai Rp 100.000"
+    },
+    {
+      "id": "LOG-1792402112304-llfu",
+      "timestamp": "2026-10-19T09:28:32.304Z",
+      "userName": "Administrator",
+      "userRole": "Administrator",
+      "action": "Reset Data Transaksi",
+      "module": "Sistem",
+      "details": "Membersihkan data transaksi kembali ke data 10 karyawan awal"
+    },
+    {
+      "id": "log-1792402112304",
+      "timestamp": "2026-10-19T09:28:32.304Z",
+      "userName": "Administrator",
+      "userRole": "Administrator",
+      "action": "Reset Data",
+      "module": "Sistem",
+      "details": "Data transaksi berhasil dibersihkan kembali ke data awal 10 karyawan."
+    }
+  ],
+  "users": [
+    {
+      "id": "USR-ADMIN-01",
+      "username": "admin",
+      "email": "admin@astabrata.com",
+      "name": "Administrator Proyek",
+      "role": "admin",
+      "salt": "e5a1b3c7d9f2468013579bdf02468ace",
+      "passwordHash": "9955fc54f93d60f99178b67d8f9ab27481f6d64c4d840f70f30d990d2e0307f805c2b2e171f38af28adc69d0a5c203abec13c6bc8b61a83a27d72220eb61f49f",
+      "createdAt": "2026-10-19T00:00:00.000Z"
+    },
+    {
+      "id": "USR-OWNER-01",
+      "username": "owner",
+      "email": "owner@astabrata.com",
+      "name": "Bpk. Ir. H. Bambang Prakoso (Owner)",
+      "role": "owner",
+      "salt": "f2468ace02468ace13579bdfa1b3c7d9",
+      "passwordHash": "aab2d3fe2af5c524f1df98d78975f2be6fb3fb101b9c090def5a914ea016aa700f5e164e5308be307c675d293587ce49c7fb2a24cab299406d0d7bed60893ed2",
+      "createdAt": "2026-10-19T00:00:00.000Z"
+    }
+  ],
+  "projects": [
+    {
+      "id": "PRJ-1792923867786-2wbi",
+      "code": "PRJ-001",
+      "name": "MERAK",
+      "location": "Merak",
+      "client": "-",
+      "startDate": "2026-10-19",
+      "targetEndDate": "",
+      "budget": 500000000,
+      "status": "Berjalan",
+      "description": "",
+      "createdAt": "2026-10-25T10:24:29.199Z"
+    }
+  ]
+}

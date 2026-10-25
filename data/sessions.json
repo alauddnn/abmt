@@ -1,0 +1,142 @@
+[
+  {
+    "token": "866cb264bd4a8951bbe49a0405e3032fc69fad710b4571570867a377f35535d2",
+    "userId": "USR-1792655739612-nnb4",
+    "username": "alalagi20",
+    "email": "alalagi20@gmail.com",
+    "name": "Administrator (Alalagi)",
+    "role": "admin",
+    "createdAt": "2026-10-22T08:02:48.303Z",
+    "expiresAt": "2026-11-21T08:02:48.303Z"
+  },
+  {
+    "token": "2e8bf2d3d06658da5f01c0d6e82acb3aa0d746e23b9372770922597fe94c9c00",
+    "userId": "USR-OWNER-01",
+    "username": "owner",
+    "email": "owner@astabrata.com",
+    "name": "Bpk. Ir. H. Bambang Prakoso (Owner)",
+    "role": "owner",
+    "createdAt": "2026-10-22T08:02:54.306Z",
+    "expiresAt": "2026-11-21T08:02:54.306Z"
+  },
+  {
+    "token": "8477e9ec37e6ef799b633d5f1c47358938e5cb5c63c8328e71e5ceaaafa4fd0c",
+    "userId": "USR-1792655739612-nnb4",
+    "username": "alalagi20",
+    "email": "alalagi20@gmail.com",
+    "name": "Administrator (Alalagi)",
+    "role": "admin",
+    "createdAt": "2026-10-22T08:44:43.045Z",
+    "expiresAt": "2026-11-21T08:44:43.045Z"
+  },
+  {
+    "token": "65d8b0293a3bde8b2333203b85dfabe3d86b1e293930a04ff86f533e4fb3970e",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-22T08:49:27.925Z",
+    "expiresAt": "2026-11-21T08:49:27.925Z"
+  },
+  {
+    "token": "f443e955023ffbe58839750e05ec88c4f1eb50a1df994f3cc0099ffbf2c79978",
+    "userId": "USR-OWNER-01",
+    "username": "owner",
+    "email": "owner@astabrata.com",
+    "name": "Bpk. Ir. H. Bambang Prakoso (Owner)",
+    "role": "owner",
+    "createdAt": "2026-10-22T08:49:43.258Z",
+    "expiresAt": "2026-11-21T08:49:43.258Z"
+  },
+  {
+    "token": "f1f2f505078f7d86a84301b0a066e62976cb629a25475916303fbd1a44da1a2b",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-22T08:51:45.043Z",
+    "expiresAt": "2026-11-21T08:51:45.043Z"
+  },
+  {
+    "token": "1fa96ce5600683cfcda95e0c2fce403d47e2d7555bf45b789394fba3fb488402",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-23T07:28:12.783Z",
+    "expiresAt": "2026-11-22T07:28:12.783Z"
+  },
+  {
+    "token": "dcc6fad7870cefca581fd35075fbd68ac025b63fc2894c46097cec6abcb6e487",
+    "userId": "USR-OWNER-01",
+    "username": "owner",
+    "email": "owner@astabrata.com",
+    "name": "Bpk. Acil",
+    "role": "owner",
+    "createdAt": "2026-10-23T07:28:12.855Z",
+    "expiresAt": "2026-11-22T07:28:12.855Z"
+  },
+  {
+    "token": "f1c189c0e7b43135a42a04d6f52b88949424859f8804f6631335e94d6fc8f823",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-23T07:28:19.667Z",
+    "expiresAt": "2026-11-22T07:28:19.667Z"
+  },
+  {
+    "token": "22beab013705c1b7ec0f64347bbcbdf64ed861470e079a4fe05008678d1c2a2b",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-23T07:28:56.810Z",
+    "expiresAt": "2026-11-22T07:28:56.810Z"
+  },
+  {
+    "token": "41578b2966a81801d96eeadb61c18220ab8686cef6a1c5261579e502329c45fb",
+    "userId": "USR-OWNER-01",
+    "username": "owner",
+    "email": "owner@astabrata.com",
+    "name": "Bpk. Acil",
+    "role": "owner",
+    "createdAt": "2026-10-23T07:28:56.886Z",
+    "expiresAt": "2026-11-22T07:28:56.886Z"
+  },
+  {
+    "token": "222620d830f614091435bf930529e375a08abd09c9c2cfdb40aef5853b8a342b",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-23T07:31:30.485Z",
+    "expiresAt": "2026-11-22T07:31:30.485Z"
+  },
+  {
+    "token": "e9593a69a13b3e4c9aa3e3348fb1786fe5c5568b94bf1942f73852a96afbf56d",
+    "userId": "USR-OWNER-01",
+    "username": "owner",
+    "email": "owner@astabrata.com",
+    "name": "Bpk. Acil",
+    "role": "owner",
+    "createdAt": "2026-10-23T07:31:30.559Z",
+    "expiresAt": "2026-11-22T07:31:30.559Z"
+  },
+  {
+    "token": "ae62ac4002866f8d37c72833149cf25c9bdc5418316e704fbda53ef1bd4e3568",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-23T07:53:27.467Z",
+    "expiresAt": "2026-11-22T07:53:27.467Z"
+  }
+]

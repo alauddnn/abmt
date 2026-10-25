@@ -1,0 +1,6 @@
+{
+  "name": "KONTRAKTOR MANAGEMENT SYSTEM",
+  "description": "Sistem Manajemen Operasional Perusahaan Kontraktor untuk Absensi, Penggajian, Lembur, Kasbon, dan Biaya Operasional Owner & Asisten",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
