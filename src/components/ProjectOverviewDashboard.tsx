@@ -48,7 +48,15 @@ import {
   KasbonRecord,
 } from '../types.js';
 import { api } from '../lib/api.js';
-import { formatRupiah, formatDateID, getTodayDateString } from '../lib/utils.js';
+import {
+  formatRupiah,
+  formatDateID,
+  getTodayDateString,
+  formatOvertimeDuration,
+  calculateOvertimePayFromHoursMinutes,
+  calculateBasicPayByStatus,
+  splitHoursMinutes,
+} from '../lib/utils.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useCompany } from '../context/CompanyContext.js';
 
@@ -282,17 +290,37 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
     }
   }, [viewingProofKasbon]);
 
-  // Attendance in Project modal
+  // Attendance in Project modal (Create & Edit with integrated Kasbon)
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
+  const [editingAttendance, setEditingAttendance] = useState<Attendance | null>(null);
+  const [savingAttendance, setSavingAttendance] = useState(false);
   const [attendanceDate, setAttendanceDate] = useState<string>(getTodayDateString());
   const [attendanceForm, setAttendanceForm] = useState({
     employeeId: '',
+    date: getTodayDateString(),
     status: 'Hadir',
     checkIn: '08:00',
     checkOut: '16:00',
     overtimeHours: 0,
+    durationHours: 0,
+    durationMinutes: 0,
     notes: '',
+    hasKasbon: false,
+    kasbonId: '',
+    kasbonAmount: '',
+    kasbonNotes: '',
+    existingKasbonAttachmentId: '',
+    existingKasbonAttachmentFileName: '',
+    removeKasbonPhoto: false,
   });
+  const [selectedAttKasbonPhoto, setSelectedAttKasbonPhoto] = useState<{
+    fileName: string;
+    dataBase64: string;
+    fileSize?: number;
+    mimeType?: string;
+  } | null>(null);
+  const [attKasbonPhotoError, setAttKasbonPhotoError] = useState<string | null>(null);
+  const attKasbonFileInputRef = useRef<HTMLInputElement>(null);
 
   // Overtime in Project modal
   const [isOvertimeModalOpen, setIsOvertimeModalOpen] = useState(false);
@@ -302,6 +330,8 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
     startTime: '16:00',
     endTime: '18:00',
     hours: 2,
+    durationHours: 2,
+    durationMinutes: 0,
     notes: '',
   });
 
@@ -745,7 +775,129 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
     }
   };
 
-  // Record Attendance for Project
+  // Open Create Attendance Modal
+  const openCreateAttendanceModal = () => {
+    if (!isAdmin) return;
+    const defaultEmpId =
+      assignments.find((a) => a.status === 'active' && a.employeeStatus !== 'inactive')?.employeeId ||
+      assignments[0]?.employeeId ||
+      '';
+    setEditingAttendance(null);
+    setAttendanceForm({
+      employeeId: defaultEmpId,
+      date: attendanceDate || getTodayDateString(),
+      status: 'Hadir',
+      checkIn: settings?.workHourStart || '08:00',
+      checkOut: settings?.workHourEnd || '16:00',
+      overtimeHours: 0,
+      durationHours: 0,
+      durationMinutes: 0,
+      notes: '',
+      hasKasbon: false,
+      kasbonId: '',
+      kasbonAmount: '',
+      kasbonNotes: '',
+      existingKasbonAttachmentId: '',
+      existingKasbonAttachmentFileName: '',
+      removeKasbonPhoto: false,
+    });
+    setSelectedAttKasbonPhoto(null);
+    setAttKasbonPhotoError(null);
+    if (attKasbonFileInputRef.current) {
+      attKasbonFileInputRef.current.value = '';
+    }
+    setIsAttendanceModalOpen(true);
+  };
+
+  // Open Edit Attendance Modal
+  const openEditAttendanceModal = (att: Attendance) => {
+    if (!isAdmin) return;
+    const hm = splitHoursMinutes(att.overtimeHours || 0);
+    const hasLinkedKasbon = Boolean(att.kasbonId || (att.kasbonAmount && att.kasbonAmount > 0));
+    const existingAttachment =
+      att.kasbonAttachments && att.kasbonAttachments.length > 0
+        ? att.kasbonAttachments[0]
+        : att.kasbonAttachmentFilePath && att.kasbonId
+        ? {
+            id: att.kasbonId,
+            fileName: `bukti_${att.kasbonNumber || 'kasbon'}.jpg`,
+          }
+        : null;
+
+    setEditingAttendance(att);
+    setAttendanceForm({
+      employeeId: att.employeeId,
+      date: att.date,
+      status: att.status,
+      checkIn: att.checkIn || settings?.workHourStart || '08:00',
+      checkOut: att.checkOut || (att.status === 'Setengah Hari' ? '12:00' : settings?.workHourEnd || '16:00'),
+      overtimeHours: att.overtimeHours || 0,
+      durationHours: hm.hours,
+      durationMinutes: hm.minutes,
+      notes: att.notes || '',
+      hasKasbon: hasLinkedKasbon,
+      kasbonId: att.kasbonId || '',
+      kasbonAmount: hasLinkedKasbon && att.kasbonAmount ? String(att.kasbonAmount) : '',
+      kasbonNotes: att.kasbonNotes || '',
+      existingKasbonAttachmentId: existingAttachment ? existingAttachment.id : '',
+      existingKasbonAttachmentFileName: existingAttachment ? existingAttachment.fileName : '',
+      removeKasbonPhoto: false,
+    });
+    setSelectedAttKasbonPhoto(null);
+    setAttKasbonPhotoError(null);
+    if (attKasbonFileInputRef.current) {
+      attKasbonFileInputRef.current.value = '';
+    }
+    setIsAttendanceModalOpen(true);
+  };
+
+  const handleAttKasbonPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setAttKasbonPhotoError('Format file harus berupa gambar (JPG, JPEG, PNG, atau WebP)');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAttKasbonPhotoError(`Ukuran file (${(file.size / (1024 * 1024)).toFixed(2)} MB) melebihi batas maksimal 5 MB`);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSelectedAttKasbonPhoto({
+        fileName: file.name,
+        dataBase64: reader.result as string,
+        fileSize: file.size,
+        mimeType: file.type,
+      });
+      setAttKasbonPhotoError(null);
+      setAttendanceForm((prev) => ({ ...prev, removeKasbonPhoto: false }));
+    };
+    reader.onerror = () => {
+      setAttKasbonPhotoError('Gagal membaca file gambar');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAttKasbonPhoto = () => {
+    setSelectedAttKasbonPhoto(null);
+    setAttKasbonPhotoError(null);
+    if (attKasbonFileInputRef.current) {
+      attKasbonFileInputRef.current.value = '';
+    }
+    if (attendanceForm.existingKasbonAttachmentId) {
+      setAttendanceForm((prev) => ({
+        ...prev,
+        existingKasbonAttachmentId: '',
+        existingKasbonAttachmentFileName: '',
+        removeKasbonPhoto: true,
+      }));
+    }
+  };
+
+  // Record or Edit Attendance for Project (with Integrated Kasbon)
   const handleAttendanceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) return;
@@ -754,23 +906,89 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
       return;
     }
 
+    const targetDate = editingAttendance ? (attendanceForm.date || editingAttendance.date) : (attendanceDate || attendanceForm.date);
+    if (!targetDate) {
+      showToast('error', 'Tanggal kehadiran wajib diisi.');
+      return;
+    }
+
+    const numKasbonAmount = Number(attendanceForm.kasbonAmount || 0);
+    if (attendanceForm.hasKasbon) {
+      if (!numKasbonAmount || numKasbonAmount <= 0 || isNaN(numKasbonAmount)) {
+        showToast('error', 'Nominal kasbon wajib diisi dan harus lebih besar dari Rp0.');
+        return;
+      }
+    }
+
+    const isWorking = attendanceForm.status === 'Hadir' || attendanceForm.status === 'Setengah Hari';
+    const dHours = isWorking ? Math.max(0, Math.floor(Number(attendanceForm.durationHours || 0))) : 0;
+    const dMins = isWorking ? Math.max(0, Math.min(59, Math.round(Number(attendanceForm.durationMinutes || 0)))) : 0;
+    const decHours = Number((dHours + dMins / 60).toFixed(4));
+
+    const kasbonAttachments =
+      attendanceForm.hasKasbon && selectedAttKasbonPhoto
+        ? [
+            {
+              fileName: selectedAttKasbonPhoto.fileName,
+              dataBase64: selectedAttKasbonPhoto.dataBase64,
+              fileSize: selectedAttKasbonPhoto.fileSize,
+              mimeType: selectedAttKasbonPhoto.mimeType,
+            },
+          ]
+        : [];
+
+    setSavingAttendance(true);
     try {
-      await api.recordAttendance({
-        date: attendanceDate,
+      const payload = {
+        date: targetDate,
         employeeId: attendanceForm.employeeId,
         projectId: project.id,
         status: attendanceForm.status as any,
-        checkIn: attendanceForm.status === 'Hadir' ? attendanceForm.checkIn : undefined,
-        checkOut: attendanceForm.status === 'Hadir' ? attendanceForm.checkOut : undefined,
-        overtimeHours: Number(attendanceForm.overtimeHours || 0),
+        checkIn: isWorking ? attendanceForm.checkIn : undefined,
+        checkOut: isWorking
+          ? attendanceForm.status === 'Setengah Hari' && attendanceForm.checkOut === '16:00'
+            ? '12:00'
+            : attendanceForm.checkOut
+          : undefined,
+        overtimeHours: decHours,
+        durationHours: dHours,
+        durationMinutes: dMins,
         notes: attendanceForm.notes,
-      });
-      showToast('success', 'Kehadiran proyek berhasil dicatat.');
+        hasKasbon: attendanceForm.hasKasbon,
+        kasbonId: attendanceForm.kasbonId || undefined,
+        kasbonAmount: attendanceForm.hasKasbon ? numKasbonAmount : 0,
+        kasbonNotes: attendanceForm.hasKasbon ? attendanceForm.kasbonNotes : '',
+        kasbonAttachments,
+        removeKasbonPhoto: attendanceForm.removeKasbonPhoto,
+      };
+
+      if (editingAttendance) {
+        await api.updateAttendance(editingAttendance.id, payload);
+        showToast(
+          'success',
+          attendanceForm.hasKasbon
+            ? `Perubahan kehadiran dan kasbon (${formatRupiah(numKasbonAmount)}) berhasil disimpan.`
+            : 'Perubahan kehadiran proyek berhasil disimpan.'
+        );
+      } else {
+        await api.recordAttendance(payload);
+        showToast(
+          'success',
+          attendanceForm.hasKasbon
+            ? `Kehadiran dan pengajuan kasbon (${formatRupiah(numKasbonAmount)}) berhasil disimpan.`
+            : 'Kehadiran proyek berhasil dicatat.'
+        );
+      }
+
       setIsAttendanceModalOpen(false);
+      setEditingAttendance(null);
+      setSelectedAttKasbonPhoto(null);
       fetchStats();
       fetchModuleData('absensi');
     } catch (err: any) {
-      showToast('error', err.message || 'Gagal mencatat kehadiran');
+      showToast('error', err.message || 'Gagal menyimpan data kehadiran');
+    } finally {
+      setSavingAttendance(false);
     }
   };
 
@@ -783,6 +1001,14 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
       return;
     }
 
+    const dHours = Math.max(0, Math.floor(Number(overtimeForm.durationHours || 0)));
+    const dMins = Math.max(0, Math.min(59, Math.round(Number(overtimeForm.durationMinutes || 0))));
+    const decHours = Number((dHours + dMins / 60).toFixed(4));
+    if (decHours <= 0) {
+      showToast('error', 'Durasi lembur harus lebih besar dari 0 menit.');
+      return;
+    }
+
     try {
       await api.recordOvertime({
         date: overtimeForm.date,
@@ -790,7 +1016,9 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
         projectId: project.id,
         startTime: overtimeForm.startTime,
         endTime: overtimeForm.endTime,
-        hours: Number(overtimeForm.hours),
+        hours: decHours,
+        durationHours: dHours,
+        durationMinutes: dMins,
         notes: overtimeForm.notes,
       } as any);
       showToast('success', 'Catatan lembur proyek berhasil disimpan.');
@@ -997,7 +1225,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
 
             {isAdmin && activeModule === 'absensi' && (
               <button
-                onClick={() => setIsAttendanceModalOpen(true)}
+                onClick={openCreateAttendanceModal}
                 className="bg-[#4693FD] hover:bg-[#1849A9] text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -1012,29 +1240,6 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Catat Lembur</span>
-              </button>
-            )}
-
-            {isAdmin && activeModule === 'kasbon' && (
-              <button
-                onClick={() => {
-                  const defaultEmpId = assignments.find((a) => a.status === 'active' && a.employeeStatus !== 'inactive')?.employeeId || '';
-                  setKasbonForm({
-                    employeeId: defaultEmpId,
-                    requestDate: getTodayDateString(),
-                    amount: '',
-                    reason: '',
-                    adminNotes: '',
-                    targetPaymentPeriod: '',
-                  });
-                  setSelectedKasbonPhoto(null);
-                  setKasbonPhotoError(null);
-                  setIsAddKasbonModalOpen(true);
-                }}
-                className="bg-[#4693FD] hover:bg-[#1849A9] text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ Tambah Kasbon</span>
               </button>
             )}
 
@@ -1112,10 +1317,10 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   <CalendarCheck className="w-5 h-5" />
                 </div>
                 <h3 className="text-sm font-bold text-[#1D2939] group-hover:text-[#4693FD] transition-colors">
-                  B. Absensi Karyawan
+                  B. Absensi Karyawan Proyek
                 </h3>
                 <p className="text-xs text-[#667085] mt-1.5 leading-relaxed">
-                  Pencatatan dan monitoring kehadiran harian, jam masuk/pulang, dan status kehadiran di proyek.
+                  Pencatatan dan edit kehadiran harian (penuh/setengah hari), jam lembur aktual, serta pengajuan kasbon terintegrasi.
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-[#F2F4F7] flex items-center justify-between text-xs">
@@ -1145,30 +1350,6 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
               <div className="mt-4 pt-3 border-t border-[#F2F4F7] flex items-center justify-between text-xs">
                 <span className="font-semibold text-[#B54708]">
                   {stats.overtimeCount} Karyawan Lembur
-                </span>
-                <ChevronRight className="w-4 h-4 text-[#98A2B3] group-hover:translate-x-1 transition-transform" />
-              </div>
-            </div>
-
-            {/* D. Kasbon Karyawan */}
-            <div
-              onClick={() => setActiveModule('kasbon')}
-              className="bg-white p-5 rounded-2xl border border-[#EAECF0] hover:border-[#4693FD] shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <div className="w-10 h-10 rounded-xl bg-[#F9F5FF] text-[#6941C6] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-                  <Wallet className="w-5 h-5" />
-                </div>
-                <h3 className="text-sm font-bold text-[#1D2939] group-hover:text-[#4693FD] transition-colors">
-                  D. Kasbon Karyawan Proyek
-                </h3>
-                <p className="text-xs text-[#667085] mt-1.5 leading-relaxed">
-                  Monitoring saldo kasbon aktif, riwayat pemotongan, dan memastikan tidak ada duplikasi pada rekap gaji.
-                </p>
-              </div>
-              <div className="mt-4 pt-3 border-t border-[#F2F4F7] flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#6941C6]">
-                  {formatRupiah(stats.totalKasbon)} Aktif
                 </span>
                 <ChevronRight className="w-4 h-4 text-[#98A2B3] group-hover:translate-x-1 transition-transform" />
               </div>
@@ -1601,10 +1782,10 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
               <div>
                 <h3 className="text-sm font-bold text-[#1D2939]">Presensi & Absensi Karyawan Proyek</h3>
                 <p className="text-xs text-[#667085]">
-                  Catatan kehadiran harian di lokasi proyek {project.name}
+                  Catatan kehadiran harian, durasi lembur, dan kasbon terintegrasi di lokasi proyek {project.name}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-[#667085]">Filter Tanggal:</span>
                 <input
                   type="date"
@@ -1612,6 +1793,25 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   onChange={(e) => setAttendanceDate(e.target.value)}
                   className="px-2.5 py-1 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
                 />
+                {attendanceDate && (
+                  <button
+                    type="button"
+                    onClick={() => setAttendanceDate('')}
+                    className="text-xs text-[#4693FD] hover:underline px-1"
+                  >
+                    Semua Tanggal
+                  </button>
+                )}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={openCreateAttendanceModal}
+                    className="bg-[#4693FD] hover:bg-[#1849A9] text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Catat Kehadiran</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1626,57 +1826,137 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                     <th className="py-3 px-4 text-center">Status Kehadiran</th>
                     <th className="py-3 px-4 text-center">Jam Lembur</th>
                     <th className="py-3 px-4 text-right">Upah Harian</th>
+                    <th className="py-3 px-4 text-right">Kasbon</th>
                     <th className="py-3 px-4">Keterangan</th>
+                    {isAdmin && <th className="py-3 px-4 text-center">Aksi</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
                   {loadingModuleData ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-[#667085]">
+                      <td colSpan={isAdmin ? 10 : 9} className="py-8 text-center text-[#667085]">
                         Memuat data absensi...
                       </td>
                     </tr>
                   ) : attendanceList.filter((a) => !attendanceDate || a.date === attendanceDate).length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-[#667085]">
-                        Belum ada catatan presensi pada tanggal {formatDateID(attendanceDate)}.
+                      <td colSpan={isAdmin ? 10 : 9} className="py-8 text-center text-[#667085]">
+                        Belum ada catatan presensi{attendanceDate ? ` pada tanggal ${formatDateID(attendanceDate)}` : ''}.
                       </td>
                     </tr>
                   ) : (
                     attendanceList
                       .filter((a) => !attendanceDate || a.date === attendanceDate)
-                      .map((att) => (
-                        <tr key={att.id} className="hover:bg-[#F9FAFB] transition-colors">
-                          <td className="py-3 px-4 text-[#667085]">{formatDateID(att.date)}</td>
-                          <td className="py-3 px-4 font-semibold text-[#1D2939]">{att.employeeName}</td>
-                          <td className="py-3 px-4 text-[#475467]">{att.employeeRole}</td>
-                          <td className="py-3 px-4 text-[#475467]">
-                            {att.checkIn && att.checkOut ? `${att.checkIn} - ${att.checkOut}` : '-'}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <span
-                              className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${
-                                att.status === 'Hadir'
-                                  ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5]'
-                                  : att.status === 'Sakit'
-                                  ? 'bg-[#EFF8FF] text-[#175CD3] border-[#B2DDFF]'
-                                  : att.status === 'Izin'
-                                  ? 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]'
-                                  : 'bg-[#FEF3F2] text-[#B42318] border-[#FECDCA]'
-                              }`}
-                            >
-                              {att.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-center font-mono">
-                            {att.overtimeHours ? `${att.overtimeHours} jam` : '-'}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
-                            {formatRupiah(att.dailyWageSnapshot)}
-                          </td>
-                          <td className="py-3 px-4 text-[#667085]">{att.notes || '-'}</td>
-                        </tr>
-                      ))
+                      .map((att) => {
+                        const hasKasbonData = Boolean(att.kasbonAmount && att.kasbonAmount > 0);
+                        const hasKasbonPhoto = Boolean(
+                          (att.kasbonAttachments && att.kasbonAttachments.length > 0) ||
+                            att.kasbonAttachmentFilePath
+                        );
+
+                        return (
+                          <tr key={att.id} className="hover:bg-[#F9FAFB] transition-colors">
+                            <td className="py-3 px-4 text-[#667085] whitespace-nowrap">{formatDateID(att.date)}</td>
+                            <td className="py-3 px-4 font-semibold text-[#1D2939]">{att.employeeName}</td>
+                            <td className="py-3 px-4 text-[#475467]">{att.employeeRole}</td>
+                            <td className="py-3 px-4 text-[#475467] font-mono">
+                              {att.status === 'Hadir' || att.status === 'Setengah Hari'
+                                ? `${att.checkIn} - ${att.checkOut}`
+                                : '-'}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span
+                                className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${
+                                  att.status === 'Hadir'
+                                    ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5]'
+                                    : att.status === 'Setengah Hari'
+                                    ? 'bg-[#F0F9FF] text-[#026AA2] border-[#B9E6FE]'
+                                    : att.status === 'Sakit'
+                                    ? 'bg-[#EFF8FF] text-[#175CD3] border-[#B2DDFF]'
+                                    : att.status === 'Izin'
+                                    ? 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]'
+                                    : 'bg-[#FEF3F2] text-[#B42318] border-[#FECDCA]'
+                                }`}
+                              >
+                                {att.status === 'Setengah Hari' ? 'Setengah Hari (½)' : att.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-center font-mono">
+                              {att.overtimeHours ? formatOvertimeDuration(att.overtimeHours) : '-'}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
+                              <div>{formatRupiah(calculateBasicPayByStatus(att.status, att.dailyWageSnapshot))}</div>
+                              {att.status === 'Setengah Hari' && (
+                                <span className="text-[10px] text-[#026AA2]">
+                                  50% dari {formatRupiah(att.dailyWageSnapshot)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              {hasKasbonData ? (
+                                <div className="space-y-1">
+                                  <div className="font-mono font-semibold text-[#6941C6]">
+                                    {formatRupiah(att.kasbonAmount || 0)}
+                                  </div>
+                                  {att.kasbonNotes && (
+                                    <div className="text-[10px] text-[#667085] max-w-[140px] truncate ml-auto">
+                                      {att.kasbonNotes}
+                                    </div>
+                                  )}
+                                  {hasKasbonPhoto && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setViewingProofKasbon({
+                                          id: att.kasbonId || att.id,
+                                          kasbonNumber: att.kasbonNumber || 'KB-ABSENSI',
+                                          employeeId: att.employeeId,
+                                          employeeName: att.employeeName,
+                                          employeeRole: att.employeeRole,
+                                          employeeStartDate: att.date,
+                                          requestDate: att.date,
+                                          eligibilityDate: att.date,
+                                          isEligible: true,
+                                          eligibilityReason: 'Kasbon Absensi',
+                                          amount: att.kasbonAmount || 0,
+                                          reason: att.kasbonNotes || 'Kasbon Absensi',
+                                          status: (att.kasbonStatus as any) || 'Disetujui',
+                                          deductedAmount: 0,
+                                          remainingAmount: att.kasbonAmount || 0,
+                                          adminNotes: att.kasbonNotes || '',
+                                          attachmentFilePath: att.kasbonAttachmentFilePath,
+                                          attachments: att.kasbonAttachments,
+                                          auditTrail: [],
+                                        })
+                                      }
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#F9F5FF] hover:bg-[#F4EBFF] text-[#6941C6] border border-[#E9D7FE] text-[10px] font-medium transition-colors"
+                                    >
+                                      <ImageIcon className="w-3 h-3" />
+                                      <span>Lihat Bukti</span>
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-[#98A2B3]">-</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-[#667085]">{att.notes || '-'}</td>
+                            {isAdmin && (
+                              <td className="py-3 px-4 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditAttendanceModal(att)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#EFF5FF] text-[#344054] hover:text-[#155EEF] border border-[#D0D5DD] hover:border-[#4693FD] rounded-lg text-xs font-semibold transition-colors shadow-2xs"
+                                  title="Edit Kehadiran & Kasbon"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                  <span>Edit</span>
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })
                   )}
                 </tbody>
               </table>
@@ -1735,7 +2015,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                           {ot.startTime} - {ot.endTime}
                         </td>
                         <td className="py-3 px-4 text-center font-mono font-semibold text-[#1D2939]">
-                          {ot.hours} jam
+                          {formatOvertimeDuration(ot.hours)}
                         </td>
                         <td className="py-3 px-4 text-right font-mono text-[#667085]">
                           {formatRupiah(ot.hourlyRateSnapshot)}
@@ -2221,9 +2501,19 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
               </thead>
               <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
                 <tr>
-                  <td className="py-3 px-4 font-semibold text-[#1D2939]">1. Gaji Pokok Harian</td>
+                  <td className="py-3 px-4 font-semibold text-[#1D2939]">1. Gaji Pokok Harian (Penuh & Setengah Hari)</td>
                   <td className="py-3 px-4 text-[#667085]">
-                    {recapData?.summary?.totalWorkDays || 0} Hari kerja tercatat
+                    <div>
+                      Total {recapData?.summary?.totalWorkDays || 0} hari kerja efektif
+                    </div>
+                    <div className="text-[11px] text-[#475467] mt-0.5">
+                      • Penuh: {recapData?.summary?.fullWorkDays ?? recapData?.summary?.totalWorkDays ?? 0} hari ({formatRupiah(recapData?.summary?.fullDaySalary ?? recapData?.summary?.totalBasicSalary ?? 0)})
+                      {(recapData?.summary?.halfWorkDays || 0) > 0 && (
+                        <span className="ml-2 text-[#026AA2] font-medium">
+                          • Setengah Hari: {recapData?.summary?.halfWorkDays}x ({formatRupiah(recapData?.summary?.halfDaySalary || 0)})
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
                     {formatRupiah(recapData?.summary?.totalBasicSalary || 0)}
@@ -2231,7 +2521,9 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 </tr>
                 <tr>
                   <td className="py-3 px-4 font-semibold text-[#1D2939]">2. Upah Lembur Disetujui</td>
-                  <td className="py-3 px-4 text-[#667085]">Lembur tenaga kerja lapangan</td>
+                  <td className="py-3 px-4 text-[#667085]">
+                    Lembur tenaga kerja lapangan ({formatOvertimeDuration(recapData?.summary?.totalOvertimeHours || 0)})
+                  </td>
                   <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
                     {formatRupiah(recapData?.summary?.totalOvertimePay || 0)}
                   </td>
@@ -3092,24 +3384,35 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
         </div>
       )}
 
-      {/* MODAL 3: CATAT PRESENSI PROYEK */}
+      {/* MODAL 3: CATAT / EDIT PRESENSI PROYEK (DENGAN PENGAJUAN KASBON TERINTEGRASI) */}
       {isAttendanceModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full border border-[#EAECF0] shadow-xl overflow-hidden">
-            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-[#EAECF0] shadow-xl overflow-hidden my-8">
+            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between bg-[#F8F9FA]">
               <div>
-                <h3 className="text-base font-bold text-[#1D2939]">Catat Kehadiran Proyek</h3>
-                <p className="text-xs text-[#667085] mt-0.5">Proyek: {project.name}</p>
+                <h3 className="text-base font-bold text-[#1D2939]">
+                  {editingAttendance ? 'Edit Kehadiran Proyek' : 'Catat Kehadiran Proyek'}
+                </h3>
+                <p className="text-xs text-[#667085] mt-0.5">
+                  Proyek: {project.name} · Tanggal: {formatDateID(editingAttendance ? attendanceForm.date : (attendanceDate || attendanceForm.date))}
+                </p>
               </div>
               <button
-                onClick={() => setIsAttendanceModalOpen(false)}
+                type="button"
+                onClick={() => {
+                  setIsAttendanceModalOpen(false);
+                  setEditingAttendance(null);
+                  setSelectedAttKasbonPhoto(null);
+                }}
+                disabled={savingAttendance}
                 className="p-1 text-[#667085] hover:text-[#1D2939] rounded"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAttendanceSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleAttendanceSubmit} className="p-5 space-y-4 max-h-[82vh] overflow-y-auto">
+              {/* 1. Pilih Karyawan */}
               <div>
                 <label className="text-xs font-semibold text-[#344054] block mb-1">
                   Pilih Karyawan Ditugaskan *
@@ -3129,37 +3432,93 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-[#344054] block mb-1">
-                    Status Kehadiran *
-                  </label>
-                  <select
-                    value={attendanceForm.status}
-                    onChange={(e) => setAttendanceForm({ ...attendanceForm, status: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
-                  >
-                    <option value="Hadir">Hadir</option>
-                    <option value="Sakit">Sakit</option>
-                    <option value="Izin">Izin</option>
-                    <option value="Alpa">Alpa</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-[#344054] block mb-1">
-                    Jam Lembur (Jam)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    value={attendanceForm.overtimeHours}
-                    onChange={(e) => setAttendanceForm({ ...attendanceForm, overtimeHours: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-mono text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
-                  />
-                </div>
+              {/* 2. Status Kehadiran */}
+              <div>
+                <label className="text-xs font-semibold text-[#344054] block mb-1">
+                  Status Kehadiran *
+                </label>
+                <select
+                  value={attendanceForm.status}
+                  onChange={(e) => {
+                    const nextStatus = e.target.value;
+                    setAttendanceForm({
+                      ...attendanceForm,
+                      status: nextStatus,
+                      checkOut: nextStatus === 'Setengah Hari' ? '12:00' : '16:00',
+                    });
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                >
+                  <option value="Hadir">Hadir Penuh (100% Upah Harian)</option>
+                  <option value="Setengah Hari">Setengah Hari (50% Upah Harian ÷ 2)</option>
+                  <option value="Sakit">Sakit</option>
+                  <option value="Izin">Izin</option>
+                  <option value="Tidak Hadir">Tidak Hadir / Alpa</option>
+                </select>
               </div>
 
+              {/* 3. Durasi Lembur */}
+              {(attendanceForm.status === 'Hadir' || attendanceForm.status === 'Setengah Hari') && (
+                <div className="bg-[#F8F9FA] p-3 rounded-xl border border-[#EAECF0] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-[#344054]">
+                      Durasi Lembur (Jam & Menit)
+                    </label>
+                    <div className="flex gap-1">
+                      {[0, 15, 30, 45].map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setAttendanceForm({ ...attendanceForm, durationMinutes: m })}
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-colors ${
+                            attendanceForm.durationMinutes === m
+                              ? 'bg-[#4693FD] text-white border-[#4693FD]'
+                              : 'bg-white text-[#475467] border-[#D0D5DD] hover:bg-[#F2F4F7]'
+                          }`}
+                        >
+                          {m} mnt
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[11px] text-[#667085] block mb-1">Jam</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="15"
+                        value={attendanceForm.durationHours}
+                        onChange={(e) =>
+                          setAttendanceForm({
+                            ...attendanceForm,
+                            durationHours: Math.max(0, Math.floor(Number(e.target.value))),
+                          })
+                        }
+                        className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs font-mono text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-[#667085] block mb-1">Menit (0-59)</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="59"
+                        value={attendanceForm.durationMinutes}
+                        onChange={(e) =>
+                          setAttendanceForm({
+                            ...attendanceForm,
+                            durationMinutes: Math.max(0, Math.min(59, Math.round(Number(e.target.value)))),
+                          })
+                        }
+                        className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs font-mono text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Catatan Kehadiran */}
               <div>
                 <label className="text-xs font-semibold text-[#344054] block mb-1">
                   Catatan / Keterangan
@@ -3173,19 +3532,240 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 />
               </div>
 
-              <div className="pt-2 flex justify-end gap-2 border-t border-[#EAECF0]">
+              {/* 5. Bagian Pengajuan Kasbon */}
+              <div className="pt-3 border-t border-[#EAECF0] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-[#1D2939] flex items-center gap-1.5">
+                      <Wallet className="w-3.5 h-3.5 text-[#6941C6]" />
+                      <span>Pengajuan Kasbon</span>
+                    </h4>
+                    <p className="text-[11px] text-[#667085]">
+                      Karyawan penerima kasbon otomatis mengikuti karyawan pada form absensi ini
+                    </p>
+                  </div>
+
+                  {/* Pilihan "Ajukan Kasbon?" dengan opsi Tidak atau Ya */}
+                  <div className="flex items-center gap-1 bg-[#F2F4F7] p-1 rounded-lg border border-[#D0D5DD]">
+                    <button
+                      type="button"
+                      onClick={() => setAttendanceForm({ ...attendanceForm, hasKasbon: false })}
+                      className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                        !attendanceForm.hasKasbon
+                          ? 'bg-white text-[#1D2939] shadow-2xs'
+                          : 'text-[#667085] hover:text-[#1D2939]'
+                      }`}
+                    >
+                      Tidak
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAttendanceForm({ ...attendanceForm, hasKasbon: true })}
+                      className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                        attendanceForm.hasKasbon
+                          ? 'bg-[#6941C6] text-white shadow-2xs'
+                          : 'text-[#667085] hover:text-[#1D2939]'
+                      }`}
+                    >
+                      Ya
+                    </button>
+                  </div>
+                </div>
+
+                {attendanceForm.hasKasbon && (
+                  <div className="p-3.5 bg-[#F9F5FF]/60 rounded-xl border border-[#E9D7FE] space-y-3">
+                    {/* 6. Nominal Kasbon */}
+                    <div>
+                      <label className="text-xs font-semibold text-[#344054] block mb-1">
+                        Nominal Kasbon (Rp) <span className="text-[#D92D20]">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="any"
+                        placeholder="Masukkan nominal kasbon (contoh: 300000)"
+                        value={attendanceForm.kasbonAmount}
+                        onChange={(e) => setAttendanceForm({ ...attendanceForm, kasbonAmount: e.target.value })}
+                        required={attendanceForm.hasKasbon}
+                        className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-mono font-bold text-[#1D2939] focus:outline-none focus:border-[#6941C6]"
+                      />
+                      {Number(attendanceForm.kasbonAmount) > 0 && (
+                        <span className="text-[11px] font-mono font-semibold text-[#6941C6] mt-1 block">
+                          {formatRupiah(Number(attendanceForm.kasbonAmount))}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* 7. Keterangan Kasbon */}
+                    <div>
+                      <label className="text-xs font-semibold text-[#344054] block mb-1">
+                        Keterangan Kasbon
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: Kebutuhan keluarga / Biaya berobat / Pinjaman harian..."
+                        value={attendanceForm.kasbonNotes}
+                        onChange={(e) => setAttendanceForm({ ...attendanceForm, kasbonNotes: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#6941C6]"
+                      />
+                      <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                        {[
+                          'Kebutuhan keluarga mendesak',
+                          'Biaya berobat / beli obat',
+                          'Keperluan anak sekolah',
+                          'Ongkos transportasi darurat',
+                        ].map((sug) => (
+                          <button
+                            key={sug}
+                            type="button"
+                            onClick={() => setAttendanceForm({ ...attendanceForm, kasbonNotes: sug })}
+                            className="px-2 py-0.5 rounded bg-white hover:bg-[#F4EBFF] text-[#6941C6] border border-[#E9D7FE] text-[10px] font-medium transition-colors"
+                          >
+                            + {sug}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 8. Upload Bukti Kasbon + Pratinjau + Tombol Ganti/Hapus */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-semibold text-[#344054]">
+                          Upload Bukti Kasbon <span className="text-[#667085] font-normal">(Opsional)</span>
+                        </label>
+                        <span className="text-[10px] text-[#667085]">Maks. 5 MB · JPG, PNG, WebP</span>
+                      </div>
+
+                      <input
+                        type="file"
+                        ref={attKasbonFileInputRef}
+                        accept="image/*"
+                        onChange={handleAttKasbonPhotoChange}
+                        className="hidden"
+                      />
+
+                      {selectedAttKasbonPhoto ? (
+                        <div className="p-2.5 bg-white rounded-xl border border-[#D0D5DD] space-y-2">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={selectedAttKasbonPhoto.dataBase64}
+                              alt="Pratinjau Bukti Kasbon"
+                              className="w-16 h-16 object-cover rounded-lg border border-[#EAECF0] shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-[#1D2939] truncate">
+                                {selectedAttKasbonPhoto.fileName}
+                              </p>
+                              <p className="text-[11px] text-[#667085]">
+                                {selectedAttKasbonPhoto.fileSize
+                                  ? `${(selectedAttKasbonPhoto.fileSize / 1024).toFixed(0)} KB`
+                                  : 'Foto bukti siap disimpan'}
+                              </p>
+                              <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-[#ECFDF3] text-[#027A48] text-[10px] font-medium">
+                                ✓ Pratinjau foto baru
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-[#F2F4F7]">
+                            <button
+                              type="button"
+                              onClick={() => attKasbonFileInputRef.current?.click()}
+                              className="px-2.5 py-1 bg-[#F8F9FA] hover:bg-[#EEF2F6] text-[#344054] border border-[#D0D5DD] rounded-lg text-[11px] font-semibold transition-colors"
+                            >
+                              Ganti Foto
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleRemoveAttKasbonPhoto}
+                              className="px-2.5 py-1 bg-[#FEF3F2] hover:bg-[#FEE4E2] text-[#D92D20] border border-[#FECDCA] rounded-lg text-[11px] font-semibold transition-colors"
+                            >
+                              Hapus Foto
+                            </button>
+                          </div>
+                        </div>
+                      ) : attendanceForm.existingKasbonAttachmentId && !attendanceForm.removeKasbonPhoto ? (
+                        <div className="p-2.5 bg-white rounded-xl border border-[#D0D5DD] space-y-2">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={getKasbonPhotoViewUrl(attendanceForm.existingKasbonAttachmentId)}
+                              alt="Bukti Kasbon Tersimpan"
+                              className="w-16 h-16 object-cover rounded-lg border border-[#EAECF0] shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-[#1D2939] truncate">
+                                {attendanceForm.existingKasbonAttachmentFileName || 'Bukti Kasbon Tersimpan'}
+                              </p>
+                              <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-[#EFF5FF] text-[#155EEF] text-[10px] font-medium">
+                                Tersimpan di Supabase Storage
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-[#F2F4F7]">
+                            <button
+                              type="button"
+                              onClick={() => attKasbonFileInputRef.current?.click()}
+                              className="px-2.5 py-1 bg-[#F8F9FA] hover:bg-[#EEF2F6] text-[#344054] border border-[#D0D5DD] rounded-lg text-[11px] font-semibold transition-colors"
+                            >
+                              Ganti Foto
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleRemoveAttKasbonPhoto}
+                              className="px-2.5 py-1 bg-[#FEF3F2] hover:bg-[#FEE4E2] text-[#D92D20] border border-[#FECDCA] rounded-lg text-[11px] font-semibold transition-colors"
+                            >
+                              Hapus Foto
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => attKasbonFileInputRef.current?.click()}
+                          className="w-full py-3.5 border-2 border-dashed border-[#D0D5DD] hover:border-[#6941C6] bg-white hover:bg-[#F9F5FF] rounded-xl flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <Upload className="w-4 h-4 text-[#6941C6]" />
+                          <span className="text-xs font-semibold text-[#344054]">
+                            Upload Foto Bukti Transfer / Pembayaran Kasbon
+                          </span>
+                          <span className="text-[10px] text-[#667085]">Klik untuk memilih foto bukti</span>
+                        </button>
+                      )}
+
+                      {attKasbonPhotoError && (
+                        <div className="mt-1.5 p-2 bg-[#FEF3F2] border border-[#FECDCA] text-[#B42318] rounded-lg text-[11px] flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{attKasbonPhotoError}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 9. Tombol Batal dan Simpan */}
+              <div className="pt-3 flex justify-end gap-2 border-t border-[#EAECF0]">
                 <button
                   type="button"
-                  onClick={() => setIsAttendanceModalOpen(false)}
+                  onClick={() => {
+                    setIsAttendanceModalOpen(false);
+                    setEditingAttendance(null);
+                    setSelectedAttKasbonPhoto(null);
+                  }}
+                  disabled={savingAttendance}
                   className="px-4 py-2 border border-[#D0D5DD] rounded-lg text-xs font-semibold text-[#344054] hover:bg-[#F9FAFB]"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#4693FD] hover:bg-[#1849A9] text-white rounded-lg text-xs font-semibold transition-colors"
+                  disabled={savingAttendance}
+                  className="px-4 py-2 bg-[#4693FD] hover:bg-[#1849A9] text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
                 >
-                  Simpan Presensi
+                  {savingAttendance
+                    ? 'Menyimpan...'
+                    : editingAttendance
+                    ? 'Simpan Perubahan'
+                    : 'Simpan Presensi'}
                 </button>
               </div>
             </form>
@@ -3230,33 +3810,116 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-[#344054] block mb-1">
-                    Tanggal Lembur *
+              <div>
+                <label className="text-xs font-semibold text-[#344054] block mb-1">
+                  Tanggal Lembur *
+                </label>
+                <input
+                  type="date"
+                  value={overtimeForm.date}
+                  onChange={(e) => setOvertimeForm({ ...overtimeForm, date: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                />
+              </div>
+
+              <div className="bg-[#F8F9FA] p-3.5 rounded-xl border border-[#EAECF0] space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[#344054]">
+                    Durasi Lembur Aktual (Jam & Menit) *
                   </label>
-                  <input
-                    type="date"
-                    value={overtimeForm.date}
-                    onChange={(e) => setOvertimeForm({ ...overtimeForm, date: e.target.value })}
-                    required
-                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
-                  />
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      { label: '1j', h: 1, m: 0 },
+                      { label: '1j 30m', h: 1, m: 30 },
+                      { label: '2j', h: 2, m: 0 },
+                      { label: '2j 30m', h: 2, m: 30 },
+                      { label: '3j', h: 3, m: 0 },
+                    ].map((p) => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() =>
+                          setOvertimeForm({
+                            ...overtimeForm,
+                            durationHours: p.h,
+                            durationMinutes: p.m,
+                            hours: Number((p.h + p.m / 60).toFixed(4)),
+                          })
+                        }
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-colors ${
+                          overtimeForm.durationHours === p.h && overtimeForm.durationMinutes === p.m
+                            ? 'bg-[#4693FD] text-white border-[#4693FD]'
+                            : 'bg-white text-[#475467] border-[#D0D5DD] hover:bg-[#F2F4F7]'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-[#344054] block mb-1">
-                    Durasi Lembur (Jam) *
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="12"
-                    value={overtimeForm.hours}
-                    onChange={(e) => setOvertimeForm({ ...overtimeForm, hours: Number(e.target.value) })}
-                    required
-                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-mono font-semibold text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
-                  />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[11px] text-[#667085] block mb-1">Jam</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="15"
+                      value={overtimeForm.durationHours}
+                      onChange={(e) => {
+                        const h = Math.max(0, Math.floor(Number(e.target.value)));
+                        setOvertimeForm({
+                          ...overtimeForm,
+                          durationHours: h,
+                          hours: Number((h + overtimeForm.durationMinutes / 60).toFixed(4)),
+                        });
+                      }}
+                      required
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-mono font-semibold text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-[#667085] block mb-1">Menit (0 - 59)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      value={overtimeForm.durationMinutes}
+                      onChange={(e) => {
+                        const m = Math.max(0, Math.min(59, Math.round(Number(e.target.value))));
+                        setOvertimeForm({
+                          ...overtimeForm,
+                          durationMinutes: m,
+                          hours: Number((overtimeForm.durationHours + m / 60).toFixed(4)),
+                        });
+                      }}
+                      required
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-mono font-semibold text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                    />
+                  </div>
                 </div>
+
+                {overtimeForm.employeeId && (() => {
+                  const selAsg = assignments.find((a) => a.employeeId === overtimeForm.employeeId);
+                  const role = selAsg?.roleInProject || selAsg?.employeeRole || 'Tukang';
+                  const rate = selAsg?.overtimeHourlyWage ?? getDefaultWages(role).overtime;
+                  const estPay = calculateOvertimePayFromHoursMinutes(
+                    overtimeForm.durationHours,
+                    overtimeForm.durationMinutes,
+                    rate
+                  );
+                  return (
+                    <div className="pt-2 border-t border-[#EAECF0] flex items-center justify-between text-xs">
+                      <span className="text-[#475467]">
+                        Tarif {role}: <span className="font-mono font-medium">{formatRupiah(rate)}/jam</span>
+                      </span>
+                      <span className="font-mono font-bold text-[#155EEF]">
+                        Total: {formatRupiah(estPay)}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div>

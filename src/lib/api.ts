@@ -270,7 +270,7 @@ export const api = {
 
   // Settings
   getSettings: () => request<CompanySettings>('/settings'),
-  updateSettings: (settings: Partial<CompanySettings>) =>
+  updateSettings: (settings: Partial<CompanySettings> & { syncActiveEmployees?: boolean }) =>
     request<CompanySettings>('/settings', {
       method: 'PUT',
       body: JSON.stringify(settings),
@@ -298,7 +298,18 @@ export const api = {
     const query = new URLSearchParams(params as any).toString();
     return request<Attendance[]>(`/attendance${query ? `?${query}` : ''}`);
   },
-  recordAttendance: (data: Partial<Attendance>) =>
+  recordAttendance: (
+    data: Omit<Partial<Attendance>, 'kasbonAttachments'> & {
+      durationHours?: number;
+      durationMinutes?: number;
+      hasKasbon?: boolean;
+      kasbonId?: string;
+      kasbonAmount?: number;
+      kasbonNotes?: string;
+      kasbonAttachments?: Array<{ fileName: string; dataBase64: string; fileSize?: number; mimeType?: string }>;
+      removeKasbonPhoto?: boolean;
+    }
+  ) =>
     request<Attendance>('/attendance', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -308,7 +319,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ date, entries }),
     }),
-  updateAttendance: (id: string, data: Partial<Attendance>) =>
+  updateAttendance: (
+    id: string,
+    data: Omit<Partial<Attendance>, 'kasbonAttachments'> & {
+      durationHours?: number;
+      durationMinutes?: number;
+      hasKasbon?: boolean;
+      kasbonId?: string;
+      kasbonAmount?: number;
+      kasbonNotes?: string;
+      kasbonAttachments?: Array<{ fileName: string; dataBase64: string; fileSize?: number; mimeType?: string }>;
+      removeKasbonPhoto?: boolean;
+    }
+  ) =>
     request<Attendance>(`/attendance/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -316,15 +339,22 @@ export const api = {
 
   // Overtime
   getOvertime: () => request<OvertimeRecord[]>('/overtime'),
-  recordOvertime: (data: Partial<OvertimeRecord>) =>
+  recordOvertime: (data: Partial<OvertimeRecord> & { durationHours?: number; durationMinutes?: number }) =>
     request<OvertimeRecord>('/overtime', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  updateOvertimeStatus: (id: string, status: string, hours?: number, notes?: string) =>
+  updateOvertimeStatus: (
+    id: string,
+    status: string,
+    hours?: number,
+    notes?: string,
+    durationHours?: number,
+    durationMinutes?: number
+  ) =>
     request<OvertimeRecord>(`/overtime/${id}/status`, {
       method: 'PUT',
-      body: JSON.stringify({ status, hours, notes }),
+      body: JSON.stringify({ status, hours, notes, durationHours, durationMinutes }),
     }),
 
   // Kasbon
@@ -432,7 +462,18 @@ export const api = {
     }),
 
   // Backward compatibility aliases
-  createAttendance: (data: Partial<Attendance>) =>
+  createAttendance: (
+    data: Omit<Partial<Attendance>, 'kasbonAttachments'> & {
+      durationHours?: number;
+      durationMinutes?: number;
+      hasKasbon?: boolean;
+      kasbonId?: string;
+      kasbonAmount?: number;
+      kasbonNotes?: string;
+      kasbonAttachments?: Array<{ fileName: string; dataBase64: string; fileSize?: number; mimeType?: string }>;
+      removeKasbonPhoto?: boolean;
+    }
+  ) =>
     request<Attendance>('/attendance', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -442,7 +483,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ date, entries }),
     }),
-  createOvertime: (data: Partial<OvertimeRecord>) =>
+  createOvertime: (data: Partial<OvertimeRecord> & { durationHours?: number; durationMinutes?: number }) =>
     request<OvertimeRecord>('/overtime', {
       method: 'POST',
       body: JSON.stringify(data),

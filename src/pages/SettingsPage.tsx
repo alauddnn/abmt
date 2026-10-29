@@ -50,6 +50,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
     minTenureDaysForKasbon: 7,
   });
 
+  const [syncActiveEmployees, setSyncActiveEmployees] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -91,9 +92,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
         ...form,
         wageKenekDaily: form.wageHelperDaily,
         overtimeKenekHourly: form.overtimeHelperHourly,
+        syncActiveEmployees,
       };
-      await updateSettings(payload);
-      showToast('success', 'Pengaturan perusahaan dan tarif upah berhasil diperbarui.');
+      await updateSettings(payload as any);
+      showToast(
+        'success',
+        'Pengaturan tarif upah berhasil disimpan permanen di Supabase. Riwayat gaji periode lama tetap aman (snapshot tersimpan).'
+      );
       refreshSettings();
     } catch (err: any) {
       showToast('error', err.message || 'Gagal menyimpan pengaturan');
@@ -332,6 +337,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
                     onChange={(e) => setForm({ ...form, wageMandorDaily: Number(e.target.value) })}
                     className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg font-mono font-medium text-xs text-[#262626] focus:outline-none focus:border-[#7F56D9]"
                   />
+                  <p className="text-[10px] text-[#7F56D9] mt-1 font-mono">
+                    Upah ½ Hari (50%): {formatRupiah(Math.round((form.wageMandorDaily || 0) / 2))}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-[#344054] text-xs mb-1">Tarif Lembur / Jam (IDR)</label>
@@ -362,6 +370,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
                     onChange={(e) => setForm({ ...form, wageTukangDaily: Number(e.target.value) })}
                     className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg font-mono font-medium text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                   />
+                  <p className="text-[10px] text-[#175CD3] mt-1 font-mono">
+                    Upah ½ Hari (50%): {formatRupiah(Math.round((form.wageTukangDaily || 0) / 2))}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-[#344054] text-xs mb-1">Tarif Lembur / Jam (IDR)</label>
@@ -379,7 +390,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
               {/* Standar Helper (Pengganti Kenek) */}
               <div className="p-4 bg-[#FEF7EC] rounded-lg border border-[#FEDF89] space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-[#D99A23] text-xs">Standar Upah Helper:</span>
+                  <span className="font-semibold text-[#D99A23] text-xs">Standar Upah Helper / Kenek:</span>
                   <span className="text-[10px] text-[#D99A23] bg-white px-2 py-0.5 rounded border border-[#FEDF89]">Pembantu</span>
                 </div>
                 <div>
@@ -392,6 +403,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
                     onChange={(e) => setForm({ ...form, wageHelperDaily: Number(e.target.value) })}
                     className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg font-mono font-medium text-xs text-[#262626] focus:outline-none focus:border-[#D99A23]"
                   />
+                  <p className="text-[10px] text-[#B54708] mt-1 font-mono">
+                    Upah ½ Hari (50%): {formatRupiah(Math.round((form.wageHelperDaily || 0) / 2))}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-[#344054] text-xs mb-1">Tarif Lembur / Jam (IDR)</label>
@@ -422,6 +436,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
                     onChange={(e) => setForm({ ...form, wageDriverDaily: Number(e.target.value) })}
                     className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg font-mono font-medium text-xs text-[#262626] focus:outline-none focus:border-[#0E9384]"
                   />
+                  <p className="text-[10px] text-[#0E9384] mt-1 font-mono">
+                    Upah ½ Hari (50%): {formatRupiah(Math.round((form.wageDriverDaily || 0) / 2))}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-[#344054] text-xs mb-1">Tarif Lembur / Jam (IDR)</label>
@@ -437,21 +454,44 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
               </div>
             </div>
 
-            {/* Syarat Kasbon */}
-            <div className="p-4 bg-[#F9FAFB] rounded-lg border border-[#EAECF0] space-y-2">
-              <label className="block font-medium text-[#262626] mb-1">Syarat Minimal Hari Kerja untuk Kasbon (Hari)</label>
-              <input
-                type="number"
-                min={1}
-                max={30}
-                disabled={!isAdmin}
-                value={form.minTenureDaysForKasbon}
-                onChange={(e) => setForm({ ...form, minTenureDaysForKasbon: Number(e.target.value) })}
-                className="w-32 px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg font-mono font-medium text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-              />
-              <p className="text-[11px] text-[#667085] mt-1">
-                Karyawan dengan masa kerja kurang dari {form.minTenureDaysForKasbon} hari akan otomatis ditolak saat pengajuan persetujuan kasbon.
-              </p>
+            {/* Syarat Kasbon & Sinkronisasi Tarif */}
+            <div className="p-4 bg-[#F9FAFB] rounded-lg border border-[#EAECF0] space-y-3">
+              <div>
+                <label className="block font-medium text-[#262626] mb-1">Syarat Minimal Hari Kerja untuk Kasbon (Hari)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  disabled={!isAdmin}
+                  value={form.minTenureDaysForKasbon}
+                  onChange={(e) => setForm({ ...form, minTenureDaysForKasbon: Number(e.target.value) })}
+                  className="w-32 px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg font-mono font-medium text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                />
+                <p className="text-[11px] text-[#667085] mt-1">
+                  Karyawan dengan masa kerja kurang dari {form.minTenureDaysForKasbon} hari akan otomatis ditolak saat pengajuan persetujuan kasbon.
+                </p>
+              </div>
+
+              {isAdmin && (
+                <div className="pt-3 border-t border-[#EAECF0]">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={syncActiveEmployees}
+                      onChange={(e) => setSyncActiveEmployees(e.target.checked)}
+                      className="mt-0.5 rounded border-[#D0D5DD] text-[#4693FD] focus:ring-[#4693FD]"
+                    />
+                    <div>
+                      <span className="font-medium text-[#262626] block">
+                        Terapkan tarif baru ke karyawan aktif sesuai jabatan untuk absensi mendatang
+                      </span>
+                      <span className="text-[11px] text-[#667085] block mt-0.5">
+                        Aman: Perubahan tarif baru TIDAK akan mengubah nominal absensi, lembur, atau gaji periode lama yang sudah dihitung/dibayarkan (snapshot tarif historis tersimpan permanen).
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              )}
             </div>
           </div>
         </div>

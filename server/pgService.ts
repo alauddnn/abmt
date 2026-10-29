@@ -18,6 +18,46 @@ import {
 import { AppUser } from './db.js';
 import { deleteFromStorage } from './supabaseStorage.js';
 
+// --- CALCULATION HELPERS ---
+export function calcBasicPayByStatus(status: string, dailyWage: number | undefined | null): number {
+  const wage = Number(dailyWage) || 0;
+  if (status === 'Hadir') return Math.round(wage);
+  if (status === 'Setengah Hari') return Math.round(wage / 2);
+  return 0;
+}
+
+export function resolveOvertimeDecimalHours(data: {
+  hours?: number;
+  overtimeHours?: number;
+  durationHours?: number;
+  durationMinutes?: number;
+}): number {
+  if (data.durationHours !== undefined || data.durationMinutes !== undefined) {
+    const h = Math.max(0, Number(data.durationHours) || 0);
+    const m = Math.max(0, Number(data.durationMinutes) || 0);
+    return Number(((h * 60 + m) / 60).toFixed(4));
+  }
+  const raw = Math.max(0, Number(data.overtimeHours ?? data.hours ?? 0) || 0);
+  const totalMinutes = Math.round(raw * 60);
+  return Number((totalMinutes / 60).toFixed(4));
+}
+
+export function calcOvertimePayExact(
+  decimalHours: number | undefined | null,
+  hourlyRate: number | undefined | null,
+  durationHours?: number,
+  durationMinutes?: number
+): number {
+  let totalMinutes = Math.round(Math.max(0, Number(decimalHours) || 0) * 60);
+  if (durationHours !== undefined || durationMinutes !== undefined) {
+    const h = Math.max(0, Math.floor(Number(durationHours) || 0));
+    const m = Math.max(0, Math.round(Number(durationMinutes) || 0));
+    totalMinutes = h * 60 + m;
+  }
+  const rate = Math.max(0, Number(hourlyRate) || 0);
+  return Math.round((totalMinutes * rate) / 60);
+}
+
 // --- MAPPERS ---
 function mapSettings(row: any): CompanySettings {
   return {
@@ -83,6 +123,8 @@ function mapAttendance(row: any): Attendance {
     employeeId: row.employee_id,
     employeeName: row.employee_name,
     employeeRole: row.employee_role,
+    projectId: row.project_id || undefined,
+    projectName: row.project_name || undefined,
     status: row.status,
     checkIn: row.check_in,
     checkOut: row.check_out,
@@ -93,13 +135,17 @@ function mapAttendance(row: any): Attendance {
     totalDailyPay: Number(row.total_daily_pay || 0),
     notes: row.notes || '',
     createdBy: row.created_by || '',
-    createdAt: row.created_at ? row.created_at.toISOString() : '',
+    createdAt: row.created_at ? (typeof row.created_at === 'string' ? row.created_at : row.created_at.toISOString()) : '',
     updatedBy: row.updated_by || '',
-    updatedAt: row.updated_at ? row.updated_at.toISOString() : '',
+    updatedAt: row.updated_at ? (typeof row.updated_at === 'string' ? row.updated_at : row.updated_at.toISOString()) : '',
   };
 }
 
 function mapOvertime(row: any): OvertimeRecord {
+  const hours = Number(row.hours || 0);
+  const totalMinutes = Math.round(hours * 60);
+  const durationHours = Math.floor(totalMinutes / 60);
+  const durationMinutes = totalMinutes % 60;
   return {
     id: row.id,
     attendanceId: row.attendance_id || undefined,
@@ -107,14 +153,18 @@ function mapOvertime(row: any): OvertimeRecord {
     employeeId: row.employee_id,
     employeeName: row.employee_name,
     employeeRole: row.employee_role,
+    projectId: row.project_id || undefined,
+    projectName: row.project_name || undefined,
     startTime: row.start_time || '',
     endTime: row.end_time || '',
-    hours: Number(row.hours || 0),
+    hours,
+    durationHours,
+    durationMinutes,
     hourlyRateSnapshot: Number(row.hourly_rate_snapshot || 0),
     totalPay: Number(row.total_pay || 0),
     status: row.status,
     approvedBy: row.approved_by || undefined,
-    approvedAt: row.approved_at ? row.approved_at.toISOString() : undefined,
+    approvedAt: row.approved_at ? (typeof row.approved_at === 'string' ? row.approved_at : row.approved_at.toISOString()) : undefined,
     notes: row.notes || '',
     auditTrail: Array.isArray(row.audit_trail) ? row.audit_trail : [],
   };
@@ -138,6 +188,7 @@ function mapKasbon(row: any): KasbonRecord {
   return {
     id: row.id,
     kasbonNumber: row.kasbon_number,
+    attendanceId: row.attendance_id || undefined,
     requestDate: row.request_date ? (typeof row.request_date === 'string' ? row.request_date : row.request_date.toISOString().split('T')[0]) : '',
     employeeId: row.employee_id,
     employeeName: row.employee_name,
@@ -167,6 +218,21 @@ function mapKasbon(row: any): KasbonRecord {
 }
 
 function mapSalaryPayment(row: any): SalaryPayment {
+  const totalWorkDays = Number(row.total_work_days || 0);
+  const fullWorkDays = row.full_work_days !== undefined && row.full_work_days !== null
+    ? Number(row.full_work_days)
+    : Math.floor(totalWorkDays);
+  const halfWorkDays = row.half_work_days !== undefined && row.half_work_days !== null
+    ? Number(row.half_work_days)
+    : (totalWorkDays % 1 >= 0.4 ? 1 : 0);
+  const totalBasicSalary = Number(row.total_basic_salary || 0);
+  const fullDaySalary = row.full_day_salary !== undefined && row.full_day_salary !== null
+    ? Number(row.full_day_salary)
+    : totalBasicSalary;
+  const halfDaySalary = row.half_day_salary !== undefined && row.half_day_salary !== null
+    ? Number(row.half_day_salary)
+    : 0;
+
   return {
     id: row.id,
     paymentNumber: row.payment_number,
@@ -175,9 +241,13 @@ function mapSalaryPayment(row: any): SalaryPayment {
     employeeId: row.employee_id,
     employeeName: row.employee_name,
     employeeRole: row.employee_role,
-    totalWorkDays: Number(row.total_work_days || 0),
+    fullWorkDays,
+    halfWorkDays,
+    totalWorkDays,
+    fullDaySalary,
+    halfDaySalary,
     approvedOvertimeHours: Number(row.approved_overtime_hours || 0),
-    totalBasicSalary: Number(row.total_basic_salary || 0),
+    totalBasicSalary,
     totalOvertimePay: Number(row.total_overtime_pay || 0),
     grossSalary: Number(row.gross_salary || 0),
     kasbonDeduction: Number(row.kasbon_deduction || 0),
@@ -189,7 +259,7 @@ function mapSalaryPayment(row: any): SalaryPayment {
     status: row.status,
     notes: row.notes || undefined,
     processedBy: row.processed_by || '',
-    createdAt: row.created_at ? row.created_at.toISOString() : '',
+    createdAt: row.created_at ? (typeof row.created_at === 'string' ? row.created_at : row.created_at.toISOString()) : '',
     auditTrail: Array.isArray(row.audit_trail) ? row.audit_trail : [],
   };
 }
@@ -353,10 +423,47 @@ export async function ensureAllSchemasOnce(): Promise<void> {
         ON CONFLICT (id) DO NOTHING;
 
         ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS project_id VARCHAR(100);
+        ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS attendance_id VARCHAR(100);
         ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS attachment_file_path TEXT;
         ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS attachment_file_name VARCHAR(255);
         ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS attachment_file_size INT;
         ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS attachment_mime_type VARCHAR(100);
+
+        DO $$
+        DECLARE
+          r RECORD;
+        BEGIN
+          FOR r IN (
+            SELECT con.conname
+            FROM pg_catalog.pg_constraint con
+            INNER JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid
+            WHERE rel.relname = 'attendance' AND con.contype = 'c'
+          ) LOOP
+            EXECUTE 'ALTER TABLE attendance DROP CONSTRAINT IF EXISTS ' || quote_ident(r.conname);
+          END LOOP;
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END $$;
+
+        DO $$ BEGIN
+          ALTER TABLE attendance ALTER COLUMN overtime_hours TYPE NUMERIC(10, 4);
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+        DO $$ BEGIN
+          ALTER TABLE overtime_records ALTER COLUMN hours TYPE NUMERIC(10, 4);
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+        DO $$ BEGIN
+          ALTER TABLE salary_payments ALTER COLUMN total_work_days TYPE NUMERIC(10, 4);
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+        DO $$ BEGIN
+          ALTER TABLE salary_payments ALTER COLUMN approved_overtime_hours TYPE NUMERIC(10, 4);
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+        ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS full_work_days NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS half_work_days NUMERIC(10, 2) DEFAULT 0;
+        ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS full_day_salary NUMERIC(15, 2) DEFAULT 0;
+        ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS half_day_salary NUMERIC(15, 2) DEFAULT 0;
 
         CREATE TABLE IF NOT EXISTS kasbon_attachments (
           id VARCHAR(100) PRIMARY KEY,
@@ -408,12 +515,23 @@ export const pgService = {
     return mapSettings(res.rows[0]);
   },
 
-  async updateSettings(data: Partial<CompanySettings>, userName: string, userRole: string): Promise<CompanySettings> {
+  async updateSettings(
+    data: Partial<CompanySettings> & { syncActiveEmployees?: boolean },
+    userName: string,
+    userRole: string
+  ): Promise<CompanySettings> {
     await ensureAllSchemasOnce();
     const current = await this.getSettings();
     const updated: CompanySettings = { ...current, ...data };
     const helperDaily = updated.wageHelperDaily || updated.wageKenekDaily || 125000;
     const helperOt = updated.overtimeHelperHourly || updated.overtimeKenekHourly || 15000;
+    const mandorDaily = updated.wageMandorDaily || 200000;
+    const mandorOt = updated.overtimeMandorHourly || 25000;
+    const tukangDaily = updated.wageTukangDaily || 150000;
+    const tukangOt = updated.overtimeTukangHourly || 20000;
+    const driverDaily = updated.wageDriverDaily || 140000;
+    const driverOt = updated.overtimeDriverHourly || 18000;
+
     const res = await query(
       `UPDATE company_settings SET
         company_name = $1, tagline = $2, address = $3, phone = $4,
@@ -428,15 +546,48 @@ export const pgService = {
       [
         updated.companyName, updated.tagline, updated.address, updated.phone,
         updated.ownerName, updated.assistantName, updated.workHourStart, updated.workHourEnd,
-        updated.wageMandorDaily || 200000, updated.overtimeMandorHourly || 25000,
-        updated.wageTukangDaily || 150000, updated.overtimeTukangHourly || 20000,
+        mandorDaily, mandorOt,
+        tukangDaily, tukangOt,
         helperDaily, helperOt,
-        updated.wageDriverDaily || 140000, updated.overtimeDriverHourly || 18000,
+        driverDaily, driverOt,
         helperDaily, helperOt,
         updated.minTenureDaysForKasbon || 7,
       ]
     );
-    await insertAuditLog(userName, userRole as any, 'Ubah Pengaturan', 'Pengaturan', 'Memperbarui profil perusahaan dan tarif upah di PostgreSQL');
+
+    // Optional: Sync active employees' current master rates when requested by Admin,
+    // OR sync active employees whose rate matched the previous role standard.
+    // Historical attendance snapshots, overtime snapshots, and salary_payments are NEVER modified!
+    if (data.syncActiveEmployees) {
+      await query(`UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2 WHERE role = 'Mandor' AND status = 'active'`, [mandorDaily, mandorOt]);
+      await query(`UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2 WHERE role = 'Tukang' AND status = 'active'`, [tukangDaily, tukangOt]);
+      await query(`UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2 WHERE role IN ('Helper', 'Kenek') AND status = 'active'`, [helperDaily, helperOt]);
+      await query(`UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2 WHERE role = 'Driver' AND status = 'active'`, [driverDaily, driverOt]);
+    } else {
+      // Automatically update active employees who were using the exact previous default role rate
+      await query(
+        `UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2
+         WHERE role = 'Mandor' AND status = 'active' AND daily_wage = $3 AND overtime_hourly_wage = $4`,
+        [mandorDaily, mandorOt, current.wageMandorDaily, current.overtimeMandorHourly]
+      );
+      await query(
+        `UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2
+         WHERE role = 'Tukang' AND status = 'active' AND daily_wage = $3 AND overtime_hourly_wage = $4`,
+        [tukangDaily, tukangOt, current.wageTukangDaily, current.overtimeTukangHourly]
+      );
+      await query(
+        `UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2
+         WHERE role IN ('Helper', 'Kenek') AND status = 'active' AND daily_wage = $3 AND overtime_hourly_wage = $4`,
+        [helperDaily, helperOt, current.wageHelperDaily || current.wageKenekDaily, current.overtimeHelperHourly || current.overtimeKenekHourly]
+      );
+      await query(
+        `UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2
+         WHERE role = 'Driver' AND status = 'active' AND daily_wage = $3 AND overtime_hourly_wage = $4`,
+        [driverDaily, driverOt, current.wageDriverDaily, current.overtimeDriverHourly]
+      );
+    }
+
+    await insertAuditLog(userName, userRole as any, 'Ubah Pengaturan', 'Pengaturan', 'Memperbarui profil perusahaan dan tarif upah di PostgreSQL (riwayat gaji lama tetap aman)');
     return mapSettings(res.rows[0]);
   },
 
@@ -1147,9 +1298,9 @@ export const pgService = {
          WHERE date = $1 AND (project_id = $2 OR (project_id IS NULL AND employee_id = ANY($3)))`,
         [today, projectId, assignedEmpIds]
       );
-      presentToday = attRes.rows.filter((r) => r.status === 'Hadir').length;
+      presentToday = attRes.rows.filter((r) => r.status === 'Hadir' || r.status === 'Setengah Hari').length;
       const explicitAbsent = attRes.rows.filter(
-        (r) => r.status === 'Sakit' || r.status === 'Izin' || r.status === 'Alpa'
+        (r) => r.status === 'Sakit' || r.status === 'Izin' || r.status === 'Alpa' || r.status === 'Tidak Hadir' || r.status === 'Libur'
       ).length;
       absentToday = Math.max(explicitAbsent, totalAssignedEmployees - presentToday);
     }
@@ -1230,7 +1381,18 @@ export const pgService = {
     }
     attSql += ' ORDER BY date DESC';
     const attRes = await query(attSql, attParams);
-    const attendance = attRes.rows.map(mapAttendance);
+    const rawAttendance = attRes.rows.map(mapAttendance);
+
+    // Deduplicate attendance by employeeId + date so no employee is ever double-counted on the same day
+    const seenAttKey = new Set<string>();
+    const attendance: Attendance[] = [];
+    for (const a of rawAttendance) {
+      const key = `${a.employeeId}_${a.date}`;
+      if (!seenAttKey.has(key)) {
+        seenAttKey.add(key);
+        attendance.push(a);
+      }
+    }
 
     let otSql = `SELECT * FROM overtime_records WHERE (project_id = $1`;
     const otParams: any[] = [projectId];
@@ -1266,7 +1428,13 @@ export const pgService = {
     const transportExpenses = filteredExpenses.filter((e) => e.expenseType === 'transportasi');
     const operationalExpenses = filteredExpenses.filter((e) => e.expenseType === 'operasional');
 
-    const totalBasicSalary = attendance.reduce((s, a) => (a.status === 'Hadir' ? s + a.dailyWageSnapshot : s), 0);
+    const fullWorkDays = attendance.filter((a) => a.status === 'Hadir').length;
+    const halfWorkDays = attendance.filter((a) => a.status === 'Setengah Hari').length;
+    const totalWorkDays = fullWorkDays + halfWorkDays * 0.5;
+    const fullDaySalary = attendance.reduce((s, a) => (a.status === 'Hadir' ? s + a.dailyWageSnapshot : s), 0);
+    const halfDaySalary = attendance.reduce((s, a) => (a.status === 'Setengah Hari' ? s + Math.round(a.dailyWageSnapshot / 2) : s), 0);
+    const totalBasicSalary = fullDaySalary + halfDaySalary;
+
     const totalOvertimePay = overtime.filter((o) => o.status === 'Disetujui').reduce((s, o) => s + o.totalPay, 0);
     const totalTransport = transportExpenses.reduce((s, e) => s + e.amount, 0);
     const totalOp = operationalExpenses.reduce((s, e) => s + e.amount, 0);
@@ -1282,7 +1450,11 @@ export const pgService = {
       operationalExpenses,
       summary: {
         totalEmployees: assignments.filter((a) => a.status === 'active').length,
-        totalWorkDays: attendance.filter((a) => a.status === 'Hadir').length,
+        fullWorkDays,
+        halfWorkDays,
+        totalWorkDays,
+        fullDaySalary,
+        halfDaySalary,
         totalBasicSalary,
         totalOvertimePay,
         totalTransport,
@@ -1296,7 +1468,261 @@ export const pgService = {
   },
 
   // 4. Attendance
+  async attachKasbonToAttendanceList(atts: Attendance[]): Promise<Attendance[]> {
+    if (!atts.length) return atts;
+    const attIds = atts.map((a) => a.id);
+    const empIds = Array.from(new Set(atts.map((a) => a.employeeId)));
+
+    const kbRes = await query(
+      `SELECT * FROM kasbon_records
+       WHERE attendance_id = ANY($1) OR employee_id = ANY($2)
+       ORDER BY request_date DESC, id DESC`,
+      [attIds, empIds]
+    );
+    if (!kbRes.rows.length) return atts;
+
+    const kbIds = kbRes.rows.map((r) => r.id);
+    const attRes = await query(
+      `SELECT * FROM kasbon_attachments WHERE kasbon_id = ANY($1) ORDER BY created_at ASC`,
+      [kbIds]
+    );
+    const attMap: Record<string, any[]> = {};
+    for (const a of attRes.rows) {
+      if (!attMap[a.kasbon_id]) attMap[a.kasbon_id] = [];
+      attMap[a.kasbon_id].push(a);
+    }
+
+    const kbs: KasbonRecord[] = kbRes.rows.map((row) => {
+      row.attachments = attMap[row.id] || [];
+      return mapKasbon(row);
+    });
+
+    const usedKbIds = new Set<string>();
+
+    // Pass 1: exact attendance_id match
+    for (const att of atts) {
+      const exact = kbs.find((k) => !usedKbIds.has(k.id) && k.attendanceId === att.id);
+      if (exact) {
+        usedKbIds.add(exact.id);
+        att.kasbonId = exact.id;
+        att.kasbonNumber = exact.kasbonNumber;
+        att.kasbonAmount = exact.amount;
+        att.kasbonNotes = exact.reason;
+        att.kasbonStatus = exact.status;
+        att.kasbonAttachmentFilePath = exact.attachmentFilePath;
+        att.kasbonAttachments = exact.attachments || [];
+      }
+    }
+
+    // Pass 2: fallback match by (employeeId + requestDate === date) for legacy kasbons without attendanceId
+    for (const att of atts) {
+      if (att.kasbonId) continue;
+      const fallback = kbs.find(
+        (k) =>
+          !usedKbIds.has(k.id) &&
+          !k.attendanceId &&
+          k.employeeId === att.employeeId &&
+          k.requestDate === att.date &&
+          (!att.projectId || !k.projectId || k.projectId === att.projectId)
+      );
+      if (fallback) {
+        usedKbIds.add(fallback.id);
+        att.kasbonId = fallback.id;
+        att.kasbonNumber = fallback.kasbonNumber;
+        att.kasbonAmount = fallback.amount;
+        att.kasbonNotes = fallback.reason;
+        att.kasbonStatus = fallback.status;
+        att.kasbonAttachmentFilePath = fallback.attachmentFilePath;
+        att.kasbonAttachments = fallback.attachments || [];
+      }
+    }
+
+    return atts;
+  },
+
+  async syncAttendanceKasbon(
+    att: Attendance,
+    data: any,
+    kasbonAttachments: Array<{ fileName: string; filePath: string; fileSize: number; mimeType: string }> = [],
+    userName: string = 'Administrator',
+    userRole: string = 'admin',
+    prevAtt?: Attendance
+  ): Promise<void> {
+    if (data.hasKasbon === undefined) return;
+
+    const searchEmpId = prevAtt ? prevAtt.employeeId : att.employeeId;
+    const searchDate = prevAtt ? prevAtt.date : att.date;
+
+    const existingRes = await query(
+      `SELECT * FROM kasbon_records
+       WHERE attendance_id = $1
+          OR ($2::varchar IS NOT NULL AND id = $2)
+          OR (attendance_id IS NULL AND employee_id = $3 AND request_date = $4 AND (project_id = $5 OR project_id IS NULL OR $5::varchar IS NULL))
+       ORDER BY (CASE WHEN attendance_id = $1 THEN 0 WHEN id = $2 THEN 1 ELSE 2 END) ASC, id DESC
+       LIMIT 1`,
+      [att.id, data.kasbonId || null, searchEmpId, searchDate, att.projectId || null]
+    );
+    const existingKb = existingRes.rows[0] || null;
+
+    if (data.hasKasbon === true || data.hasKasbon === 'true' || data.hasKasbon === 'Ya') {
+      const amount = Number(data.kasbonAmount || 0);
+      if (!amount || amount <= 0 || isNaN(amount)) {
+        throw new Error('Nominal kasbon wajib diisi dan harus lebih besar dari Rp0.');
+      }
+      const reason = (data.kasbonNotes ?? data.kasbonReason ?? '').trim() || 'Kasbon melalui absensi proyek';
+
+      if (existingKb) {
+        const deducted = Number(existingKb.deducted_amount || 0);
+        if (amount < deducted) {
+          throw new Error(
+            `Nominal kasbon (Rp ${amount.toLocaleString('id-ID')}) tidak boleh lebih kecil dari nominal yang sudah dipotong gaji (Rp ${deducted.toLocaleString('id-ID')}).`
+          );
+        }
+
+        const empRes = await query('SELECT * FROM employees WHERE id = $1', [att.employeeId]);
+        const emp = empRes.rows.length ? mapEmployee(empRes.rows[0]) : null;
+
+        let filePath: string | null = existingKb.attachment_file_path || null;
+        let fileName: string | null = existingKb.attachment_file_name || null;
+        let fileSize: number | null = existingKb.attachment_file_size ? Number(existingKb.attachment_file_size) : null;
+        let mimeType: string | null = existingKb.attachment_mime_type || null;
+
+        if (kasbonAttachments && kasbonAttachments.length > 0) {
+          // Replace existing attachments with new uploaded photo
+          const oldAtts = await query('SELECT * FROM kasbon_attachments WHERE kasbon_id = $1', [existingKb.id]);
+          for (const oa of oldAtts.rows) {
+            try {
+              await deleteFromStorage(oa.file_path);
+            } catch (e) {
+              console.warn('Could not delete old kasbon attachment:', oa.file_path);
+            }
+          }
+          await query('DELETE FROM kasbon_attachments WHERE kasbon_id = $1', [existingKb.id]);
+
+          for (const newAtt of kasbonAttachments) {
+            const attId = `KATT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+            await query(
+              `INSERT INTO kasbon_attachments (id, kasbon_id, file_name, file_path, file_size, mime_type, uploaded_by, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+              [attId, existingKb.id, newAtt.fileName, newAtt.filePath, newAtt.fileSize, newAtt.mimeType, userName]
+            );
+          }
+
+          filePath = kasbonAttachments[0].filePath;
+          fileName = kasbonAttachments[0].fileName;
+          fileSize = kasbonAttachments[0].fileSize;
+          mimeType = kasbonAttachments[0].mimeType;
+        } else if (data.removeKasbonPhoto === true) {
+          const oldAtts = await query('SELECT * FROM kasbon_attachments WHERE kasbon_id = $1', [existingKb.id]);
+          for (const oa of oldAtts.rows) {
+            try {
+              await deleteFromStorage(oa.file_path);
+            } catch (e) {
+              console.warn('Could not delete old kasbon attachment:', oa.file_path);
+            }
+          }
+          if (existingKb.attachment_file_path) {
+            try {
+              await deleteFromStorage(existingKb.attachment_file_path);
+            } catch (e) {
+              console.warn('Could not delete main kasbon attachment:', existingKb.attachment_file_path);
+            }
+          }
+          await query('DELETE FROM kasbon_attachments WHERE kasbon_id = $1', [existingKb.id]);
+          filePath = null;
+          fileName = null;
+          fileSize = null;
+          mimeType = null;
+        }
+
+        const remaining = Math.max(0, amount - deducted);
+        const newStatus =
+          deducted >= amount && amount > 0
+            ? 'Lunas'
+            : deducted > 0
+            ? 'Dipotong sebagian'
+            : existingKb.status === 'Ditolak'
+            ? 'Disetujui'
+            : existingKb.status || 'Disetujui';
+
+        const prevTrail = Array.isArray(existingKb.audit_trail) ? existingKb.audit_trail : [];
+        const nextTrail = [
+          ...prevTrail,
+          {
+            timestamp: new Date().toISOString(),
+            user: userName,
+            action: `Memperbarui kasbon melalui koreksi absensi: Rp ${amount.toLocaleString('id-ID')} (${reason})`,
+          },
+        ];
+
+        await query(
+          `UPDATE kasbon_records SET
+             attendance_id = $1,
+             request_date = $2,
+             employee_id = $3,
+             employee_name = $4,
+             employee_role = $5,
+             project_id = COALESCE($6, project_id),
+             amount = $7,
+             remaining_amount = $8,
+             reason = $9,
+             status = $10,
+             attachment_file_path = $11,
+             attachment_file_name = $12,
+             attachment_file_size = $13,
+             attachment_mime_type = $14,
+             audit_trail = $15
+           WHERE id = $16`,
+          [
+            att.id,
+            att.date,
+            emp ? emp.id : att.employeeId,
+            emp ? emp.name : att.employeeName,
+            emp ? emp.role : att.employeeRole,
+            att.projectId || null,
+            amount,
+            remaining,
+            reason,
+            newStatus,
+            filePath,
+            fileName,
+            fileSize,
+            mimeType,
+            JSON.stringify(nextTrail),
+            existingKb.id,
+          ]
+        );
+      } else {
+        await this.createKasbon(
+          {
+            attendanceId: att.id,
+            projectId: att.projectId || null,
+            employeeId: att.employeeId,
+            requestDate: att.date,
+            amount,
+            reason,
+            status: 'Disetujui',
+          },
+          userName,
+          userRole,
+          kasbonAttachments
+        );
+      }
+    } else if (data.hasKasbon === false || data.hasKasbon === 'false' || data.hasKasbon === 'Tidak') {
+      if (existingKb) {
+        const deducted = Number(existingKb.deducted_amount || 0);
+        if (deducted > 0 || existingKb.status === 'Lunas' || existingKb.status === 'Dipotong sebagian') {
+          throw new Error(
+            `Kasbon ${existingKb.kasbon_number} sudah memiliki potongan gaji (Rp ${deducted.toLocaleString('id-ID')}) sehingga tidak dapat dibatalkan.`
+          );
+        }
+        await this.deleteKasbon(existingKb.id, userName, userRole);
+      }
+    }
+  },
+
   async getAttendance(params?: { date?: string; startDate?: string; endDate?: string; employeeId?: string; projectId?: string; role?: string }): Promise<Attendance[]> {
+    await ensureAllSchemasOnce();
     let sql = 'SELECT * FROM attendance WHERE 1=1';
     const values: any[] = [];
     let idx = 1;
@@ -1324,24 +1750,48 @@ export const pgService = {
 
     sql += ' ORDER BY date DESC, employee_name ASC';
     const res = await query(sql, values);
-    return res.rows.map(mapAttendance);
+    const list = res.rows.map(mapAttendance);
+    return this.attachKasbonToAttendanceList(list);
   },
 
-  async createAttendance(data: any, userName: string, userRole: string): Promise<Attendance> {
+  async createAttendance(
+    data: any,
+    userName: string,
+    userRole: string,
+    kasbonAttachments: Array<{ fileName: string; filePath: string; fileSize: number; mimeType: string }> = []
+  ): Promise<Attendance> {
+    await ensureAllSchemasOnce();
     const empRes = await query('SELECT * FROM employees WHERE id = $1', [data.employeeId]);
     if (!empRes.rows.length) throw new Error('Karyawan tidak ditemukan.');
     const emp = mapEmployee(empRes.rows[0]);
 
-    const id = `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-    const checkIn = data.checkIn || '08:00';
-    const checkOut = data.checkOut || '16:00';
-    const overtimeHours = Number(data.overtimeHours || 0);
-    const status = data.status || 'Hadir';
-
-    let totalDailyPay = 0;
-    if (status === 'Hadir') {
-      totalDailyPay = emp.dailyWage;
+    if (data.hasKasbon === true || data.hasKasbon === 'true' || data.hasKasbon === 'Ya') {
+      const kAmount = Number(data.kasbonAmount || 0);
+      if (!kAmount || kAmount <= 0 || isNaN(kAmount)) {
+        throw new Error('Nominal kasbon wajib diisi dan harus lebih besar dari Rp0.');
+      }
     }
+
+    // Prevent double-counting on the same date: if already exists for (date, employee_id), update it!
+    const existingRes = await query('SELECT id FROM attendance WHERE date = $1 AND employee_id = $2 LIMIT 1', [
+      data.date,
+      emp.id,
+    ]);
+    if (existingRes.rows.length > 0) {
+      return this.updateAttendance(existingRes.rows[0].id, data, userName, userRole, kasbonAttachments);
+    }
+
+    const id = `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const status = data.status || 'Hadir';
+    const isWorkingStatus = status === 'Hadir' || status === 'Setengah Hari';
+    const checkIn = isWorkingStatus ? (data.checkIn || '08:00') : '-';
+    const checkOut = isWorkingStatus ? (data.checkOut || (status === 'Setengah Hari' ? '12:00' : '16:00')) : '-';
+    const overtimeHours = isWorkingStatus ? resolveOvertimeDecimalHours(data) : 0;
+    const isApprovedOt = userRole === 'admin' && overtimeHours > 0;
+
+    const basicPay = calcBasicPayByStatus(status, emp.dailyWage);
+    const overtimePay = isApprovedOt ? calcOvertimePayExact(overtimeHours, emp.overtimeHourlyWage) : 0;
+    const totalDailyPay = basicPay + overtimePay;
 
     const res = await query(
       `INSERT INTO attendance (
@@ -1353,16 +1803,71 @@ export const pgService = {
       RETURNING *`,
       [
         id, data.date, emp.id, emp.name, emp.role, data.projectId || null, data.projectName || null,
-        status, checkIn, checkOut, overtimeHours, false,
+        status, checkIn, checkOut, overtimeHours, isApprovedOt,
         emp.dailyWage, emp.overtimeHourlyWage, totalDailyPay,
         data.notes || '', userName,
       ]
     );
 
-    return mapAttendance(res.rows[0]);
+    // Sync with overtime_records if overtimeHours > 0 (without duplicating)
+    if (overtimeHours > 0) {
+      const totalOtPay = calcOvertimePayExact(overtimeHours, emp.overtimeHourlyWage);
+      const existingOt = await query(
+        'SELECT id FROM overtime_records WHERE attendance_id = $1 OR (employee_id = $2 AND date = $3) LIMIT 1',
+        [id, emp.id, data.date]
+      );
+      if (existingOt.rows.length > 0) {
+        await query(
+          `UPDATE overtime_records SET
+            attendance_id = $1, hours = $2, hourly_rate_snapshot = $3, total_pay = $4,
+            status = $5, approved_by = $6, approved_at = NOW(), notes = COALESCE($7, notes)
+           WHERE id = $8`,
+          [
+            id, overtimeHours, emp.overtimeHourlyWage, totalOtPay,
+            isApprovedOt ? 'Disetujui' : 'Menunggu persetujuan',
+            isApprovedOt ? userName : null,
+            data.notes || null,
+            existingOt.rows[0].id,
+          ]
+        );
+      } else {
+        const otId = `OVT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+        await query(
+          `INSERT INTO overtime_records (
+            id, attendance_id, date, employee_id, employee_name, employee_role,
+            project_id, project_name, start_time, end_time, hours,
+            hourly_rate_snapshot, total_pay, status, approved_by, approved_at, notes, audit_trail
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16, $17)`,
+          [
+            otId, id, data.date, emp.id, emp.name, emp.role,
+            data.projectId || null, data.projectName || null, checkOut !== '-' ? checkOut : '16:00', '',
+            overtimeHours, emp.overtimeHourlyWage, totalOtPay,
+            isApprovedOt ? 'Disetujui' : 'Menunggu persetujuan',
+            isApprovedOt ? userName : null,
+            data.notes || 'Lembur dari absensi harian',
+            JSON.stringify([{ timestamp: new Date().toISOString(), user: userName, action: 'Lembur tercatat dari absensi' }]),
+          ]
+        );
+      }
+    }
+
+    const createdAtt = mapAttendance(res.rows[0]);
+    await this.syncAttendanceKasbon(createdAtt, data, kasbonAttachments, userName, userRole);
+
+    await insertAuditLog(
+      userName,
+      userRole as any,
+      'Catat Absensi',
+      'Absensi',
+      `Mencatat absensi ${emp.name} (${status}, lembur ${overtimeHours} jam) pada ${data.date}`
+    );
+
+    const enriched = await this.attachKasbonToAttendanceList([createdAtt]);
+    return enriched[0];
   },
 
   async createBulkAttendance(date: string, entries: any[], userName: string, userRole: string): Promise<{ created: Attendance[]; skipped: string[] }> {
+    await ensureAllSchemasOnce();
     return withTransaction(async (client) => {
       const created: Attendance[] = [];
       const skipped: string[] = [];
@@ -1380,7 +1885,15 @@ export const pgService = {
 
         const id = `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
         const status = entry.status || 'Hadir';
-        const totalPay = status === 'Hadir' ? emp.dailyWage : 0;
+        const isWorkingStatus = status === 'Hadir' || status === 'Setengah Hari';
+        const checkIn = isWorkingStatus ? (entry.checkIn || '08:00') : '-';
+        const checkOut = isWorkingStatus ? (entry.checkOut || (status === 'Setengah Hari' ? '12:00' : '16:00')) : '-';
+        const otHours = isWorkingStatus ? resolveOvertimeDecimalHours(entry) : 0;
+        const isApprovedOt = userRole === 'admin' && otHours > 0;
+
+        const basicPay = calcBasicPayByStatus(status, emp.dailyWage);
+        const overtimePay = isApprovedOt ? calcOvertimePayExact(otHours, emp.overtimeHourlyWage) : 0;
+        const totalPay = basicPay + overtimePay;
 
         const res = await client.query(
           `INSERT INTO attendance (
@@ -1391,11 +1904,32 @@ export const pgService = {
           RETURNING *`,
           [
             id, date, emp.id, emp.name, emp.role, entry.projectId || null, entry.projectName || null,
-            status, entry.checkIn || '08:00', entry.checkOut || '16:00', Number(entry.overtimeHours || 0), false,
+            status, checkIn, checkOut, otHours, isApprovedOt,
             emp.dailyWage, emp.overtimeHourlyWage, totalPay, entry.notes || '', userName,
           ]
         );
         created.push(mapAttendance(res.rows[0]));
+
+        if (otHours > 0) {
+          const totalOtPay = calcOvertimePayExact(otHours, emp.overtimeHourlyWage);
+          const otId = `OVT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+          await client.query(
+            `INSERT INTO overtime_records (
+              id, attendance_id, date, employee_id, employee_name, employee_role,
+              project_id, project_name, start_time, end_time, hours,
+              hourly_rate_snapshot, total_pay, status, approved_by, approved_at, notes, audit_trail
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16, $17)`,
+            [
+              otId, id, date, emp.id, emp.name, emp.role,
+              entry.projectId || null, entry.projectName || null, checkOut !== '-' ? checkOut : '16:00', '',
+              otHours, emp.overtimeHourlyWage, totalOtPay,
+              isApprovedOt ? 'Disetujui' : 'Menunggu persetujuan',
+              isApprovedOt ? userName : null,
+              entry.notes || 'Lembur dari absensi massal',
+              JSON.stringify([{ timestamp: new Date().toISOString(), user: userName, action: 'Lembur tercatat dari absensi massal' }]),
+            ]
+          );
+        }
       }
 
       await insertAuditLog(userName, userRole as any, 'Catat Absensi Massal', 'Absensi', `Mencatat ${created.length} kehadiran pada tanggal ${date}`);
@@ -1403,66 +1937,315 @@ export const pgService = {
     });
   },
 
+  async updateAttendance(
+    id: string,
+    data: any,
+    userName: string,
+    userRole: string,
+    kasbonAttachments: Array<{ fileName: string; filePath: string; fileSize: number; mimeType: string }> = []
+  ): Promise<Attendance> {
+    await ensureAllSchemasOnce();
+    const currRes = await query('SELECT * FROM attendance WHERE id = $1', [id]);
+    if (!currRes.rows.length) throw new Error('Data absensi tidak ditemukan.');
+    const prev = mapAttendance(currRes.rows[0]);
+
+    if (data.hasKasbon === true || data.hasKasbon === 'true' || data.hasKasbon === 'Ya') {
+      const kAmount = Number(data.kasbonAmount || 0);
+      if (!kAmount || kAmount <= 0 || isNaN(kAmount)) {
+        throw new Error('Nominal kasbon wajib diisi dan harus lebih besar dari Rp0.');
+      }
+    }
+
+    let empId = prev.employeeId;
+    let empName = prev.employeeName;
+    let empRole = prev.employeeRole;
+    let dailySnapshot = prev.dailyWageSnapshot;
+    let overtimeSnapshot = prev.overtimeWageSnapshot;
+    const newDate = data.date || prev.date;
+
+    if (data.employeeId && data.employeeId !== prev.employeeId) {
+      const empRes = await query('SELECT * FROM employees WHERE id = $1', [data.employeeId]);
+      if (!empRes.rows.length) throw new Error('Karyawan tidak ditemukan.');
+      const newEmp = mapEmployee(empRes.rows[0]);
+      const conflictRes = await query(
+        'SELECT id FROM attendance WHERE date = $1 AND employee_id = $2 AND id != $3 LIMIT 1',
+        [newDate, newEmp.id, id]
+      );
+      if (conflictRes.rows.length > 0) {
+        throw new Error(`Absensi untuk karyawan ${newEmp.name} pada tanggal ${newDate} sudah tercatat.`);
+      }
+      empId = newEmp.id;
+      empName = newEmp.name;
+      empRole = newEmp.role;
+      dailySnapshot = newEmp.dailyWage;
+      overtimeSnapshot = newEmp.overtimeHourlyWage;
+    }
+
+    const newStatus = data.status || prev.status;
+    const isWorkingStatus = newStatus === 'Hadir' || newStatus === 'Setengah Hari';
+    const newCheckIn = isWorkingStatus ? (data.checkIn || (prev.checkIn !== '-' ? prev.checkIn : '08:00')) : '-';
+    const newCheckOut = isWorkingStatus
+      ? (data.checkOut || (prev.checkOut !== '-' ? prev.checkOut : (newStatus === 'Setengah Hari' ? '12:00' : '16:00')))
+      : '-';
+
+    const hasOvertimeInput =
+      data.overtimeHours !== undefined || data.durationHours !== undefined || data.durationMinutes !== undefined;
+    const newOtHours = isWorkingStatus
+      ? (hasOvertimeInput ? resolveOvertimeDecimalHours(data) : prev.overtimeHours)
+      : 0;
+    const isApprovedOt = newOtHours > 0 ? (userRole === 'admin' || prev.overtimeApproved) : false;
+
+    const basicPay = calcBasicPayByStatus(newStatus, dailySnapshot);
+    const overtimePay = isApprovedOt ? calcOvertimePayExact(newOtHours, overtimeSnapshot) : 0;
+    const totalDailyPay = basicPay + overtimePay;
+
+    const res = await query(
+      `UPDATE attendance SET
+        date = $1, employee_id = $2, employee_name = $3, employee_role = $4,
+        daily_wage_snapshot = $5, overtime_wage_snapshot = $6,
+        status = $7, check_in = $8, check_out = $9, overtime_hours = $10,
+        overtime_approved = $11, total_daily_pay = $12, notes = COALESCE($13, notes),
+        updated_by = $14, updated_at = NOW()
+       WHERE id = $15 RETURNING *`,
+      [
+        newDate, empId, empName, empRole,
+        dailySnapshot, overtimeSnapshot,
+        newStatus, newCheckIn, newCheckOut, newOtHours,
+        isApprovedOt, totalDailyPay, data.notes !== undefined ? data.notes : prev.notes,
+        userName, id,
+      ]
+    );
+
+    // Sync linked overtime record
+    const existingOt = await query(
+      'SELECT * FROM overtime_records WHERE attendance_id = $1 OR (employee_id = $2 AND date = $3) LIMIT 1',
+      [id, prev.employeeId, prev.date]
+    );
+    if (newOtHours > 0) {
+      const totalOtPay = calcOvertimePayExact(newOtHours, overtimeSnapshot);
+      if (existingOt.rows.length > 0) {
+        await query(
+          `UPDATE overtime_records SET
+            attendance_id = $1, date = $2, employee_id = $3, employee_name = $4, employee_role = $5,
+            hourly_rate_snapshot = $6, hours = $7, total_pay = $8,
+            status = $9, approved_by = COALESCE(approved_by, $10), approved_at = COALESCE(approved_at, NOW()),
+            notes = COALESCE($11, notes)
+           WHERE id = $12`,
+          [
+            id, newDate, empId, empName, empRole,
+            overtimeSnapshot, newOtHours, totalOtPay,
+            isApprovedOt ? 'Disetujui' : existingOt.rows[0].status,
+            isApprovedOt ? userName : null,
+            data.notes !== undefined ? data.notes : null,
+            existingOt.rows[0].id,
+          ]
+        );
+      } else {
+        const otId = `OVT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+        await query(
+          `INSERT INTO overtime_records (
+            id, attendance_id, date, employee_id, employee_name, employee_role,
+            project_id, project_name, start_time, end_time, hours,
+            hourly_rate_snapshot, total_pay, status, approved_by, approved_at, notes, audit_trail
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), $16, $17)`,
+          [
+            otId, id, newDate, empId, empName, empRole,
+            prev.projectId || null, prev.projectName || null, newCheckOut !== '-' ? newCheckOut : '16:00', '',
+            newOtHours, overtimeSnapshot, totalOtPay,
+            isApprovedOt ? 'Disetujui' : 'Menunggu persetujuan',
+            isApprovedOt ? userName : null,
+            data.notes || prev.notes || 'Lembur dari koreksi absensi',
+            JSON.stringify([{ timestamp: new Date().toISOString(), user: userName, action: 'Lembur tercatat dari koreksi absensi' }]),
+          ]
+        );
+      }
+    } else if (existingOt.rows.length > 0) {
+      await query('DELETE FROM overtime_records WHERE id = $1', [existingOt.rows[0].id]);
+    }
+
+    const updatedAtt = mapAttendance(res.rows[0]);
+    await this.syncAttendanceKasbon(updatedAtt, data, kasbonAttachments, userName, userRole, prev);
+
+    await insertAuditLog(
+      userName,
+      userRole as any,
+      'Koreksi Absensi',
+      'Absensi',
+      `Koreksi absensi ${empName} (${newDate}): status=${newStatus}, lembur=${newOtHours} jam`
+    );
+
+    const enriched = await this.attachKasbonToAttendanceList([updatedAtt]);
+    return enriched[0];
+  },
+
   async deleteAttendance(id: string, userName: string, userRole: string): Promise<void> {
+    await query('DELETE FROM overtime_records WHERE attendance_id = $1', [id]);
     await query('DELETE FROM attendance WHERE id = $1', [id]);
     await insertAuditLog(userName, userRole as any, 'Hapus Absensi', 'Absensi', `Menghapus absensi ID ${id}`);
   },
 
   // 5. Overtime
   async getOvertime(): Promise<OvertimeRecord[]> {
+    await ensureAllSchemasOnce();
     const res = await query('SELECT * FROM overtime_records ORDER BY date DESC, id DESC');
     return res.rows.map(mapOvertime);
   },
 
   async createOvertime(data: any, userName: string, userRole: string): Promise<OvertimeRecord> {
+    await ensureAllSchemasOnce();
     const empRes = await query('SELECT * FROM employees WHERE id = $1', [data.employeeId]);
     if (!empRes.rows.length) throw new Error('Karyawan tidak ditemukan.');
     const emp = mapEmployee(empRes.rows[0]);
 
     const id = `OVT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-    const hours = Number(data.hours || 0);
+    const hours = resolveOvertimeDecimalHours(data);
+    if (hours <= 0) {
+      throw new Error('Durasi lembur (jam/menit) harus lebih besar dari 0.');
+    }
     const hourlyRate = emp.overtimeHourlyWage;
-    const totalPay = hours * hourlyRate;
+    const totalPay = calcOvertimePayExact(hours, hourlyRate);
+    const isApproved = data.status ? data.status === 'Disetujui' : userRole === 'admin';
+    const finalStatus = data.status || (isApproved ? 'Disetujui' : 'Menunggu persetujuan');
+
+    // Check if an attendance record exists on the same date to link attendance_id
+    let linkedAttId = data.attendanceId || null;
+    const attRes = await query('SELECT * FROM attendance WHERE employee_id = $1 AND date = $2 LIMIT 1', [
+      emp.id,
+      data.date,
+    ]);
+    if (attRes.rows.length > 0 && !linkedAttId) {
+      linkedAttId = attRes.rows[0].id;
+    }
 
     const res = await query(
       `INSERT INTO overtime_records (
         id, attendance_id, date, employee_id, employee_name, employee_role,
         project_id, project_name, start_time, end_time, hours,
-        hourly_rate_snapshot, total_pay, status, notes, audit_trail
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        hourly_rate_snapshot, total_pay, status, approved_by, approved_at, notes, audit_trail
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *`,
       [
-        id, data.attendanceId || null, data.date, emp.id, emp.name, emp.role,
-        data.projectId || null, data.projectName || null, data.startTime || '', data.endTime || '',
-        hours, hourlyRate, totalPay, 'Menunggu persetujuan', data.notes || '',
-        JSON.stringify([{ timestamp: new Date().toISOString(), user: userName, action: 'Pengajuan Lembur' }]),
+        id,
+        linkedAttId,
+        data.date,
+        emp.id,
+        emp.name,
+        emp.role,
+        data.projectId || null,
+        data.projectName || null,
+        data.startTime || '16:00',
+        data.endTime || '18:00',
+        hours,
+        hourlyRate,
+        totalPay,
+        finalStatus,
+        isApproved ? userName : null,
+        isApproved ? new Date().toISOString() : null,
+        data.notes || '',
+        JSON.stringify([
+          {
+            timestamp: new Date().toISOString(),
+            user: userName,
+            action: `Pencatatan lembur (${hours} jam) - Status: ${finalStatus}`,
+          },
+        ]),
       ]
+    );
+
+    // Sync attendance record's overtime_hours and total_daily_pay if present on that date
+    if (attRes.rows.length > 0) {
+      const att = mapAttendance(attRes.rows[0]);
+      const basicPay = calcBasicPayByStatus(att.status, att.dailyWageSnapshot);
+      const newTotalDailyPay = basicPay + (finalStatus === 'Disetujui' ? totalPay : 0);
+      await query(
+        `UPDATE attendance SET overtime_hours = $1, overtime_approved = $2, total_daily_pay = $3 WHERE id = $4`,
+        [hours, finalStatus === 'Disetujui', newTotalDailyPay, att.id]
+      );
+    }
+
+    await insertAuditLog(
+      userName,
+      userRole as any,
+      'Catat Lembur',
+      'Lembur',
+      `Mencatat lembur ${emp.name} (${hours} jam, Rp ${totalPay.toLocaleString('id-ID')}) pada ${data.date}`
     );
 
     return mapOvertime(res.rows[0]);
   },
 
-  async updateOvertimeStatus(id: string, status: string, hours?: number, notes?: string, userName?: string): Promise<OvertimeRecord> {
+  async updateOvertimeStatus(
+    id: string,
+    status: string,
+    hours?: number,
+    notes?: string,
+    userName?: string,
+    durationHours?: number,
+    durationMinutes?: number
+  ): Promise<OvertimeRecord> {
+    await ensureAllSchemasOnce();
     const ovtRes = await query('SELECT * FROM overtime_records WHERE id = $1', [id]);
     if (!ovtRes.rows.length) throw new Error('Catatan lembur tidak ditemukan.');
     const current = mapOvertime(ovtRes.rows[0]);
 
-    const finalHours = hours !== undefined ? Number(hours) : current.hours;
-    const totalPay = finalHours * current.hourlyRateSnapshot;
-    const trail = [...current.auditTrail, { timestamp: new Date().toISOString(), user: userName || 'Admin', action: `Status diubah menjadi: ${status}` }];
+    const hasNewDuration = hours !== undefined || durationHours !== undefined || durationMinutes !== undefined;
+    const finalHours = hasNewDuration
+      ? resolveOvertimeDecimalHours({ hours, durationHours, durationMinutes })
+      : current.hours;
+    const totalPay = calcOvertimePayExact(finalHours, current.hourlyRateSnapshot);
+    const finalStatus = status || current.status;
+    const trail = [
+      ...current.auditTrail,
+      {
+        timestamp: new Date().toISOString(),
+        user: userName || 'Admin',
+        action: `Status diubah menjadi: ${finalStatus} (Durasi: ${finalHours} jam, Total: Rp ${totalPay.toLocaleString('id-ID')})`,
+      },
+    ];
 
     const res = await query(
       `UPDATE overtime_records SET
         status = $1, hours = $2, total_pay = $3, notes = COALESCE($4, notes),
         approved_by = $5, approved_at = NOW(), audit_trail = $6
        WHERE id = $7 RETURNING *`,
-      [status, finalHours, totalPay, notes, userName || 'Admin', JSON.stringify(trail), id]
+      [finalStatus, finalHours, totalPay, notes, userName || 'Admin', JSON.stringify(trail), id]
     );
+
+    // Sync linked attendance record if exists
+    const attRes = await query(
+      'SELECT * FROM attendance WHERE id = $1 OR (employee_id = $2 AND date = $3) LIMIT 1',
+      [current.attendanceId || '', current.employeeId, current.date]
+    );
+    if (attRes.rows.length > 0) {
+      const att = mapAttendance(attRes.rows[0]);
+      const basicPay = calcBasicPayByStatus(att.status, att.dailyWageSnapshot);
+      const newTotalDailyPay = basicPay + (finalStatus === 'Disetujui' ? totalPay : 0);
+      await query(
+        `UPDATE attendance SET overtime_hours = $1, overtime_approved = $2, total_daily_pay = $3 WHERE id = $4`,
+        [finalStatus === 'Ditolak' ? 0 : finalHours, finalStatus === 'Disetujui', newTotalDailyPay, att.id]
+      );
+    }
 
     return mapOvertime(res.rows[0]);
   },
 
   async deleteOvertime(id: string): Promise<void> {
+    const ovtRes = await query('SELECT * FROM overtime_records WHERE id = $1', [id]);
+    if (ovtRes.rows.length > 0) {
+      const current = mapOvertime(ovtRes.rows[0]);
+      const attRes = await query(
+        'SELECT * FROM attendance WHERE id = $1 OR (employee_id = $2 AND date = $3) LIMIT 1',
+        [current.attendanceId || '', current.employeeId, current.date]
+      );
+      if (attRes.rows.length > 0) {
+        const att = mapAttendance(attRes.rows[0]);
+        const basicPay = calcBasicPayByStatus(att.status, att.dailyWageSnapshot);
+        await query(
+          `UPDATE attendance SET overtime_hours = 0, overtime_approved = false, total_daily_pay = $1 WHERE id = $2`,
+          [basicPay, att.id]
+        );
+      }
+    }
     await query('DELETE FROM overtime_records WHERE id = $1', [id]);
   },
 
@@ -1536,17 +2319,18 @@ export const pgService = {
 
     const res = await query(
       `INSERT INTO kasbon_records (
-        id, kasbon_number, request_date, employee_id, employee_name, employee_role,
+        id, kasbon_number, attendance_id, request_date, employee_id, employee_name, employee_role,
         employee_start_date, eligibility_date, is_eligible, eligibility_reason,
         amount, reason, status, deducted_amount, remaining_amount,
         target_payment_period, admin_notes, project_id,
         attachment_file_path, attachment_file_name, attachment_file_size, attachment_mime_type,
         audit_trail
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
       RETURNING *`,
       [
         id,
         kasbonNumber,
+        data.attendanceId || null,
         data.requestDate || new Date().toISOString().split('T')[0],
         emp.id,
         emp.name,
@@ -1812,39 +2596,68 @@ export const pgService = {
       const paymentNumber = `PAY-${paymentDatePrefix}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
       const paymentId = `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
-      // 1. Resolve work days, basic salary, overtime, and gross
-      let totalWorkDays = Number(data.totalWorkDays ?? data.workDays);
-      let totalBasicSalary = Number(data.totalBasicSalary ?? data.basicSalary);
-      let approvedOvertimeHours = Number(data.approvedOvertimeHours);
-      let totalOvertimePay = Number(data.totalOvertimePay ?? data.overtimePay);
-      let numGross = Number(data.grossSalary);
+      // 1. Always compute accurate breakdown from attendance & overtime tables (including Setengah Hari & exact overtime)
+      const attRes = await client.query(
+        `SELECT date, status, daily_wage_snapshot FROM attendance
+         WHERE employee_id = $1 AND date >= $2 AND date <= $3
+         ORDER BY date DESC`,
+        [emp.id, data.periodStart, data.periodEnd]
+      );
 
-      // Auto-compute dynamically from attendance & overtime tables if not sent or 0
-      if (isNaN(numGross) || numGross <= 0 || isNaN(totalBasicSalary) || totalBasicSalary <= 0) {
-        const attRes = await client.query(
-          `SELECT status, daily_wage_snapshot FROM attendance
-           WHERE employee_id = $1 AND date >= $2 AND date <= $3`,
-          [emp.id, data.periodStart, data.periodEnd]
-        );
-        const presentAtts = attRes.rows.filter((r: any) => r.status === 'Hadir');
-        totalWorkDays = presentAtts.length;
-        totalBasicSalary = presentAtts.reduce((sum: number, r: any) => sum + Number(r.daily_wage_snapshot || emp.dailyWage), 0);
-
-        const ovtRes = await client.query(
-          `SELECT hours, total_pay FROM overtime_records
-           WHERE employee_id = $1 AND date >= $2 AND date <= $3 AND status = 'Disetujui'`,
-          [emp.id, data.periodStart, data.periodEnd]
-        );
-        approvedOvertimeHours = ovtRes.rows.reduce((sum: number, r: any) => sum + Number(r.hours || 0), 0);
-        totalOvertimePay = ovtRes.rows.reduce((sum: number, r: any) => sum + Number(r.total_pay || 0), 0);
-        numGross = totalBasicSalary + totalOvertimePay;
+      // Deduplicate by date so no day is ever double-counted
+      const seenDates = new Set<string>();
+      const uniqueAtts: any[] = [];
+      for (const r of attRes.rows) {
+        const dStr = typeof r.date === 'string' ? r.date : r.date.toISOString().split('T')[0];
+        if (!seenDates.has(dStr)) {
+          seenDates.add(dStr);
+          uniqueAtts.push(r);
+        }
       }
 
-      if (isNaN(totalWorkDays)) totalWorkDays = 0;
-      if (isNaN(totalBasicSalary)) totalBasicSalary = 0;
-      if (isNaN(approvedOvertimeHours)) approvedOvertimeHours = 0;
-      if (isNaN(totalOvertimePay)) totalOvertimePay = 0;
-      if (isNaN(numGross)) numGross = 0;
+      const fullDayAtts = uniqueAtts.filter((r: any) => r.status === 'Hadir');
+      const halfDayAtts = uniqueAtts.filter((r: any) => r.status === 'Setengah Hari');
+
+      const computedFullDays = fullDayAtts.length;
+      const computedHalfDays = halfDayAtts.length;
+      const computedWorkDays = computedFullDays + computedHalfDays * 0.5;
+      const computedFullDaySalary = fullDayAtts.reduce(
+        (sum: number, r: any) => sum + Math.round(Number(r.daily_wage_snapshot || emp.dailyWage)),
+        0
+      );
+      const computedHalfDaySalary = halfDayAtts.reduce(
+        (sum: number, r: any) => sum + Math.round(Number(r.daily_wage_snapshot || emp.dailyWage) / 2),
+        0
+      );
+      const computedBasicSalary = computedFullDaySalary + computedHalfDaySalary;
+
+      const ovtRes = await client.query(
+        `SELECT hours, total_pay FROM overtime_records
+         WHERE employee_id = $1 AND date >= $2 AND date <= $3 AND status = 'Disetujui'`,
+        [emp.id, data.periodStart, data.periodEnd]
+      );
+      const computedOtHours = Number(
+        ovtRes.rows.reduce((sum: number, r: any) => sum + Number(r.hours || 0), 0).toFixed(4)
+      );
+      const computedOtPay = ovtRes.rows.reduce((sum: number, r: any) => sum + Math.round(Number(r.total_pay || 0)), 0);
+
+      const fullWorkDays = data.fullWorkDays !== undefined ? Number(data.fullWorkDays) : computedFullDays;
+      const halfWorkDays = data.halfWorkDays !== undefined ? Number(data.halfWorkDays) : computedHalfDays;
+      const totalWorkDays = !isNaN(Number(data.totalWorkDays ?? data.workDays)) && Number(data.totalWorkDays ?? data.workDays) > 0
+        ? Number(data.totalWorkDays ?? data.workDays)
+        : computedWorkDays;
+      const fullDaySalary = data.fullDaySalary !== undefined ? Number(data.fullDaySalary) : computedFullDaySalary;
+      const halfDaySalary = data.halfDaySalary !== undefined ? Number(data.halfDaySalary) : computedHalfDaySalary;
+      const totalBasicSalary = !isNaN(Number(data.totalBasicSalary ?? data.basicSalary)) && Number(data.totalBasicSalary ?? data.basicSalary) > 0
+        ? Number(data.totalBasicSalary ?? data.basicSalary)
+        : computedBasicSalary;
+      const approvedOvertimeHours = !isNaN(Number(data.approvedOvertimeHours)) && Number(data.approvedOvertimeHours) > 0
+        ? Number(data.approvedOvertimeHours)
+        : computedOtHours;
+      const totalOvertimePay = !isNaN(Number(data.totalOvertimePay ?? data.overtimePay)) && Number(data.totalOvertimePay ?? data.overtimePay) > 0
+        ? Number(data.totalOvertimePay ?? data.overtimePay)
+        : computedOtPay;
+      const numGross = totalBasicSalary + totalOvertimePay;
 
       let numKasbonDeduction = Number(data.kasbonDeduction);
       if (isNaN(numKasbonDeduction) || numKasbonDeduction < 0) {
@@ -1894,22 +2707,25 @@ export const pgService = {
         {
           timestamp: new Date().toISOString(),
           user: userName,
-          action: `Pembayaran gaji diproses (${paymentNumber})`,
+          action: `Pembayaran gaji diproses (${paymentNumber}): ${fullWorkDays} hari penuh, ${halfWorkDays} setengah hari, lembur ${approvedOvertimeHours} jam`,
         },
       ];
 
       const insRes = await client.query(
         `INSERT INTO salary_payments (
           id, payment_number, period_start, period_end, employee_id, employee_name, employee_role,
-          project_id, total_work_days, approved_overtime_hours, total_basic_salary, total_overtime_pay,
+          project_id, full_work_days, half_work_days, total_work_days,
+          full_day_salary, half_day_salary, approved_overtime_hours, total_basic_salary, total_overtime_pay,
           gross_salary, kasbon_deduction, other_deductions, net_salary, payment_date,
           payment_method, reference_number, status, notes, processed_by, created_at, audit_trail
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW(), $23
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, NOW(), $27
         ) RETURNING *`,
         [
           paymentId, paymentNumber, data.periodStart, data.periodEnd, emp.id, emp.name, emp.role,
-          data.projectId || null, Number(totalWorkDays), Number(approvedOvertimeHours),
+          data.projectId || null,
+          Number(fullWorkDays), Number(halfWorkDays), Number(totalWorkDays),
+          Number(fullDaySalary), Number(halfDaySalary), Number(approvedOvertimeHours),
           Number(totalBasicSalary), Number(totalOvertimePay),
           numGross, numKasbonDeduction, numOther, numNet, data.paymentDate,
           data.paymentMethod || 'Kas Tunai', data.referenceNumber || null, 'Sudah dibayar',

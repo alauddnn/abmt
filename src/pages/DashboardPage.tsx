@@ -94,7 +94,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               : k.status === 'Ditolak'
               ? 'danger'
               : 'warning',
-          targetTab: 'kasbon',
+          targetTab: 'reports',
         });
       });
 

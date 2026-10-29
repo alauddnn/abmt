@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { SalaryPayment, Employee } from '../types.js';
 import { api } from '../lib/api.js';
-import { formatRupiah, formatDateID, getTodayDateString } from '../lib/utils.js';
+import { formatRupiah, formatDateID, getTodayDateString, formatOvertimeDuration } from '../lib/utils.js';
 import { useAuth } from '../context/AuthContext.js';
 import { SlipGajiModal } from '../components/SlipGajiModal.js';
 
@@ -134,8 +134,12 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
         paymentMethod: payForm.paymentMethod,
         referenceNumber: payForm.referenceNumber,
         totalWorkDays: processingEmp.totalWorkDays ?? processingEmp.workDays ?? 0,
+        fullWorkDays: processingEmp.fullWorkDays ?? 0,
+        halfWorkDays: processingEmp.halfWorkDays ?? 0,
         approvedOvertimeHours: processingEmp.approvedOvertimeHours ?? 0,
         totalBasicSalary: processingEmp.totalBasicSalary ?? processingEmp.basicSalary ?? 0,
+        fullDaySalary: processingEmp.fullDaySalary ?? 0,
+        halfDaySalary: processingEmp.halfDaySalary ?? 0,
         totalOvertimePay: processingEmp.totalOvertimePay ?? processingEmp.overtimePay ?? 0,
         grossSalary: processingEmp.grossSalary ?? 0,
         kasbonDeduction: processingEmp.proposedKasbonDeduction ?? 0,
@@ -298,11 +302,11 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
                   Kalkulasi Penggajian Periode {formatDateID(periodStart)} s/d {formatDateID(periodEnd)}
                 </h3>
                 <p className="text-[11px] text-[#667085] mt-0.5">
-                  Setiap karyawan dihitung berdasarkan hari kerja aktual dan lembur yang telah disetujui.
+                  Rumus: Total Upah Kotor = Upah Harian Penuh + Upah Setengah Hari + Upah Lembur (Jam & Menit). Total Bersih = Kotor − Kasbon.
                 </p>
               </div>
               <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#EFF5FF] text-[#4693FD]">
-                10 Karyawan Proyek
+                {previewList.length} Karyawan Aktif
               </span>
             </div>
 
@@ -312,13 +316,14 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
                   <tr className="bg-[#F9FAFB] text-[#475467] font-medium border-b border-[#EAECF0]">
                     <th className="py-3 px-4">Karyawan</th>
                     <th className="py-3 px-4">Jabatan</th>
-                    <th className="py-3 px-4">Hari Kerja</th>
-                    <th className="py-3 px-4">Lembur Disetujui</th>
-                    <th className="py-3 px-4 font-mono">Gaji Pokok</th>
+                    <th className="py-3 px-4">Rincian Hari Kerja</th>
+                    <th className="py-3 px-4">Durasi Lembur</th>
+                    <th className="py-3 px-4 font-mono">Upah Harian Penuh</th>
+                    <th className="py-3 px-4 font-mono">Upah ½ Hari</th>
                     <th className="py-3 px-4 font-mono">Upah Lembur</th>
-                    <th className="py-3 px-4 font-mono">Gaji Kotor</th>
+                    <th className="py-3 px-4 font-mono">Total Kotor</th>
                     <th className="py-3 px-4 font-mono text-[#D64545]">Potongan Kasbon</th>
-                    <th className="py-3 px-4 font-mono">Gaji Bersih</th>
+                    <th className="py-3 px-4 font-mono">Total Bersih</th>
                     <th className="py-3 px-4">Status Periode</th>
                     <th className="py-3 px-4 text-center">Aksi Pembayaran</th>
                   </tr>
@@ -326,13 +331,13 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
                 <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
                   {loadingPreview ? (
                     <tr>
-                      <td colSpan={11} className="py-10 text-center text-[#667085]">
+                      <td colSpan={12} className="py-10 text-center text-[#667085]">
                         Menghitung rincian gaji karyawan...
                       </td>
                     </tr>
                   ) : previewList.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="py-10 text-center text-[#667085]">
+                      <td colSpan={12} className="py-10 text-center text-[#667085]">
                         Tidak ada data kalkulasi untuk rentang periode ini.
                       </td>
                     </tr>
@@ -341,7 +346,11 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
                       const empName = emp.employeeName || emp.name;
                       const empRole = emp.employeeRole || emp.role;
                       const workDays = emp.totalWorkDays ?? emp.workDays ?? 0;
+                      const fullDays = emp.fullWorkDays ?? Math.floor(workDays);
+                      const halfDays = emp.halfWorkDays ?? (workDays % 1 !== 0 ? 1 : 0);
                       const basicSalary = emp.totalBasicSalary ?? emp.basicSalary ?? 0;
+                      const fullSalary = emp.fullDaySalary ?? (halfDays === 0 ? basicSalary : 0);
+                      const halfSalary = emp.halfDaySalary ?? 0;
                       const overtimePay = emp.totalOvertimePay ?? emp.overtimePay ?? 0;
                       const grossSalary = emp.grossSalary ?? (basicSalary + overtimePay);
                       const kasbonDed = emp.proposedKasbonDeduction ?? 0;
@@ -376,17 +385,21 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
                           )}
                         </td>
                         <td className="py-3 px-4 font-mono text-[#262626] whitespace-nowrap">
-                          {workDays} Hari
+                          <div>{fullDays} Penuh{halfDays > 0 ? ` + ${halfDays} (½ Hari)` : ''}</div>
+                          <div className="text-[10px] text-[#667085]">Total: {workDays} hari</div>
                         </td>
                         <td className="py-3 px-4 font-mono text-[#262626] whitespace-nowrap">
                           {emp.approvedOvertimeHours > 0 ? (
-                            <span className="font-medium text-[#4693FD]">{emp.approvedOvertimeHours} Jam</span>
+                            <span className="font-medium text-[#4693FD]">{formatOvertimeDuration(emp.approvedOvertimeHours)}</span>
                           ) : (
-                            <span className="text-[#98A2B3]">0 Jam</span>
+                            <span className="text-[#98A2B3]">-</span>
                           )}
                         </td>
                         <td className="py-3 px-4 font-mono text-[#262626] whitespace-nowrap tabular-nums">
-                          {formatRupiah(basicSalary)}
+                          {formatRupiah(fullSalary)}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-[#175CD3] whitespace-nowrap tabular-nums">
+                          {halfSalary > 0 ? formatRupiah(halfSalary) : <span className="text-[#98A2B3]">-</span>}
                         </td>
                         <td className="py-3 px-4 font-mono text-[#667085] whitespace-nowrap tabular-nums">
                           {formatRupiah(overtimePay)}
@@ -442,7 +455,7 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
                               Bayar Gaji
                             </button>
                           ) : (
-                            <span className="text-[#98A2B3] text-[11px]">Hanya Admin</span>
+                            <span className="text-[#98A2B3] text-[11px]">Hanya Lihat (Owner)</span>
                           )}
                         </td>
                       </tr>
@@ -607,15 +620,29 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
               {/* Financial Calculation Review */}
               <div className="p-3.5 bg-[#F9FAFB] rounded-lg border border-[#EAECF0] space-y-2">
                 <div className="flex items-center justify-between text-[#667085]">
-                  <span>Gaji Pokok ({processingEmp.totalWorkDays ?? processingEmp.workDays ?? 0} hari kerja):</span>
+                  <span>Upah Harian Penuh ({processingEmp.fullWorkDays ?? processingEmp.totalWorkDays ?? 0} hari):</span>
                   <span className="font-medium text-[#262626] font-mono tabular-nums">
-                    {formatRupiah(processingEmp.totalBasicSalary ?? processingEmp.basicSalary ?? 0)}
+                    {formatRupiah(processingEmp.fullDaySalary ?? processingEmp.totalBasicSalary ?? 0)}
                   </span>
                 </div>
+                {(processingEmp.halfWorkDays ?? 0) > 0 && (
+                  <div className="flex items-center justify-between text-[#175CD3]">
+                    <span>Upah Setengah Hari ({processingEmp.halfWorkDays} × ½ hari):</span>
+                    <span className="font-medium font-mono tabular-nums">
+                      {formatRupiah(processingEmp.halfDaySalary ?? 0)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-[#667085]">
-                  <span>Upah Lembur ({processingEmp.approvedOvertimeHours ?? 0} jam):</span>
+                  <span>Upah Lembur ({formatOvertimeDuration(processingEmp.approvedOvertimeHours ?? 0)}):</span>
                   <span className="font-medium text-[#262626] font-mono tabular-nums">
                     {formatRupiah(processingEmp.totalOvertimePay ?? processingEmp.overtimePay ?? 0)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[#262626] font-medium pt-1 border-t border-[#EAECF0]">
+                  <span>Total Upah Kotor:</span>
+                  <span className="font-mono tabular-nums">
+                    {formatRupiah(processingEmp.grossSalary ?? 0)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-[#D64545]">
@@ -625,7 +652,7 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
                   </span>
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-[#EAECF0] font-semibold text-[#16A36A]">
-                  <span className="uppercase text-[11px]">Total Gaji Bersih Dibayarkan:</span>
+                  <span className="uppercase text-[11px]">Total Upah Bersih Dibayarkan:</span>
                   <span className="text-sm font-mono tabular-nums">
                     {formatRupiah(processingEmp.netSalary ?? 0)}
                   </span>

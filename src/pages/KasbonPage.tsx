@@ -194,15 +194,9 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
           </p>
         </div>
 
-        {isAdmin && (
-          <button
-            onClick={handleOpenCreateModal}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-medium rounded-lg shadow-xs transition-colors shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Ajukan Kasbon Baru</span>
-          </button>
-        )}
+        <div className="px-3.5 py-2 bg-[#EFF5FF] border border-[#D0E2FF] text-[#155EEF] text-xs font-medium rounded-lg shrink-0">
+          Pengajuan kasbon dilakukan melalui Form Absensi Karyawan
+        </div>
       </div>
 
       {/* Highlights summary */}

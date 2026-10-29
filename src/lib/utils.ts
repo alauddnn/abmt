@@ -64,3 +64,67 @@ export function getDaysDifference(date1: string, date2: string): number {
   const diffTime = d2.getTime() - d1.getTime();
   return Math.floor(diffTime / (1000 * 60 * 60 * 24));
 }
+
+/**
+ * Hitung upah pokok berdasarkan status kehadiran:
+ * - 'Hadir': 100% upah harian
+ * - 'Setengah Hari': Upah harian ÷ 2 (50%)
+ * - Status lainnya ('Izin', 'Sakit', 'Libur', 'Tidak Hadir'): Rp0
+ */
+export function calculateBasicPayByStatus(status: string, dailyWage: number | undefined | null): number {
+  const wage = Number(dailyWage) || 0;
+  if (status === 'Hadir') return Math.round(wage);
+  if (status === 'Setengah Hari') return Math.round(wage / 2);
+  return 0;
+}
+
+/**
+ * Konversi jam desimal menjadi { hours, minutes } secara akurat tanpa pembulatan durasi.
+ */
+export function splitHoursMinutes(decimalHours: number | undefined | null): { hours: number; minutes: number; totalMinutes: number } {
+  const val = Math.max(0, Number(decimalHours) || 0);
+  const totalMinutes = Math.round(val * 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return { hours, minutes, totalMinutes };
+}
+
+/**
+ * Hitung upah lembur proporsional berdasarkan durasi aktual (jam & menit) × tarif lembur per jam.
+ * Rumus: Upah lembur = Durasi lembur dalam jam × Tarif lembur per jam
+ */
+export function calculateOvertimePayFromHoursMinutes(
+  hours: number | undefined | null,
+  minutes: number | undefined | null,
+  hourlyRate: number | undefined | null
+): number {
+  const h = Math.max(0, Number(hours) || 0);
+  const m = Math.max(0, Number(minutes) || 0);
+  const rate = Math.max(0, Number(hourlyRate) || 0);
+  const totalMinutes = Math.round(h * 60 + m);
+  return Math.round((totalMinutes * rate) / 60);
+}
+
+/**
+ * Hitung upah lembur proporsional dari jam desimal (misal 1.5 jam = 1 jam 30 menit).
+ */
+export function calculateOvertimePayFromDecimal(
+  decimalHours: number | undefined | null,
+  hourlyRate: number | undefined | null
+): number {
+  const { totalMinutes } = splitHoursMinutes(decimalHours);
+  const rate = Math.max(0, Number(hourlyRate) || 0);
+  return Math.round((totalMinutes * rate) / 60);
+}
+
+/**
+ * Format durasi lembur dari jam desimal ke teks "X jam Y menit"
+ */
+export function formatOvertimeDuration(decimalHours: number | undefined | null): string {
+  const { hours, minutes, totalMinutes } = splitHoursMinutes(decimalHours);
+  if (totalMinutes <= 0) return '0 jam';
+  if (hours > 0 && minutes > 0) return `${hours} jam ${minutes} mnt`;
+  if (hours > 0) return `${hours} jam`;
+  return `${minutes} menit`;
+}
+

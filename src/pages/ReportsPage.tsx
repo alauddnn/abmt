@@ -11,8 +11,39 @@ import {
   Building,
 } from 'lucide-react';
 import { api } from '../lib/api.js';
-import { formatRupiah, formatDateID, getTodayDateString } from '../lib/utils.js';
+import { formatRupiah, formatDateID, getTodayDateString, formatOvertimeDuration } from '../lib/utils.js';
 import { useCompany } from '../context/CompanyContext.js';
+
+const REPORT_COLUMN_LABELS: Record<string, string> = {
+  id: 'ID',
+  name: 'Nama Karyawan',
+  employeeName: 'Nama Karyawan',
+  role: 'Jabatan',
+  employeeRole: 'Jabatan',
+  fullWorkDays: 'Hari Penuh',
+  halfWorkDays: '½ Hari',
+  workDays: 'Total Hari',
+  totalWorkDays: 'Total Hari',
+  fullDaySalary: 'Upah Penuh',
+  halfDaySalary: 'Upah ½ Hari',
+  basicSalary: 'Total Upah Pokok',
+  totalBasicSalary: 'Total Upah Pokok',
+  overtimeHours: 'Durasi Lembur',
+  approvedOvertimeHours: 'Durasi Lembur',
+  hours: 'Durasi Lembur',
+  hourlyRateSnapshot: 'Tarif / Jam',
+  overtimePay: 'Upah Lembur',
+  totalOvertimePay: 'Upah Lembur',
+  totalPay: 'Total Upah Lembur',
+  grossSalary: 'Total Upah Kotor',
+  kasbonDeduction: 'Potongan Kasbon',
+  netSalary: 'Total Upah Bersih',
+  paymentNumber: 'No. Slip',
+  paymentDate: 'Tgl Bayar',
+  periodStart: 'Awal Periode',
+  periodEnd: 'Akhir Periode',
+  status: 'Status',
+};
 
 interface ReportsPageProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
@@ -272,30 +303,77 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ showToast }) => {
                 </tbody>
               </table>
             ) : (
-              <table className="w-full text-left text-xs border border-[#EAECF0] rounded-lg overflow-hidden">
-                <thead>
-                  <tr className="bg-[#F9FAFB] text-[#475467] font-medium border-b border-[#EAECF0]">
-                    {Object.keys(reportData.data[0] || {}).map((col) => (
-                      <th key={col} className="py-2.5 px-3 capitalize">
-                        {col.replace(/([A-Z])/g, ' $1')}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
-                  {reportData.data.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-[#F9FAFB]">
-                      {Object.entries(row).map(([key, val]: [string, any], cIdx) => (
-                        <td key={cIdx} className="py-2.5 px-3 whitespace-nowrap">
-                          {typeof val === 'number' && (key.toLowerCase().includes('nominal') || key.toLowerCase().includes('gaji') || key.toLowerCase().includes('upah') || key.toLowerCase().includes('total') || key.toLowerCase().includes('kasbon') || key.toLowerCase().includes('amount') || key.toLowerCase().includes('net') || key.toLowerCase().includes('gross'))
-                            ? formatRupiah(val)
-                            : String(val ?? '-')}
-                        </td>
+              (() => {
+                const hiddenCols = new Set([
+                  'auditTrail',
+                  'attachments',
+                  'attachmentFilePath',
+                  'attachmentFileName',
+                  'attachmentFileSize',
+                  'attachmentMimeType',
+                  'durationHours',
+                  'durationMinutes',
+                ]);
+                const visibleCols = Object.keys(reportData.data[0] || {}).filter(
+                  (col) => !hiddenCols.has(col)
+                );
+                return (
+                  <table className="w-full text-left text-xs border border-[#EAECF0] rounded-lg overflow-hidden">
+                    <thead>
+                      <tr className="bg-[#F9FAFB] text-[#475467] font-medium border-b border-[#EAECF0]">
+                        {visibleCols.map((col) => (
+                          <th key={col} className="py-2.5 px-3 capitalize whitespace-nowrap">
+                            {REPORT_COLUMN_LABELS[col] || col.replace(/([A-Z])/g, ' $1')}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+                      {reportData.data.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-[#F9FAFB]">
+                          {visibleCols.map((key, cIdx) => {
+                            const val = row[key];
+                            const lower = key.toLowerCase();
+                            const isDurationCol =
+                              key === 'overtimeHours' ||
+                              key === 'approvedOvertimeHours' ||
+                              key === 'hours';
+                            const isDaysCol =
+                              lower.includes('days') || lower.includes('hari');
+                            const isMoneyCol =
+                              !isDaysCol &&
+                              !isDurationCol &&
+                              typeof val === 'number' &&
+                              (lower.includes('nominal') ||
+                                lower.includes('gaji') ||
+                                lower.includes('upah') ||
+                                lower.includes('salary') ||
+                                lower.includes('pay') ||
+                                lower.includes('rate') ||
+                                lower.includes('kasbon') ||
+                                lower.includes('deduction') ||
+                                lower.includes('amount') ||
+                                lower.includes('net') ||
+                                lower.includes('gross'));
+
+                            return (
+                              <td key={cIdx} className="py-2.5 px-3 whitespace-nowrap font-mono">
+                                {isDurationCol && typeof val === 'number'
+                                  ? val > 0
+                                    ? formatOvertimeDuration(val)
+                                    : '-'
+                                  : isMoneyCol
+                                  ? formatRupiah(val)
+                                  : String(val ?? '-')}
+                              </td>
+                            );
+                          })}
+                        </tr>
                       ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                    </tbody>
+                  </table>
+                );
+              })()
             )}
           </div>
         )}

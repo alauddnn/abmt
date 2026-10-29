@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Printer, Building2, CheckCircle2 } from 'lucide-react';
 import { SalaryPayment } from '../types.js';
-import { formatRupiah, formatDateID } from '../lib/utils.js';
+import { formatRupiah, formatDateID, formatOvertimeDuration } from '../lib/utils.js';
 import { useCompany } from '../context/CompanyContext.js';
 
 interface SlipGajiModalProps {
@@ -96,15 +96,29 @@ export const SlipGajiModal: React.FC<SlipGajiModalProps> = ({ payment, onClose }
             </div>
             <div className="p-4 space-y-2.5 text-xs">
               <div className="flex items-center justify-between text-[#344054]">
-                <span>Gaji Pokok ({payment.totalWorkDays} hari kerja)</span>
-                <span className="font-medium text-[#262626] tabular-nums font-mono">{formatRupiah(payment.totalBasicSalary)}</span>
+                <span>
+                  Upah Harian Penuh ({payment.fullWorkDays !== undefined ? payment.fullWorkDays : Math.floor(payment.totalWorkDays)} hari kerja)
+                </span>
+                <span className="font-medium text-[#262626] tabular-nums font-mono">
+                  {formatRupiah(payment.fullDaySalary !== undefined && payment.fullDaySalary > 0 ? payment.fullDaySalary : payment.totalBasicSalary - (payment.halfDaySalary || 0))}
+                </span>
               </div>
+              {((payment.halfWorkDays ?? 0) > 0 || (payment.halfDaySalary ?? 0) > 0) && (
+                <div className="flex items-center justify-between text-[#175CD3]">
+                  <span>
+                    Upah Setengah Hari ({payment.halfWorkDays || 1} × ½ hari kerja)
+                  </span>
+                  <span className="font-medium tabular-nums font-mono">
+                    {formatRupiah(payment.halfDaySalary || 0)}
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-[#344054]">
-                <span>Upah Lembur ({payment.approvedOvertimeHours} jam disetujui)</span>
+                <span>Upah Lembur ({formatOvertimeDuration(payment.approvedOvertimeHours)} disetujui)</span>
                 <span className="font-medium text-[#262626] tabular-nums font-mono">{formatRupiah(payment.totalOvertimePay)}</span>
               </div>
               <div className="flex items-center justify-between font-semibold text-[#262626] pt-2 border-t border-[#EAECF0]">
-                <span>TOTAL GAJI KOTOR (PENDAPATAN)</span>
+                <span>TOTAL UPAH KOTOR (PENDAPATAN)</span>
                 <span className="tabular-nums font-mono">{formatRupiah(payment.grossSalary)}</span>
               </div>
             </div>

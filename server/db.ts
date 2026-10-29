@@ -48,7 +48,7 @@ export interface Attendance {
   employeeRole: EmployeeRole | string;
   projectId?: string;
   projectName?: string;
-  status: 'Hadir' | 'Izin' | 'Sakit' | 'Libur' | 'Tidak Hadir';
+  status: 'Hadir' | 'Setengah Hari' | 'Izin' | 'Sakit' | 'Libur' | 'Tidak Hadir';
   checkIn: string; // '08:00'
   checkOut: string; // '16:00'
   overtimeHours: number;
@@ -61,6 +61,13 @@ export interface Attendance {
   createdAt: string;
   updatedBy?: string;
   updatedAt?: string;
+  kasbonId?: string;
+  kasbonNumber?: string;
+  kasbonAmount?: number;
+  kasbonNotes?: string;
+  kasbonStatus?: string;
+  kasbonAttachmentFilePath?: string;
+  kasbonAttachments?: OperationalExpenseAttachment[];
 }
 
 export interface OvertimeRecord {
@@ -73,6 +80,8 @@ export interface OvertimeRecord {
   startTime: string;
   endTime: string;
   hours: number;
+  durationHours?: number;
+  durationMinutes?: number;
   hourlyRateSnapshot: number;
   totalPay: number;
   status: 'Menunggu persetujuan' | 'Disetujui' | 'Ditolak';
@@ -85,6 +94,7 @@ export interface OvertimeRecord {
 export interface KasbonRecord {
   id: string;
   kasbonNumber: string; // KB-202610-001
+  attendanceId?: string;
   requestDate: string; // YYYY-MM-DD
   employeeId: string;
   employeeName: string;
@@ -131,8 +141,12 @@ export interface SalaryPayment {
   employeeName: string;
   employeeRole: string;
   totalWorkDays: number;
+  fullWorkDays?: number;
+  halfWorkDays?: number;
   approvedOvertimeHours: number;
   totalBasicSalary: number;
+  fullDaySalary?: number;
+  halfDaySalary?: number;
   totalOvertimePay: number;
   grossSalary: number;
   kasbonDeduction: number;

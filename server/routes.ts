@@ -19,7 +19,7 @@ import {
 } from './db.js';
 
 import { isPostgresConfigured, query as pgQuery } from './postgres.js';
-import { pgService } from './pgService.js';
+import { pgService, calcBasicPayByStatus, resolveOvertimeDecimalHours, calcOvertimePayExact } from './pgService.js';
 import { verifyTurnstileToken, consumeTurnstileTicket } from './turnstile.js';
 import {
   uploadToStorage,
@@ -1848,18 +1848,119 @@ router.get('/attendance', async (req: Request, res: Response) => {
   return res.json(list);
 });
 
-// Single attendance record
+async function parseAndUploadKasbonAttachments(
+  rawAttachments: any,
+  projectId?: string
+): Promise<{
+  ok: boolean;
+  errorStatus?: number;
+  errorMessage?: string;
+  items: Array<{ fileName: string; filePath: string; fileSize: number; mimeType: string }>;
+}> {
+  const processed: Array<{ fileName: string; filePath: string; fileSize: number; mimeType: string }> = [];
+  if (!Array.isArray(rawAttachments) || rawAttachments.length === 0) {
+    return { ok: true, items: processed };
+  }
+
+  for (let i = 0; i < rawAttachments.length; i++) {
+    const item = rawAttachments[i];
+    const rawBase64 = item?.dataBase64 || item?.dataUrl;
+    if (!item || !rawBase64) continue;
+
+    let base64Clean = rawBase64;
+    if (base64Clean.includes(';base64,')) {
+      base64Clean = base64Clean.split(';base64,')[1];
+    }
+    const buffer = Buffer.from(base64Clean, 'base64');
+    const validation = validateImageBuffer(
+      buffer,
+      item.fileName || 'bukti_kasbon.jpg',
+      item.mimeType || item.fileType || 'image/jpeg'
+    );
+    if (!validation.valid) {
+      return {
+        ok: false,
+        errorStatus: 400,
+        errorMessage: `File bukti kasbon '${item.fileName || 'foto'}' tidak valid: ${validation.error}`,
+        items: [],
+      };
+    }
+
+    try {
+      const uploadResult = await uploadToStorage(
+        buffer,
+        item.fileName || `bukti_kasbon_${Date.now()}_${i + 1}.jpg`,
+        validation.mimeType,
+        projectId ? `kasbon_${projectId}` : 'kasbon_absensi'
+      );
+
+      processed.push({
+        fileName: item.fileName || `bukti_kasbon_${Date.now()}_${i + 1}.jpg`,
+        filePath: uploadResult.filePath,
+        fileSize: buffer.length,
+        mimeType: validation.mimeType,
+      });
+    } catch (uploadErr: any) {
+      console.error('Attendance kasbon photo upload error:', uploadErr);
+      return {
+        ok: false,
+        errorStatus: 500,
+        errorMessage: `Gagal mengunggah foto bukti kasbon ke Supabase Storage: ${uploadErr.message}`,
+        items: [],
+      };
+    }
+  }
+
+  return { ok: true, items: processed };
+}
+
+// Single attendance record (with integrated Kasbon support)
 router.post('/attendance', async (req: Request, res: Response) => {
   const user = getUserFromReq(req);
-  const { date, employeeId, status, checkIn, checkOut, overtimeHours, notes } = req.body;
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak mencatat absensi' });
+  }
+  const {
+    date,
+    employeeId,
+    projectId,
+    status,
+    checkIn,
+    checkOut,
+    overtimeHours,
+    durationHours,
+    durationMinutes,
+    notes,
+    hasKasbon,
+    kasbonAmount,
+    kasbonNotes,
+    kasbonAttachments,
+  } = req.body;
 
   if (!date || !employeeId || !status) {
     return res.status(400).json({ error: 'Tanggal, karyawan, dan status kehadiran harus diisi' });
   }
 
+  const wantsKasbon = hasKasbon === true || (hasKasbon === undefined && Number(kasbonAmount || 0) > 0);
+  if (wantsKasbon) {
+    const numKasbon = Number(kasbonAmount || 0);
+    if (!numKasbon || numKasbon <= 0 || isNaN(numKasbon)) {
+      return res.status(400).json({ error: 'Nominal kasbon wajib diisi dan harus lebih besar dari Rp0' });
+    }
+  }
+
+  let uploadedKasbonPhotos: Array<{ fileName: string; filePath: string; fileSize: number; mimeType: string }> = [];
+  if (wantsKasbon && Array.isArray(kasbonAttachments) && kasbonAttachments.length > 0) {
+    const uploadCheck = await parseAndUploadKasbonAttachments(kasbonAttachments, projectId);
+    if (!uploadCheck.ok) {
+      return res.status(uploadCheck.errorStatus || 400).json({ error: uploadCheck.errorMessage });
+    }
+    uploadedKasbonPhotos = uploadCheck.items;
+  }
+
   if (isPostgresConfigured) {
     try {
-      const att = await pgService.createAttendance(req.body, user.name, user.role);
+      const att = await pgService.createAttendance(req.body, user.name, user.role, uploadedKasbonPhotos);
       return res.status(201).json(att);
     } catch (err: any) {
       return res.status(500).json({ error: 'Gagal mencatat absensi di PostgreSQL: ' + err.message });
@@ -1867,7 +1968,6 @@ router.post('/attendance', async (req: Request, res: Response) => {
   }
 
   const db = dbManager.getDb();
-  // Check duplicate attendance on same date
   const existing = db.attendance.find((a) => a.date === date && a.employeeId === employeeId);
   if (existing) {
     return res.status(409).json({
@@ -1882,14 +1982,11 @@ router.post('/attendance', async (req: Request, res: Response) => {
 
   const dailyWageSnapshot = emp.dailyWage;
   const overtimeWageSnapshot = emp.overtimeHourlyWage;
-  const otHours = Math.max(0, Number(overtimeHours) || 0);
+  const otHours = resolveOvertimeDecimalHours({ overtimeHours, durationHours, durationMinutes });
 
-  // Status calculation: Hadir gives daily wage
-  const isPaidDay = status === 'Hadir';
-  const basicPay = isPaidDay ? dailyWageSnapshot : 0;
-  // Overtime starts pending or pre-approved if created by admin
+  const basicPay = calcBasicPayByStatus(status, dailyWageSnapshot);
   const isApprovedOt = user.role === 'admin' && otHours > 0;
-  const overtimePay = isApprovedOt ? otHours * overtimeWageSnapshot : 0;
+  const overtimePay = isApprovedOt ? calcOvertimePayExact(otHours, overtimeWageSnapshot, durationHours, durationMinutes) : 0;
   const totalDailyPay = basicPay + overtimePay;
 
   const attId = `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
@@ -1899,6 +1996,7 @@ router.post('/attendance', async (req: Request, res: Response) => {
     employeeId: emp.id,
     employeeName: emp.name,
     employeeRole: emp.role,
+    projectId: projectId || undefined,
     status,
     checkIn: checkIn || db.settings.workHourStart,
     checkOut: checkOut || db.settings.workHourEnd,
@@ -1915,8 +2013,8 @@ router.post('/attendance', async (req: Request, res: Response) => {
   dbManager.mutate((database) => {
     database.attendance.push(newAtt);
 
-    // If overtime hours recorded, also add to overtime table
     if (otHours > 0) {
+      const exactOtPay = calcOvertimePayExact(otHours, overtimeWageSnapshot, durationHours, durationMinutes);
       database.overtime.push({
         id: `OT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         attendanceId: attId,
@@ -1928,7 +2026,7 @@ router.post('/attendance', async (req: Request, res: Response) => {
         endTime: '',
         hours: otHours,
         hourlyRateSnapshot: overtimeWageSnapshot,
-        totalPay: otHours * overtimeWageSnapshot,
+        totalPay: exactOtPay,
         status: isApprovedOt ? 'Disetujui' : 'Menunggu persetujuan',
         approvedBy: isApprovedOt ? user.name : undefined,
         approvedAt: isApprovedOt ? new Date().toISOString() : undefined,
@@ -1942,6 +2040,51 @@ router.post('/attendance', async (req: Request, res: Response) => {
         ],
       });
     }
+
+    if (wantsKasbon) {
+      const kAmount = Math.round(Number(kasbonAmount));
+      const kbId = `KB-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      const kbNum = `KB-${date.replace(/-/g, '')}-${String(database.kasbon.length + 1).padStart(4, '0')}`;
+      database.kasbon.push({
+        id: kbId,
+        kasbonNumber: kbNum,
+        projectId: projectId || undefined,
+        attendanceId: attId,
+        employeeId: emp.id,
+        employeeName: emp.name,
+        employeeRole: emp.role,
+        employeeStartDate: emp.startDate,
+        requestDate: date,
+        eligibilityDate: emp.startDate,
+        isEligible: true,
+        eligibilityReason: 'Disetujui melalui absensi',
+        amount: kAmount,
+        reason: (kasbonNotes || '').trim() || 'Pengajuan kasbon melalui absensi',
+        status: 'Disetujui',
+        approvedBy: user.name,
+        approvedAt: new Date().toISOString(),
+        deductedAmount: 0,
+        remainingAmount: kAmount,
+        targetPaymentPeriod: '',
+        adminNotes: (kasbonNotes || '').trim(),
+        attachmentFilePath: uploadedKasbonPhotos[0]?.filePath,
+        attachmentFileName: uploadedKasbonPhotos[0]?.fileName,
+        attachmentFileSize: uploadedKasbonPhotos[0]?.fileSize,
+        attachmentMimeType: uploadedKasbonPhotos[0]?.mimeType,
+        auditTrail: [
+          {
+            timestamp: new Date().toISOString(),
+            user: user.name,
+            action: `Kasbon Rp ${kAmount.toLocaleString('id-ID')} dicatat bersama absensi`,
+          },
+        ],
+      });
+      newAtt.kasbonId = kbId;
+      newAtt.kasbonNumber = kbNum;
+      newAtt.kasbonAmount = kAmount;
+      newAtt.kasbonNotes = (kasbonNotes || '').trim() || 'Pengajuan kasbon melalui absensi';
+      newAtt.kasbonStatus = 'Disetujui';
+    }
   });
 
   dbManager.addAuditLog(user.name, user.role, 'Catat Absensi', 'Absensi', `Absensi ${emp.name} pada ${date}: ${status}`);
@@ -1951,6 +2094,9 @@ router.post('/attendance', async (req: Request, res: Response) => {
 // Bulk attendance input (for all employees at once on a date)
 router.post('/attendance/bulk', async (req: Request, res: Response) => {
   const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak mencatat absensi massal' });
+  }
 
   if (isPostgresConfigured) {
     try {
@@ -1969,10 +2115,12 @@ router.post('/attendance/bulk', async (req: Request, res: Response) => {
     date: string;
     entries: Array<{
       employeeId: string;
-      status: 'Hadir' | 'Izin' | 'Sakit' | 'Libur' | 'Tidak Hadir';
+      status: 'Hadir' | 'Setengah Hari' | 'Izin' | 'Sakit' | 'Libur' | 'Tidak Hadir';
       checkIn?: string;
       checkOut?: string;
       overtimeHours?: number;
+      durationHours?: number;
+      durationMinutes?: number;
       notes?: string;
     }>;
   };
@@ -1981,7 +2129,6 @@ router.post('/attendance/bulk', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Tanggal dan daftar absensi harus valid' });
   }
 
-  const db = dbManager.getDb();
   const createdRecords: Attendance[] = [];
   const skippedEmployees: string[] = [];
 
@@ -1998,12 +2145,11 @@ router.post('/attendance/bulk', async (req: Request, res: Response) => {
 
       const dailyWageSnapshot = emp.dailyWage;
       const overtimeWageSnapshot = emp.overtimeHourlyWage;
-      const otHours = Math.max(0, Number(entry.overtimeHours) || 0);
+      const otHours = resolveOvertimeDecimalHours(entry);
 
-      const isPaidDay = entry.status === 'Hadir';
-      const basicPay = isPaidDay ? dailyWageSnapshot : 0;
+      const basicPay = calcBasicPayByStatus(entry.status, dailyWageSnapshot);
       const isApprovedOt = user.role === 'admin' && otHours > 0;
-      const overtimePay = isApprovedOt ? otHours * overtimeWageSnapshot : 0;
+      const overtimePay = isApprovedOt ? calcOvertimePayExact(otHours, overtimeWageSnapshot, entry.durationHours, entry.durationMinutes) : 0;
       const totalDailyPay = basicPay + overtimePay;
 
       const attId = `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
@@ -2030,6 +2176,7 @@ router.post('/attendance/bulk', async (req: Request, res: Response) => {
       createdRecords.push(newAtt);
 
       if (otHours > 0) {
+        const exactOtPay = calcOvertimePayExact(otHours, overtimeWageSnapshot, entry.durationHours, entry.durationMinutes);
         database.overtime.push({
           id: `OT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
           attendanceId: attId,
@@ -2041,7 +2188,7 @@ router.post('/attendance/bulk', async (req: Request, res: Response) => {
           endTime: '',
           hours: otHours,
           hourlyRateSnapshot: overtimeWageSnapshot,
-          totalPay: otHours * overtimeWageSnapshot,
+          totalPay: exactOtPay,
           status: isApprovedOt ? 'Disetujui' : 'Menunggu persetujuan',
           approvedBy: isApprovedOt ? user.name : undefined,
           approvedAt: isApprovedOt ? new Date().toISOString() : undefined,
@@ -2073,21 +2220,65 @@ router.post('/attendance/bulk', async (req: Request, res: Response) => {
   });
 });
 
-// Update / Koreksi Absensi (dengan audit trail)
-router.put('/attendance/:id', (req: Request, res: Response) => {
+// Update / Koreksi Absensi (dengan audit trail & integrasi kasbon tanpa duplikat)
+router.put('/attendance/:id', async (req: Request, res: Response) => {
   const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak mengubah data absensi' });
+  }
   const { id } = req.params;
-  const { status, checkIn, checkOut, overtimeHours, notes } = req.body;
+  const {
+    status,
+    checkIn,
+    checkOut,
+    overtimeHours,
+    durationHours,
+    durationMinutes,
+    notes,
+    projectId,
+    hasKasbon,
+    kasbonAmount,
+    kasbonNotes,
+    kasbonAttachments,
+  } = req.body;
+
+  if (hasKasbon === true) {
+    const numKasbon = Number(kasbonAmount || 0);
+    if (!numKasbon || numKasbon <= 0 || isNaN(numKasbon)) {
+      return res.status(400).json({ error: 'Nominal kasbon wajib diisi dan harus lebih besar dari Rp0' });
+    }
+  }
+
+  let uploadedKasbonPhotos: Array<{ fileName: string; filePath: string; fileSize: number; mimeType: string }> = [];
+  if (hasKasbon === true && Array.isArray(kasbonAttachments) && kasbonAttachments.length > 0) {
+    const uploadCheck = await parseAndUploadKasbonAttachments(kasbonAttachments, projectId);
+    if (!uploadCheck.ok) {
+      return res.status(uploadCheck.errorStatus || 400).json({ error: uploadCheck.errorMessage });
+    }
+    uploadedKasbonPhotos = uploadCheck.items;
+  }
+
+  if (isPostgresConfigured) {
+    try {
+      const updated = await pgService.updateAttendance(id, req.body, user.name, user.role, uploadedKasbonPhotos);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(500).json({ error: 'Gagal memperbarui absensi di PostgreSQL: ' + err.message });
+    }
+  }
 
   const updated = dbManager.mutate((database) => {
     const idx = database.attendance.findIndex((a) => a.id === id);
     if (idx !== -1) {
       const prev = database.attendance[idx];
       const newStatus = status || prev.status;
-      const newOtHours = overtimeHours !== undefined ? Math.max(0, Number(overtimeHours)) : prev.overtimeHours;
-      const isPaid = newStatus === 'Hadir';
-      const basicPay = isPaid ? prev.dailyWageSnapshot : 0;
-      const overtimePay = prev.overtimeApproved ? newOtHours * prev.overtimeWageSnapshot : 0;
+      let newOtHours = prev.overtimeHours;
+      if (durationHours !== undefined || durationMinutes !== undefined || overtimeHours !== undefined) {
+        newOtHours = resolveOvertimeDecimalHours({ overtimeHours, durationHours, durationMinutes });
+      }
+      const basicPay = calcBasicPayByStatus(newStatus, prev.dailyWageSnapshot);
+      const isApprovedOt = newOtHours > 0 ? true : prev.overtimeApproved;
+      const overtimePay = isApprovedOt ? calcOvertimePayExact(newOtHours, prev.overtimeWageSnapshot, durationHours, durationMinutes) : 0;
 
       database.attendance[idx] = {
         ...prev,
@@ -2095,6 +2286,7 @@ router.put('/attendance/:id', (req: Request, res: Response) => {
         checkIn: checkIn || prev.checkIn,
         checkOut: checkOut || prev.checkOut,
         overtimeHours: newOtHours,
+        overtimeApproved: isApprovedOt,
         totalDailyPay: basicPay + overtimePay,
         notes: notes !== undefined ? notes : prev.notes,
         updatedBy: user.name,
@@ -2137,6 +2329,9 @@ router.get('/overtime', async (_req: Request, res: Response) => {
 
 router.post('/overtime', async (req: Request, res: Response) => {
   const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak mencatat lembur' });
+  }
 
   if (isPostgresConfigured) {
     try {
@@ -2147,10 +2342,11 @@ router.post('/overtime', async (req: Request, res: Response) => {
     }
   }
 
-  const { date, employeeId, startTime, endTime, hours, notes } = req.body;
+  const { date, employeeId, startTime, endTime, hours, durationHours, durationMinutes, notes } = req.body;
+  const numHours = resolveOvertimeDecimalHours({ hours, durationHours, durationMinutes });
 
-  if (!date || !employeeId || !hours) {
-    return res.status(400).json({ error: 'Tanggal, karyawan, dan jumlah jam lembur harus diisi' });
+  if (!date || !employeeId || numHours <= 0) {
+    return res.status(400).json({ error: 'Tanggal, karyawan, dan durasi lembur (jam/menit) harus diisi' });
   }
 
   const db = dbManager.getDb();
@@ -2159,9 +2355,8 @@ router.post('/overtime', async (req: Request, res: Response) => {
     return res.status(404).json({ error: 'Karyawan tidak ditemukan' });
   }
 
-  const numHours = Number(hours);
   const rate = emp.overtimeHourlyWage;
-  const totalPay = numHours * rate;
+  const totalPay = calcOvertimePayExact(numHours, rate, durationHours, durationMinutes);
   const isApproved = user.role === 'admin';
 
   const newOt: OvertimeRecord = {
@@ -2191,12 +2386,11 @@ router.post('/overtime', async (req: Request, res: Response) => {
   dbManager.mutate((database) => {
     database.overtime.push(newOt);
 
-    // Sync with attendance if exists
     const att = database.attendance.find((a) => a.date === date && a.employeeId === emp.id);
     if (att && isApproved) {
       att.overtimeHours = numHours;
       att.overtimeApproved = true;
-      att.totalDailyPay = (att.status === 'Hadir' ? att.dailyWageSnapshot : 0) + totalPay;
+      att.totalDailyPay = calcBasicPayByStatus(att.status, att.dailyWageSnapshot) + totalPay;
     }
   });
 
@@ -2213,7 +2407,15 @@ router.put('/overtime/:id/status', async (req: Request, res: Response) => {
 
   if (isPostgresConfigured) {
     try {
-      const ovt = await pgService.updateOvertimeStatus(req.params.id, req.body.status, req.body.hours, req.body.notes, user.name);
+      const ovt = await pgService.updateOvertimeStatus(
+        req.params.id,
+        req.body.status,
+        req.body.hours,
+        req.body.notes,
+        user.name,
+        req.body.durationHours,
+        req.body.durationMinutes
+      );
       return res.json(ovt);
     } catch (err: any) {
       return res.status(500).json({ error: 'Gagal memperbarui status lembur di PostgreSQL: ' + err.message });
@@ -2221,14 +2423,17 @@ router.put('/overtime/:id/status', async (req: Request, res: Response) => {
   }
 
   const { id } = req.params;
-  const { status, hours, notes } = req.body; // 'Disetujui' | 'Ditolak' | 'Menunggu persetujuan'
+  const { status, hours, durationHours, durationMinutes, notes } = req.body;
 
   const updated = dbManager.mutate((database) => {
     const idx = database.overtime.findIndex((o) => o.id === id);
     if (idx !== -1) {
       const prev = database.overtime[idx];
-      const newHours = hours !== undefined ? Number(hours) : prev.hours;
-      const newTotalPay = newHours * prev.hourlyRateSnapshot;
+      const newHours =
+        durationHours !== undefined || durationMinutes !== undefined || hours !== undefined
+          ? resolveOvertimeDecimalHours({ hours, durationHours, durationMinutes })
+          : prev.hours;
+      const newTotalPay = calcOvertimePayExact(newHours, prev.hourlyRateSnapshot, durationHours, durationMinutes);
       const newStatus = status || prev.status;
 
       database.overtime[idx] = {
@@ -2244,20 +2449,19 @@ router.put('/overtime/:id/status', async (req: Request, res: Response) => {
           {
             timestamp: new Date().toISOString(),
             user: user.name,
-            action: `Status diubah menjadi: ${newStatus}${hours !== undefined ? ` (Jam disesuaikan: ${newHours})` : ''}`,
+            action: `Status diubah menjadi: ${newStatus} (Durasi: ${newHours} jam)`,
           },
         ],
       };
 
-      // Update linked attendance
-      if (prev.attendanceId) {
-        const att = database.attendance.find((a) => a.id === prev.attendanceId);
-        if (att) {
-          att.overtimeHours = newHours;
-          att.overtimeApproved = newStatus === 'Disetujui';
-          const basicPay = att.status === 'Hadir' ? att.dailyWageSnapshot : 0;
-          att.totalDailyPay = basicPay + (att.overtimeApproved ? newTotalPay : 0);
-        }
+      const att = database.attendance.find(
+        (a) => (prev.attendanceId && a.id === prev.attendanceId) || (a.employeeId === prev.employeeId && a.date === prev.date)
+      );
+      if (att) {
+        att.overtimeHours = newHours;
+        att.overtimeApproved = newStatus === 'Disetujui';
+        const basicPay = calcBasicPayByStatus(att.status, att.dailyWageSnapshot);
+        att.totalDailyPay = basicPay + (att.overtimeApproved ? newTotalPay : 0);
       }
       return database.overtime[idx];
     }
@@ -2507,22 +2711,35 @@ router.get('/payroll/preview', async (req: Request, res: Response) => {
   }
 
   const previewList = employeesToProcess.map((emp) => {
-    // 1. Get attendance in range
-    const atts = db.attendance.filter(
+    // 1. Get attendance in range (deduplicated by date so there is never double counting between full & half day)
+    const rawAtts = db.attendance.filter(
       (a) => a.employeeId === emp.id && a.date >= pStart && a.date <= pEnd
     );
+    const attByDate = new Map<string, Attendance>();
+    for (const a of rawAtts) {
+      if (!attByDate.has(a.date)) {
+        attByDate.set(a.date, a);
+      }
+    }
+    const atts = Array.from(attByDate.values());
 
-    const paidWorkDays = atts.filter((a) => a.status === 'Hadir').length;
-    // Calculate basic salary using daily snapshots recorded or fallback to employee's wage
-    const totalBasicSalary = atts.reduce((sum, a) => {
-      return a.status === 'Hadir' ? sum + a.dailyWageSnapshot : sum;
+    const fullWorkDays = atts.filter((a) => a.status === 'Hadir').length;
+    const halfWorkDays = atts.filter((a) => a.status === 'Setengah Hari').length;
+    const paidWorkDays = Number((fullWorkDays + halfWorkDays * 0.5).toFixed(2));
+
+    const fullDaySalary = atts.reduce((sum, a) => {
+      return a.status === 'Hadir' ? sum + (a.dailyWageSnapshot || emp.dailyWage) : sum;
     }, 0);
+    const halfDaySalary = atts.reduce((sum, a) => {
+      return a.status === 'Setengah Hari' ? sum + calcBasicPayByStatus('Setengah Hari', a.dailyWageSnapshot || emp.dailyWage) : sum;
+    }, 0);
+    const totalBasicSalary = fullDaySalary + halfDaySalary;
 
     // 2. Get approved overtime in range
     const ots = db.overtime.filter(
       (o) => o.employeeId === emp.id && o.date >= pStart && o.date <= pEnd && o.status === 'Disetujui'
     );
-    const approvedOvertimeHours = ots.reduce((sum, o) => sum + o.hours, 0);
+    const approvedOvertimeHours = Number(ots.reduce((sum, o) => sum + o.hours, 0).toFixed(4));
     const totalOvertimePay = ots.reduce((sum, o) => sum + o.totalPay, 0);
 
     const grossSalary = totalBasicSalary + totalOvertimePay;
@@ -2536,7 +2753,6 @@ router.get('/payroll/preview', async (req: Request, res: Response) => {
     );
 
     const totalRemainingKasbon = activeKasbons.reduce((sum, k) => sum + k.remainingAmount, 0);
-    // Proposed deduction: min(remainingKasbon, grossSalary) or 0
     const proposedKasbonDeduction = Math.min(totalRemainingKasbon, grossSalary);
 
     const otherDeductions = 0;
@@ -2563,7 +2779,11 @@ router.get('/payroll/preview', async (req: Request, res: Response) => {
       periodEnd: pEnd,
       workDays: paidWorkDays,
       totalWorkDays: paidWorkDays,
+      fullWorkDays,
+      halfWorkDays,
       approvedOvertimeHours,
+      fullDaySalary,
+      halfDaySalary,
       basicSalary: totalBasicSalary,
       totalBasicSalary,
       overtimePay: totalOvertimePay,
@@ -2604,8 +2824,12 @@ router.post('/payroll/process', async (req: Request, res: Response) => {
     periodEnd,
     employeeId,
     totalWorkDays,
+    fullWorkDays: reqFullWorkDays,
+    halfWorkDays: reqHalfWorkDays,
     approvedOvertimeHours,
     totalBasicSalary,
+    fullDaySalary: reqFullDaySalary,
+    halfDaySalary: reqHalfDaySalary,
     totalOvertimePay,
     grossSalary,
     kasbonDeduction,
@@ -2623,7 +2847,6 @@ router.post('/payroll/process', async (req: Request, res: Response) => {
   let errorMessage: string | null = null;
 
   const createdPayment = dbManager.mutate((database) => {
-    // 1. Prevent duplicate payment for same employee in same period
     const existing = database.salaryPayments.find(
       (p) =>
         p.employeeId === employeeId &&
@@ -2642,23 +2865,43 @@ router.post('/payroll/process', async (req: Request, res: Response) => {
       return null;
     }
 
+    const rawAtts = database.attendance.filter(
+      (a) => a.employeeId === employeeId && a.date >= periodStart && a.date <= periodEnd
+    );
+    const attByDate = new Map<string, Attendance>();
+    for (const a of rawAtts) {
+      if (!attByDate.has(a.date)) attByDate.set(a.date, a);
+    }
+    const atts = Array.from(attByDate.values());
+
+    const calcFullDays = atts.filter((a) => a.status === 'Hadir').length;
+    const calcHalfDays = atts.filter((a) => a.status === 'Setengah Hari').length;
+    const calcFullSalary = atts
+      .filter((a) => a.status === 'Hadir')
+      .reduce((sum, a) => sum + (a.dailyWageSnapshot || emp.dailyWage), 0);
+    const calcHalfSalary = atts
+      .filter((a) => a.status === 'Setengah Hari')
+      .reduce((sum, a) => sum + calcBasicPayByStatus('Setengah Hari', a.dailyWageSnapshot || emp.dailyWage), 0);
+
+    const numFullDays = reqFullWorkDays !== undefined ? Number(reqFullWorkDays) : calcFullDays;
+    const numHalfDays = reqHalfWorkDays !== undefined ? Number(reqHalfWorkDays) : calcHalfDays;
+    const numFullSalary = reqFullDaySalary !== undefined ? Number(reqFullDaySalary) : calcFullSalary;
+    const numHalfSalary = reqHalfDaySalary !== undefined ? Number(reqHalfDaySalary) : calcHalfSalary;
+
     let numWorkDays = Number(totalWorkDays ?? req.body.workDays);
     let numBasic = Number(totalBasicSalary ?? req.body.basicSalary);
     let numOtHours = Number(approvedOvertimeHours);
     let numOtPay = Number(totalOvertimePay ?? req.body.overtimePay);
     let numGross = Number(grossSalary);
 
-    if (isNaN(numGross) || numGross <= 0 || isNaN(numBasic) || numBasic <= 0) {
-      const atts = database.attendance.filter(
-        (a) => a.employeeId === employeeId && a.date >= periodStart && a.date <= periodEnd && a.status === 'Hadir'
-      );
-      numWorkDays = atts.length;
-      numBasic = atts.reduce((sum, a) => sum + (a.dailyWageSnapshot || emp.dailyWage), 0);
+    if (isNaN(numGross) || numGross <= 0 || isNaN(numBasic)) {
+      numWorkDays = Number((calcFullDays + calcHalfDays * 0.5).toFixed(2));
+      numBasic = calcFullSalary + calcHalfSalary;
 
       const ots = database.overtime.filter(
         (o) => o.employeeId === employeeId && o.date >= periodStart && o.date <= periodEnd && o.status === 'Disetujui'
       );
-      numOtHours = ots.reduce((sum, o) => sum + o.hours, 0);
+      numOtHours = Number(ots.reduce((sum, o) => sum + o.hours, 0).toFixed(4));
       numOtPay = ots.reduce((sum, o) => sum + o.totalPay, 0);
       numGross = numBasic + numOtPay;
     }
@@ -2681,7 +2924,6 @@ router.post('/payroll/process', async (req: Request, res: Response) => {
     const paymentNumber = `PAY-${paymentDate.replace(/-/g, '').slice(0, 6)}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
     const paymentId = `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
-    // 2. Handle kasbon deduction strictly (prevent double deduction)
     if (numKasbonDeduction > 0) {
       let deductionRemainingToAllocate = numKasbonDeduction;
 
@@ -2732,10 +2974,14 @@ router.post('/payroll/process', async (req: Request, res: Response) => {
       employeeId: emp.id,
       employeeName: emp.name,
       employeeRole: emp.role,
-      totalWorkDays: Number(totalWorkDays) || 0,
-      approvedOvertimeHours: Number(approvedOvertimeHours) || 0,
-      totalBasicSalary: Number(totalBasicSalary) || 0,
-      totalOvertimePay: Number(totalOvertimePay) || 0,
+      totalWorkDays: numWorkDays,
+      fullWorkDays: numFullDays,
+      halfWorkDays: numHalfDays,
+      approvedOvertimeHours: numOtHours,
+      totalBasicSalary: numBasic,
+      fullDaySalary: numFullSalary,
+      halfDaySalary: numHalfSalary,
+      totalOvertimePay: numOtPay,
       grossSalary: numGross,
       kasbonDeduction: numKasbonDeduction,
       otherDeductions: numOther,
@@ -3437,12 +3683,12 @@ router.get('/dashboard/stats', async (req: Request, res: Response) => {
     rangeEnd = String(endDate);
   }
 
-  // 1. Total Gaji Karyawan (Pokok) from attendance in period
+  // 1. Total Gaji Karyawan (Pokok) from attendance in period (including Setengah Hari = 50%)
   const attendanceInPeriod = db.attendance.filter(
     (a) => a.date >= rangeStart && a.date <= rangeEnd
   );
   const totalGajiPokok = attendanceInPeriod.reduce((sum, a) => {
-    return a.status === 'Hadir' ? sum + a.dailyWageSnapshot : sum;
+    return sum + calcBasicPayByStatus(a.status, a.dailyWageSnapshot);
   }, 0);
 
   // 2. Total Upah Lembur (Disetujui) in period
@@ -3513,7 +3759,11 @@ router.get('/dashboard/stats', async (req: Request, res: Response) => {
   const jumlahKaryawanAktif = activeEmployees.length;
 
   // 13. Total Hari Kerja Karyawan
-  const totalHariKerja = attendanceInPeriod.filter((a) => a.status === 'Hadir').length;
+  const totalHariKerja = Number(
+    attendanceInPeriod
+      .reduce((sum, a) => sum + (a.status === 'Hadir' ? 1 : a.status === 'Setengah Hari' ? 0.5 : 0), 0)
+      .toFixed(2)
+  );
 
   // 14 & 15. Daily and Monthly trend chart data
   const dailyMap: Record<string, { date: string; gaji: number; lembur: number; owner: number; asisten: number; total: number }> = {};
@@ -3521,9 +3771,10 @@ router.get('/dashboard/stats', async (req: Request, res: Response) => {
     if (!dailyMap[a.date]) {
       dailyMap[a.date] = { date: a.date, gaji: 0, lembur: 0, owner: 0, asisten: 0, total: 0 };
     }
-    if (a.status === 'Hadir') {
-      dailyMap[a.date].gaji += a.dailyWageSnapshot;
-      dailyMap[a.date].total += a.dailyWageSnapshot;
+    const basicPay = calcBasicPayByStatus(a.status, a.dailyWageSnapshot);
+    if (basicPay > 0) {
+      dailyMap[a.date].gaji += basicPay;
+      dailyMap[a.date].total += basicPay;
     }
   });
 
@@ -3606,30 +3857,48 @@ router.get('/reports', async (req: Request, res: Response) => {
   const rStart = startDate ? String(startDate) : '1970-01-01';
   const rEnd = endDate ? String(endDate) : '2099-12-31';
 
+  const mapEmpReport = (emp: Employee, atts: Attendance[], ots: OvertimeRecord[]) => {
+    const rawEmpAtts = atts.filter((a) => a.employeeId === emp.id);
+    const attByDate = new Map<string, Attendance>();
+    for (const a of rawEmpAtts) {
+      if (!attByDate.has(a.date)) attByDate.set(a.date, a);
+    }
+    const empAtts = Array.from(attByDate.values());
+    const fullDays = empAtts.filter((a) => a.status === 'Hadir').length;
+    const halfDays = empAtts.filter((a) => a.status === 'Setengah Hari').length;
+    const days = Number((fullDays + halfDays * 0.5).toFixed(2));
+    const fullSalary = empAtts
+      .filter((a) => a.status === 'Hadir')
+      .reduce((s, a) => s + (a.dailyWageSnapshot || emp.dailyWage), 0);
+    const halfSalary = empAtts
+      .filter((a) => a.status === 'Setengah Hari')
+      .reduce((s, a) => s + calcBasicPayByStatus('Setengah Hari', a.dailyWageSnapshot || emp.dailyWage), 0);
+    const basic = fullSalary + halfSalary;
+    const empOts = ots.filter((o) => o.employeeId === emp.id);
+    const otHours = Number(empOts.reduce((s, o) => s + o.hours, 0).toFixed(4));
+    const otPay = empOts.reduce((s, o) => s + o.totalPay, 0);
+    return {
+      id: emp.id,
+      name: emp.name,
+      role: emp.role === 'Kenek' ? 'Helper' : emp.role,
+      fullWorkDays: fullDays,
+      halfWorkDays: halfDays,
+      workDays: days,
+      fullDaySalary: fullSalary,
+      halfDaySalary: halfSalary,
+      basicSalary: basic,
+      overtimeHours: otHours,
+      overtimePay: otPay,
+      grossSalary: basic + otPay,
+    };
+  };
+
   switch (type) {
     case 'rekap_gaji_semua': {
       // A. Rekap Gaji Seluruh Karyawan
       const atts = db.attendance.filter((a) => a.date >= rStart && a.date <= rEnd);
       const ots = db.overtime.filter((o) => o.date >= rStart && o.date <= rEnd && o.status === 'Disetujui');
-
-      const byEmp = db.employees.map((emp) => {
-        const empAtts = atts.filter((a) => a.employeeId === emp.id);
-        const days = empAtts.filter((a) => a.status === 'Hadir').length;
-        const basic = empAtts.reduce((s, a) => (a.status === 'Hadir' ? s + a.dailyWageSnapshot : s), 0);
-        const empOts = ots.filter((o) => o.employeeId === emp.id);
-        const otHours = empOts.reduce((s, o) => s + o.hours, 0);
-        const otPay = empOts.reduce((s, o) => s + o.totalPay, 0);
-        return {
-          id: emp.id,
-          name: emp.name,
-          role: emp.role,
-          workDays: days,
-          basicSalary: basic,
-          overtimeHours: otHours,
-          overtimePay: otPay,
-          grossSalary: basic + otPay,
-        };
-      });
+      const byEmp = db.employees.map((emp) => mapEmpReport(emp, atts, ots));
       return res.json({ title: 'Rekap Gaji Seluruh Karyawan', data: byEmp });
     }
 
@@ -3640,25 +3909,7 @@ router.get('/reports', async (req: Request, res: Response) => {
         (o) => o.date >= rStart && o.date <= rEnd && o.employeeRole === 'Tukang' && o.status === 'Disetujui'
       );
       const tukangs = db.employees.filter((e) => e.role === 'Tukang');
-
-      const byEmp = tukangs.map((emp) => {
-        const empAtts = atts.filter((a) => a.employeeId === emp.id);
-        const days = empAtts.filter((a) => a.status === 'Hadir').length;
-        const basic = empAtts.reduce((s, a) => (a.status === 'Hadir' ? s + a.dailyWageSnapshot : s), 0);
-        const empOts = ots.filter((o) => o.employeeId === emp.id);
-        const otHours = empOts.reduce((s, o) => s + o.hours, 0);
-        const otPay = empOts.reduce((s, o) => s + o.totalPay, 0);
-        return {
-          id: emp.id,
-          name: emp.name,
-          role: emp.role,
-          workDays: days,
-          basicSalary: basic,
-          overtimeHours: otHours,
-          overtimePay: otPay,
-          grossSalary: basic + otPay,
-        };
-      });
+      const byEmp = tukangs.map((emp) => mapEmpReport(emp, atts, ots));
       return res.json({ title: 'Rekap Gaji Tukang', data: byEmp });
     }
 
@@ -3669,25 +3920,7 @@ router.get('/reports', async (req: Request, res: Response) => {
         (o) => o.date >= rStart && o.date <= rEnd && o.employeeRole === 'Mandor' && o.status === 'Disetujui'
       );
       const mandors = db.employees.filter((e) => e.role === 'Mandor');
-
-      const byEmp = mandors.map((emp) => {
-        const empAtts = atts.filter((a) => a.employeeId === emp.id);
-        const days = empAtts.filter((a) => a.status === 'Hadir').length;
-        const basic = empAtts.reduce((s, a) => (a.status === 'Hadir' ? s + a.dailyWageSnapshot : s), 0);
-        const empOts = ots.filter((o) => o.employeeId === emp.id);
-        const otHours = empOts.reduce((s, o) => s + o.hours, 0);
-        const otPay = empOts.reduce((s, o) => s + o.totalPay, 0);
-        return {
-          id: emp.id,
-          name: emp.name,
-          role: emp.role,
-          workDays: days,
-          basicSalary: basic,
-          overtimeHours: otHours,
-          overtimePay: otPay,
-          grossSalary: basic + otPay,
-        };
-      });
+      const byEmp = mandors.map((emp) => mapEmpReport(emp, atts, ots));
       return res.json({ title: 'Rekap Gaji Mandor', data: byEmp });
     }
 
@@ -3705,25 +3938,7 @@ router.get('/reports', async (req: Request, res: Response) => {
           o.status === 'Disetujui'
       );
       const helpers = db.employees.filter((e) => e.role === 'Helper' || e.role === 'Kenek');
-
-      const byEmp = helpers.map((emp) => {
-        const empAtts = atts.filter((a) => a.employeeId === emp.id);
-        const days = empAtts.filter((a) => a.status === 'Hadir').length;
-        const basic = empAtts.reduce((s, a) => (a.status === 'Hadir' ? s + a.dailyWageSnapshot : s), 0);
-        const empOts = ots.filter((o) => o.employeeId === emp.id);
-        const otHours = empOts.reduce((s, o) => s + o.hours, 0);
-        const otPay = empOts.reduce((s, o) => s + o.totalPay, 0);
-        return {
-          id: emp.id,
-          name: emp.name,
-          role: emp.role === 'Kenek' ? 'Helper' : emp.role,
-          workDays: days,
-          basicSalary: basic,
-          overtimeHours: otHours,
-          overtimePay: otPay,
-          grossSalary: basic + otPay,
-        };
-      });
+      const byEmp = helpers.map((emp) => mapEmpReport(emp, atts, ots));
       return res.json({ title: 'Rekap Gaji Helper', data: byEmp });
     }
 
@@ -3734,25 +3949,7 @@ router.get('/reports', async (req: Request, res: Response) => {
         (o) => o.date >= rStart && o.date <= rEnd && o.employeeRole === 'Driver' && o.status === 'Disetujui'
       );
       const drivers = db.employees.filter((e) => e.role === 'Driver');
-
-      const byEmp = drivers.map((emp) => {
-        const empAtts = atts.filter((a) => a.employeeId === emp.id);
-        const days = empAtts.filter((a) => a.status === 'Hadir').length;
-        const basic = empAtts.reduce((s, a) => (a.status === 'Hadir' ? s + a.dailyWageSnapshot : s), 0);
-        const empOts = ots.filter((o) => o.employeeId === emp.id);
-        const otHours = empOts.reduce((s, o) => s + o.hours, 0);
-        const otPay = empOts.reduce((s, o) => s + o.totalPay, 0);
-        return {
-          id: emp.id,
-          name: emp.name,
-          role: emp.role,
-          workDays: days,
-          basicSalary: basic,
-          overtimeHours: otHours,
-          overtimePay: otPay,
-          grossSalary: basic + otPay,
-        };
-      });
+      const byEmp = drivers.map((emp) => mapEmpReport(emp, atts, ots));
       return res.json({ title: 'Rekap Gaji Driver', data: byEmp });
     }
 
@@ -3829,13 +4026,13 @@ router.get('/reports', async (req: Request, res: Response) => {
       const ots = db.overtime.filter((o) => o.date >= rStart && o.date <= rEnd && o.status === 'Disetujui');
       const exps = db.operationalExpenses.filter((e) => e.date >= rStart && e.date <= rEnd);
 
-      const totalBasic = atts.reduce((s, a) => (a.status === 'Hadir' ? s + a.dailyWageSnapshot : s), 0);
+      const totalBasic = atts.reduce((s, a) => s + calcBasicPayByStatus(a.status, a.dailyWageSnapshot), 0);
       const totalOvertime = ots.reduce((s, o) => s + o.totalPay, 0);
       const ownerExp = exps.filter((e) => e.personType === 'Owner').reduce((s, e) => s + e.amount, 0);
       const asistenExp = exps.filter((e) => e.personType === 'Asisten').reduce((s, e) => s + e.amount, 0);
 
       const summary = [
-        { komponen: 'Total Gaji Pokok Seluruh Karyawan', nominal: totalBasic },
+        { komponen: 'Total Gaji Pokok Seluruh Karyawan (Penuh & Setengah Hari)', nominal: totalBasic },
         { komponen: 'Total Upah Lembur yang Disetujui', nominal: totalOvertime },
         { komponen: 'Total Biaya Operasional Owner', nominal: ownerExp },
         { komponen: 'Total Biaya Operasional Asisten', nominal: asistenExp },
@@ -3861,7 +4058,7 @@ router.get('/export/excel', async (req: Request, res: Response) => {
   const ots = db.overtime.filter((o) => o.date >= rStart && o.date <= rEnd && o.status === 'Disetujui');
   const exps = db.operationalExpenses.filter((e) => e.date >= rStart && e.date <= rEnd);
 
-  const totalBasic = atts.reduce((s, a) => (a.status === 'Hadir' ? s + a.dailyWageSnapshot : s), 0);
+  const totalBasic = atts.reduce((s, a) => s + calcBasicPayByStatus(a.status, a.dailyWageSnapshot), 0);
   const totalOt = ots.reduce((s, o) => s + o.totalPay, 0);
   const ownerExp = exps.filter((e) => e.personType === 'Owner').reduce((s, e) => s + e.amount, 0);
   const asisExp = exps.filter((e) => e.personType === 'Asisten').reduce((s, e) => s + e.amount, 0);

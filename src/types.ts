@@ -45,7 +45,7 @@ export interface Attendance {
   employeeRole: EmployeeRole | string;
   projectId?: string;
   projectName?: string;
-  status: 'Hadir' | 'Izin' | 'Sakit' | 'Libur' | 'Tidak Hadir';
+  status: 'Hadir' | 'Setengah Hari' | 'Izin' | 'Sakit' | 'Libur' | 'Tidak Hadir';
   checkIn: string;
   checkOut: string;
   overtimeHours: number;
@@ -58,6 +58,14 @@ export interface Attendance {
   createdAt: string;
   updatedBy?: string;
   updatedAt?: string;
+  // Integrated Kasbon linked to this attendance record
+  kasbonId?: string;
+  kasbonNumber?: string;
+  kasbonAmount?: number;
+  kasbonNotes?: string;
+  kasbonStatus?: string;
+  kasbonAttachmentFilePath?: string;
+  kasbonAttachments?: OperationalExpenseAttachment[];
 }
 
 export interface OvertimeRecord {
@@ -72,6 +80,8 @@ export interface OvertimeRecord {
   startTime: string;
   endTime: string;
   hours: number;
+  durationHours?: number;
+  durationMinutes?: number;
   hourlyRateSnapshot: number;
   totalPay: number;
   status: 'Menunggu persetujuan' | 'Disetujui' | 'Ditolak';
@@ -84,6 +94,7 @@ export interface OvertimeRecord {
 export interface KasbonRecord {
   id: string;
   kasbonNumber: string;
+  attendanceId?: string;
   requestDate: string;
   employeeId: string;
   employeeName: string;
@@ -119,7 +130,11 @@ export interface SalaryPayment {
   employeeId: string;
   employeeName: string;
   employeeRole: string;
+  fullWorkDays?: number;
+  halfWorkDays?: number;
   totalWorkDays: number;
+  fullDaySalary?: number;
+  halfDaySalary?: number;
   approvedOvertimeHours: number;
   totalBasicSalary: number;
   totalOvertimePay: number;
@@ -128,9 +143,9 @@ export interface SalaryPayment {
   otherDeductions: number;
   netSalary: number;
   paymentDate: string;
-  paymentMethod: 'Transfer BCA' | 'Transfer Mandiri' | 'Transfer BRI' | 'Kas Tunai';
+  paymentMethod: 'Transfer BCA' | 'Transfer Mandiri' | 'Transfer BRI' | 'Kas Tunai' | 'Tunai' | 'Transfer' | string;
   referenceNumber?: string;
-  status: 'Belum dibayar' | 'Diproses' | 'Sudah dibayar' | 'Dibatalkan';
+  status: 'Belum dibayar' | 'Diproses' | 'Sudah dibayar' | 'Dibatalkan' | string;
   notes?: string;
   processedBy: string;
   createdAt: string;

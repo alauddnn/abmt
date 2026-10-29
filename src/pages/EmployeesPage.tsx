@@ -455,7 +455,8 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
                       )}
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-medium text-[#262626] tabular-nums">
-                      {formatRupiah(emp.dailyWage)}
+                      <div>{formatRupiah(emp.dailyWage)}</div>
+                      <div className="text-[10px] text-[#667085]">½ Hari: {formatRupiah(Math.round(emp.dailyWage / 2))}</div>
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-[#667085] tabular-nums">
                       {formatRupiah(emp.overtimeHourlyWage)}
@@ -654,7 +655,9 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
                     className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg font-mono text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                     placeholder="Contoh: 150000"
                   />
-                  <p className="text-[10px] text-[#667085] mt-0.5">Bebas Anda kustomisasi per personil</p>
+                  <p className="text-[10px] text-[#175CD3] font-mono mt-0.5">
+                    Upah ½ Hari (50%): {formatRupiah(Math.round((formData.dailyWage || 0) / 2))}
+                  </p>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -674,7 +677,9 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
                     className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg font-mono text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                     placeholder="Contoh: 20000"
                   />
-                  <p className="text-[10px] text-[#667085] mt-0.5">Bebas Anda kustomisasi per personil</p>
+                  <p className="text-[10px] text-[#667085] font-mono mt-0.5">
+                    1j 30m: {formatRupiah(Math.round((formData.overtimeHourlyWage || 0) * 1.5))}
+                  </p>
                 </div>
               </div>
 
