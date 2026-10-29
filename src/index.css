@@ -40,18 +40,44 @@
 }
 
 @media print {
+  @page {
+    margin: 10mm;
+  }
   body {
     background: white !important;
-    color: black !important;
+    color: #1D2939 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  aside, header, nav, button, .print\:hidden {
+  aside, header, nav, button, .print\:hidden, .no-print {
     display: none !important;
   }
-  #printable-slip, #report-printable {
+  #printable-slip, #report-printable, #project-report-printable, #project-slip-printable {
     margin: 0 !important;
     padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
     width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  tfoot {
+    display: table-footer-group !important;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  .print-page-break {
+    page-break-before: always !important;
+    break-before: page !important;
   }
 }

@@ -1759,22 +1759,25 @@ export const pgService = {
     const budget = Number(project.budget || 0);
 
     const assignRes = await query(
-      `SELECT pa.employee_id
+      `SELECT pa.employee_id, pa.status as assign_status, e.status as emp_status
        FROM project_assignments pa
        JOIN employees e ON pa.employee_id = e.id
-       WHERE pa.project_id = $1 AND pa.status = 'active' AND e.status = 'active'`,
+       WHERE pa.project_id = $1`,
       [projectId]
     );
-    const assignedEmpIds: string[] = assignRes.rows.map((r) => r.employee_id);
-    const totalAssignedEmployees = assignedEmpIds.length;
+    const activeAssignedEmpIds: string[] = assignRes.rows
+      .filter((r) => r.assign_status === 'active' && r.emp_status === 'active')
+      .map((r) => r.employee_id);
+    const allProjectEmpIds: string[] = assignRes.rows.map((r) => r.employee_id);
+    const totalAssignedEmployees = activeAssignedEmpIds.length;
 
     let presentToday = 0;
     let absentToday = 0;
-    if (assignedEmpIds.length > 0) {
+    if (activeAssignedEmpIds.length > 0) {
       const attRes = await query(
         `SELECT status, employee_id FROM attendance
          WHERE date = $1 AND (project_id = $2 OR (project_id IS NULL AND employee_id = ANY($3)))`,
-        [today, projectId, assignedEmpIds]
+        [today, projectId, activeAssignedEmpIds]
       );
       presentToday = attRes.rows.filter((r) => r.status === 'Hadir' || r.status === 'Setengah Hari').length;
       const explicitAbsent = attRes.rows.filter(
@@ -1785,20 +1788,20 @@ export const pgService = {
 
     let overtimeCount = 0;
     const otRes = await query(
-      assignedEmpIds.length > 0
+      allProjectEmpIds.length > 0
         ? `SELECT COUNT(DISTINCT employee_id) as emp_count
            FROM overtime_records
-           WHERE (project_id = $1 OR employee_id = ANY($2)) AND status = 'Disetujui'`
+           WHERE (project_id = $1 OR (project_id IS NULL AND employee_id = ANY($2))) AND status = 'Disetujui'`
         : `SELECT COUNT(DISTINCT employee_id) as emp_count
            FROM overtime_records
            WHERE project_id = $1 AND status = 'Disetujui'`,
-      assignedEmpIds.length > 0 ? [projectId, assignedEmpIds] : [projectId]
+      allProjectEmpIds.length > 0 ? [projectId, allProjectEmpIds] : [projectId]
     );
     overtimeCount = Number(otRes.rows[0]?.emp_count || 0);
 
     let totalKasbon = 0;
     const kbRes = await query(
-      assignedEmpIds.length > 0
+      allProjectEmpIds.length > 0
         ? `SELECT SUM(remaining_amount) as total_sisa
            FROM kasbon_records
            WHERE (project_id = $1 OR (project_id IS NULL AND employee_id = ANY($2)))
@@ -1807,7 +1810,7 @@ export const pgService = {
            FROM kasbon_records
            WHERE project_id = $1
              AND (status = 'Disetujui' OR status = 'Dipotong sebagian')`,
-      assignedEmpIds.length > 0 ? [projectId, assignedEmpIds] : [projectId]
+      allProjectEmpIds.length > 0 ? [projectId, allProjectEmpIds] : [projectId]
     );
     totalKasbon = Number(kbRes.rows[0]?.total_sisa || 0);
 
@@ -1823,9 +1826,46 @@ export const pgService = {
     );
     const totalOperationalCost = Number(opRes.rows[0]?.total || 0);
 
-    const totalExpenses = totalTransportationCost + totalOperationalCost;
+    // Include project payroll (basic salary + non-driver approved overtime) in total project expenditure
+    const allAttRes = await query(
+      allProjectEmpIds.length > 0
+        ? `SELECT date, employee_id, status, daily_wage_snapshot FROM attendance
+           WHERE project_id = $1 OR (project_id IS NULL AND employee_id = ANY($2))
+           ORDER BY date DESC`
+        : `SELECT date, employee_id, status, daily_wage_snapshot FROM attendance
+           WHERE project_id = $1
+           ORDER BY date DESC`,
+      allProjectEmpIds.length > 0 ? [projectId, allProjectEmpIds] : [projectId]
+    );
+    const seenStatAtt = new Set<string>();
+    let totalBasicSalary = 0;
+    for (const r of allAttRes.rows) {
+      const dStr = r.date instanceof Date ? r.date.toISOString().split('T')[0] : String(r.date || '').split('T')[0];
+      const key = `${r.employee_id}_${dStr}`;
+      if (seenStatAtt.has(key)) continue;
+      seenStatAtt.add(key);
+      const wage = Number(r.daily_wage_snapshot || 0);
+      if (r.status === 'Hadir') totalBasicSalary += wage;
+      else if (r.status === 'Setengah Hari') totalBasicSalary += Math.round(wage / 2);
+    }
+
+    const allOtRes = await query(
+      allProjectEmpIds.length > 0
+        ? `SELECT employee_role, total_pay FROM overtime_records
+           WHERE (project_id = $1 OR (project_id IS NULL AND employee_id = ANY($2)))
+             AND status = 'Disetujui'`
+        : `SELECT employee_role, total_pay FROM overtime_records
+           WHERE project_id = $1 AND status = 'Disetujui'`,
+      allProjectEmpIds.length > 0 ? [projectId, allProjectEmpIds] : [projectId]
+    );
+    const totalOvertimePay = allOtRes.rows.reduce(
+      (s, r) => s + (isDriverRole(r.employee_role) ? 0 : Number(r.total_pay || 0)),
+      0
+    );
+
+    const totalExpenses = totalBasicSalary + totalOvertimePay + totalTransportationCost + totalOperationalCost;
     const budgetRemaining = budget - totalExpenses;
-    const realizationPercentage = budget > 0 ? Math.round((totalExpenses / budget) * 100) : 0;
+    const realizationPercentage = budget > 0 ? Number(((totalExpenses / budget) * 100).toFixed(2)) : 0;
 
     return {
       totalAssignedEmployees,
@@ -1841,7 +1881,7 @@ export const pgService = {
     };
   },
 
-  // 3E. Project Detailed Recap for Reports
+  // 3E. Project Detailed Recap for Reports (Section H: H1, H2, H3, H4, H5)
   async getProjectRecap(projectId: string, startDate?: string, endDate?: string) {
     await ensureAllSchemasOnce();
     const projRes = await query('SELECT * FROM projects WHERE id = $1', [projectId]);
@@ -1849,16 +1889,19 @@ export const pgService = {
     const project = mapProject(projRes.rows[0]);
 
     const assignments = await this.getProjectAssignments(projectId);
-    const assignedEmpIds = assignments
+    // Include all employees assigned to this project (active + inactive with historical transactions)
+    const allAssignedEmpIds = assignments.map((a) => a.employeeId);
+    const activeAssignedEmpIds = assignments
       .filter((a) => a.status === 'active' && a.employeeStatus !== 'inactive')
       .map((a) => a.employeeId);
 
+    // Query attendance for this project (or legacy records with null project_id for assigned employees)
     let attSql = `SELECT * FROM attendance WHERE (project_id = $1`;
     const attParams: any[] = [projectId];
     let pIdx = 2;
-    if (assignedEmpIds.length > 0) {
+    if (allAssignedEmpIds.length > 0) {
       attSql += ` OR (project_id IS NULL AND employee_id = ANY($${pIdx++})))`;
-      attParams.push(assignedEmpIds);
+      attParams.push(allAssignedEmpIds);
     } else {
       attSql += `)`;
     }
@@ -1866,27 +1909,29 @@ export const pgService = {
       attSql += ` AND date >= $${pIdx++} AND date <= $${pIdx++}`;
       attParams.push(startDate, endDate);
     }
-    attSql += ' ORDER BY date DESC';
+    attSql += ' ORDER BY date DESC, created_at DESC';
     const attRes = await query(attSql, attParams);
     const rawAttendance = attRes.rows.map(mapAttendance);
 
     // Deduplicate attendance by employeeId + date so no employee is ever double-counted on the same day
     const seenAttKey = new Set<string>();
-    const attendance: Attendance[] = [];
+    const dedupedAttendance: Attendance[] = [];
     for (const a of rawAttendance) {
       const key = `${a.employeeId}_${a.date}`;
       if (!seenAttKey.has(key)) {
         seenAttKey.add(key);
-        attendance.push(a);
+        dedupedAttendance.push(a);
       }
     }
+    const attendance = await this.attachKasbonToAttendanceList(dedupedAttendance);
 
+    // Query overtime for this project
     let otSql = `SELECT * FROM overtime_records WHERE (project_id = $1`;
     const otParams: any[] = [projectId];
     pIdx = 2;
-    if (assignedEmpIds.length > 0) {
-      otSql += ` OR employee_id = ANY($${pIdx++}))`;
-      otParams.push(assignedEmpIds);
+    if (allAssignedEmpIds.length > 0) {
+      otSql += ` OR (project_id IS NULL AND employee_id = ANY($${pIdx++})))`;
+      otParams.push(allAssignedEmpIds);
     } else {
       otSql += `)`;
     }
@@ -1898,13 +1943,226 @@ export const pgService = {
     const otRes = await query(otSql, otParams);
     const overtime = otRes.rows.map(mapOvertime);
 
-    const kbRes = await query(
-      assignedEmpIds.length > 0
-        ? `SELECT * FROM kasbon_records WHERE project_id = $1 OR employee_id = ANY($2) ORDER BY request_date DESC`
-        : `SELECT * FROM kasbon_records WHERE project_id = $1 ORDER BY request_date DESC`,
-      assignedEmpIds.length > 0 ? [projectId, assignedEmpIds] : [projectId]
+    // Query kasbon for this project (both all-time active/remaining and period-filtered)
+    let kbSql = `SELECT * FROM kasbon_records WHERE (project_id = $1`;
+    const kbParams: any[] = [projectId];
+    pIdx = 2;
+    if (allAssignedEmpIds.length > 0) {
+      kbSql += ` OR (project_id IS NULL AND employee_id = ANY($${pIdx++})))`;
+      kbParams.push(allAssignedEmpIds);
+    } else {
+      kbSql += `)`;
+    }
+    kbSql += ' ORDER BY request_date DESC';
+    const kbRes = await query(kbSql, kbParams);
+    const allKasbonRaw: KasbonRecord[] = kbRes.rows.map(mapKasbon);
+
+    // Attach kasbon photos
+    if (allKasbonRaw.length > 0) {
+      const kbIds = allKasbonRaw.map((k) => k.id);
+      const attKbRes = await query(
+        `SELECT * FROM kasbon_attachments WHERE kasbon_id = ANY($1)`,
+        [kbIds]
+      );
+      const byKbId = new Map<string, any[]>();
+      for (const r of attKbRes.rows) {
+        const list = byKbId.get(r.kasbon_id) || [];
+        const rawDate = r.uploaded_at || r.created_at || '';
+        list.push({
+          id: r.id,
+          kasbonId: r.kasbon_id,
+          fileName: r.file_name,
+          filePath: r.file_path,
+          fileSize: Number(r.file_size || 0),
+          mimeType: r.mime_type,
+          uploadedBy: r.uploaded_by,
+          uploadedAt: rawDate instanceof Date ? rawDate.toISOString() : String(rawDate),
+        });
+        byKbId.set(r.kasbon_id, list);
+      }
+      for (const k of allKasbonRaw) {
+        k.attachments = byKbId.get(k.id) || [];
+      }
+    }
+
+    const kasbon = (startDate && endDate)
+      ? allKasbonRaw.filter((k) => k.requestDate >= startDate && k.requestDate <= endDate)
+      : allKasbonRaw;
+
+    // Query salary payments for project employees to track paid vs unpaid payroll
+    const allEmpIdsInvolved = Array.from(
+      new Set([
+        ...allAssignedEmpIds,
+        ...attendance.map((a) => a.employeeId),
+        ...overtime.map((o) => o.employeeId),
+        ...kasbon.map((k) => k.employeeId),
+      ])
     );
-    const kasbon: KasbonRecord[] = kbRes.rows.map(mapKasbon);
+
+    let salaryPayments: SalaryPayment[] = [];
+    if (allEmpIdsInvolved.length > 0) {
+      let spSql = `SELECT * FROM salary_payments WHERE employee_id = ANY($1)`;
+      const spParams: any[] = [allEmpIdsInvolved];
+      if (startDate && endDate) {
+        spSql += ` AND period_end >= $2 AND period_start <= $3`;
+        spParams.push(startDate, endDate);
+      }
+      spSql += ` ORDER BY period_end DESC`;
+      const spRes = await query(spSql, spParams);
+      salaryPayments = spRes.rows.map(mapSalaryPayment);
+    }
+
+    // Fetch employee master records for all involved employees
+    const empMap = new Map<string, Employee>();
+    if (allEmpIdsInvolved.length > 0) {
+      const empRowsRes = await query(`SELECT * FROM employees WHERE id = ANY($1)`, [allEmpIdsInvolved]);
+      for (const row of empRowsRes.rows) {
+        const mapped = mapEmployee(row);
+        empMap.set(mapped.id, mapped);
+      }
+    }
+
+    const assignMap = new Map<string, ProjectAssignment>();
+    for (const a of assignments) {
+      assignMap.set(a.employeeId, a);
+    }
+
+    // Build per-employee recap (H1 & H2)
+    // Rule: Include active assigned employees AND inactive employees who have valid transactions in the selected period.
+    // Permanently deleted employees (neither in employees nor having transactions) are excluded.
+    const employeeRecaps: any[] = [];
+    for (const empId of allEmpIdsInvolved) {
+      const emp = empMap.get(empId);
+      const assign = assignMap.get(empId);
+      const empAtt = attendance.filter((a) => a.employeeId === empId);
+      const empOt = overtime.filter((o) => o.employeeId === empId && o.status === 'Disetujui');
+      const empKasbonPeriod = kasbon.filter(
+        (k) => k.employeeId === empId && k.status !== 'Ditolak'
+      );
+      const empKasbonAllActive = allKasbonRaw.filter(
+        (k) => k.employeeId === empId && (k.status === 'Disetujui' || k.status === 'Dipotong sebagian')
+      );
+      const empSp = salaryPayments.filter((sp) => sp.employeeId === empId);
+
+      const isCurrentlyActive =
+        assign && assign.status === 'active' && assign.employeeStatus !== 'inactive' && (!emp || emp.status === 'active');
+      const hasActivityInPeriod =
+        empAtt.length > 0 || empOt.length > 0 || empKasbonPeriod.length > 0 || empSp.length > 0;
+
+      if (!isCurrentlyActive && !hasActivityInPeriod) {
+        continue;
+      }
+
+      const role = emp?.role || assign?.employeeRole || empAtt[0]?.employeeRole || empOt[0]?.employeeRole || 'Tukang';
+      const isDriver = isDriverRole(role);
+      const dailyWage = emp?.dailyWage ?? assign?.dailyWage ?? empAtt[0]?.dailyWageSnapshot ?? 0;
+      const overtimeHourlyWage = isDriver
+        ? 0
+        : (emp?.overtimeHourlyWage ?? assign?.overtimeHourlyWage ?? empAtt[0]?.overtimeWageSnapshot ?? 0);
+
+      const empFullDays = empAtt.filter((a) => a.status === 'Hadir').length;
+      const empHalfDays = empAtt.filter((a) => a.status === 'Setengah Hari').length;
+      const empAbsentDays = empAtt.filter(
+        (a) => a.status !== 'Hadir' && a.status !== 'Setengah Hari'
+      ).length;
+      const empTotalWorkDays = empFullDays + empHalfDays * 0.5;
+
+      const empFullDaySalary = empAtt.reduce(
+        (s, a) => (a.status === 'Hadir' ? s + (a.dailyWageSnapshot || dailyWage) : s),
+        0
+      );
+      const empHalfDaySalary = empAtt.reduce(
+        (s, a) => (a.status === 'Setengah Hari' ? s + Math.round((a.dailyWageSnapshot || dailyWage) / 2) : s),
+        0
+      );
+      const empBasicSalary = empFullDaySalary + empHalfDaySalary;
+
+      const empOtHours = Number(empOt.reduce((s, o) => s + o.hours, 0).toFixed(4));
+      const empOtPay = isDriver
+        ? 0
+        : empOt.reduce(
+            (s, o) =>
+              s +
+              (o.totalPay > 0
+                ? o.totalPay
+                : calcOvertimePayExact(o.hours, o.hourlyRateSnapshot || overtimeHourlyWage, undefined, undefined, role)),
+            0
+          );
+
+      const empGrossSalary = empBasicSalary + empOtPay;
+
+      // Kasbon metrics:
+      // 1. kasbonInPeriod = total approved/active/paid kasbon requested in period
+      const kasbonInPeriod = empKasbonPeriod.reduce((s, k) => s + k.amount, 0);
+      // 2. activeRemainingKasbon = total remaining balance from active kasbon records
+      const activeRemainingKasbon = empKasbonAllActive.reduce((s, k) => s + k.remainingAmount, 0);
+      // 3. If salary payment already deducted kasbon in period, include it; otherwise estimate deduction up to grossSalary
+      const alreadyDeductedInPeriod = empSp.reduce((s, sp) => s + sp.kasbonDeduction, 0);
+      const otherDeductions = empSp.reduce((s, sp) => s + sp.otherDeductions, 0);
+
+      // Total kasbon obligation relevant to this recap period
+      const targetKasbonToDeduct =
+        alreadyDeductedInPeriod > 0
+          ? alreadyDeductedInPeriod + activeRemainingKasbon
+          : Math.max(kasbonInPeriod, activeRemainingKasbon);
+
+      const kasbonDeduction = Math.min(empGrossSalary, targetKasbonToDeduct);
+      const remainingKasbon = Math.max(0, targetKasbonToDeduct - kasbonDeduction);
+      const totalDeductions = kasbonDeduction + otherDeductions;
+      const empNetSalary = Math.max(0, empGrossSalary - totalDeductions);
+
+      const paidPayments = empSp.filter((sp) => sp.status === 'Sudah Dibayar');
+      const paidAmount = paidPayments.reduce((s, sp) => s + sp.netSalary, 0);
+      const isPaid = paidPayments.length > 0 && paidAmount >= empNetSalary && empGrossSalary > 0;
+
+      employeeRecaps.push({
+        employeeId: empId,
+        employeeName: emp?.name || assign?.employeeName || empAtt[0]?.employeeName || empId,
+        role,
+        status: isCurrentlyActive ? 'active' : 'inactive',
+        assignedDate: assign?.assignedDate || emp?.joinDate || '',
+        dailyWage,
+        overtimeHourlyWage,
+        fullWorkDays: empFullDays,
+        halfWorkDays: empHalfDays,
+        absentDays: empAbsentDays,
+        totalWorkDays: empTotalWorkDays,
+        fullDaySalary: empFullDaySalary,
+        halfDaySalary: empHalfDaySalary,
+        totalBasicSalary: empBasicSalary,
+        overtimeHours: empOtHours,
+        totalOvertimePay: empOtPay,
+        grossSalary: empGrossSalary,
+        kasbonInPeriod,
+        kasbonDeduction,
+        remainingKasbon,
+        otherDeductions,
+        totalDeductions,
+        netSalary: empNetSalary,
+        isPaid,
+        paidAmount,
+        unpaidAmount: Math.max(0, empNetSalary - paidAmount),
+        paymentStatusLabel: isPaid
+          ? 'Sudah Dibayar'
+          : paidAmount > 0
+          ? 'Dibayar Sebagian'
+          : empGrossSalary > 0
+          ? 'Belum Dibayar (Terhitung)'
+          : 'Belum Ada Transaksi',
+        attendanceRecords: empAtt,
+        overtimeRecords: empOt,
+        kasbonRecords: empKasbonPeriod,
+      });
+    }
+
+    // Sort employeeRecaps by role priority (Mandor -> Tukang -> Helper -> Driver) then name
+    const rolePriority: Record<string, number> = { Mandor: 1, Tukang: 2, Helper: 3, Driver: 4 };
+    employeeRecaps.sort((a, b) => {
+      const pa = rolePriority[a.role] || 99;
+      const pb = rolePriority[b.role] || 99;
+      if (pa !== pb) return pa - pb;
+      return a.employeeName.localeCompare(b.employeeName, 'id');
+    });
 
     const expenses = await this.getProjectExpenses(projectId);
     const filteredExpenses = (startDate && endDate)
@@ -1913,20 +2171,35 @@ export const pgService = {
 
     const transportExpenses = filteredExpenses.filter((e) => e.expenseType === 'transportasi');
     const operationalExpenses = filteredExpenses.filter((e) => e.expenseType === 'operasional');
+    const otherExpenses = filteredExpenses.filter(
+      (e) => e.expenseType !== 'transportasi' && e.expenseType !== 'operasional'
+    );
 
-    const fullWorkDays = attendance.filter((a) => a.status === 'Hadir').length;
-    const halfWorkDays = attendance.filter((a) => a.status === 'Setengah Hari').length;
+    const fullWorkDays = employeeRecaps.reduce((s, r) => s + r.fullWorkDays, 0);
+    const halfWorkDays = employeeRecaps.reduce((s, r) => s + r.halfWorkDays, 0);
+    const absentDays = employeeRecaps.reduce((s, r) => s + r.absentDays, 0);
     const totalWorkDays = fullWorkDays + halfWorkDays * 0.5;
-    const fullDaySalary = attendance.reduce((s, a) => (a.status === 'Hadir' ? s + a.dailyWageSnapshot : s), 0);
-    const halfDaySalary = attendance.reduce((s, a) => (a.status === 'Setengah Hari' ? s + Math.round(a.dailyWageSnapshot / 2) : s), 0);
+    const fullDaySalary = employeeRecaps.reduce((s, r) => s + r.fullDaySalary, 0);
+    const halfDaySalary = employeeRecaps.reduce((s, r) => s + r.halfDaySalary, 0);
     const totalBasicSalary = fullDaySalary + halfDaySalary;
 
-    const approvedOts = overtime.filter((o) => o.status === 'Disetujui');
-    const totalOvertimeHours = Number(approvedOts.reduce((s, o) => s + o.hours, 0).toFixed(4));
-    const totalOvertimePay = approvedOts.reduce((s, o) => s + (isDriverRole(o.employeeRole) ? 0 : o.totalPay), 0);
+    const totalOvertimeHours = Number(employeeRecaps.reduce((s, r) => s + r.overtimeHours, 0).toFixed(4));
+    const totalOvertimePay = employeeRecaps.reduce((s, r) => s + r.totalOvertimePay, 0);
+    const totalGrossSalary = totalBasicSalary + totalOvertimePay;
+    const totalKasbonInPeriod = employeeRecaps.reduce((s, r) => s + r.kasbonInPeriod, 0);
+    const totalKasbonDeduction = employeeRecaps.reduce((s, r) => s + r.kasbonDeduction, 0);
+    const totalRemainingKasbon = employeeRecaps.reduce((s, r) => s + r.remainingKasbon, 0);
+    const totalOtherDeductions = employeeRecaps.reduce((s, r) => s + r.otherDeductions, 0);
+    const totalNetSalary = employeeRecaps.reduce((s, r) => s + r.netSalary, 0);
+    const paidPayrollTotal = employeeRecaps.reduce((s, r) => s + r.paidAmount, 0);
+    const unpaidPayrollTotal = Math.max(0, totalGrossSalary - paidPayrollTotal);
+
     const totalTransport = transportExpenses.reduce((s, e) => s + e.amount, 0);
     const totalOp = operationalExpenses.reduce((s, e) => s + e.amount, 0);
-    const totalProjectCost = totalBasicSalary + totalOvertimePay + totalTransport + totalOp;
+    const totalOtherCost = otherExpenses.reduce((s, e) => s + e.amount, 0);
+    const totalProjectCost = totalGrossSalary + totalTransport + totalOp + totalOtherCost;
+    const realizationPercentageExact =
+      project.budget > 0 ? Number(((totalProjectCost / project.budget) * 100).toFixed(2)) : 0;
 
     return {
       project,
@@ -1934,24 +2207,38 @@ export const pgService = {
       attendance,
       overtime,
       kasbon,
+      salaryPayments,
+      employeeRecaps,
       transportExpenses,
       operationalExpenses,
+      otherExpenses,
       summary: {
-        totalEmployees: assignments.filter((a) => a.status === 'active' && a.employeeStatus !== 'inactive').length,
+        totalEmployees: activeAssignedEmpIds.length,
+        totalRecapEmployees: employeeRecaps.length,
         fullWorkDays,
         halfWorkDays,
+        absentDays,
         totalWorkDays,
         fullDaySalary,
         halfDaySalary,
         totalBasicSalary,
         totalOvertimeHours,
         totalOvertimePay,
+        totalGrossSalary,
+        totalKasbonInPeriod,
+        totalKasbonDeduction,
+        totalRemainingKasbon,
+        totalOtherDeductions,
+        totalNetSalary,
+        paidPayrollTotal,
+        unpaidPayrollTotal,
         totalTransport,
         totalOp,
+        totalOtherCost,
         totalProjectCost,
         budget: project.budget,
         budgetRemaining: project.budget - totalProjectCost,
-        realizationPercentage: project.budget > 0 ? Math.round((totalProjectCost / project.budget) * 100) : 0,
+        realizationPercentage: realizationPercentageExact,
       },
     };
   },

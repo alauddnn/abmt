@@ -36,6 +36,7 @@ import {
   RotateCcw,
   ZoomIn,
   ZoomOut,
+  Printer,
 } from 'lucide-react';
 import {
   Project,
@@ -56,7 +57,16 @@ import {
   calculateOvertimePayFromHoursMinutes,
   calculateBasicPayByStatus,
   splitHoursMinutes,
+  isDriverRole,
+  terbilangRupiah,
 } from '../lib/utils.js';
+import {
+  exportProjectReportPDF,
+  exportProjectSlipGajiPDF,
+  exportProjectReportExcel,
+  ProjectEmployeeRecapItem,
+  ProjectRecapSummaryData,
+} from '../lib/projectReportExport.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useCompany } from '../context/CompanyContext.js';
 
@@ -345,6 +355,32 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
     notes: '',
   });
 
+  // Section H: Laporan & Rekapitulasi Komprehensif Proyek (H1 - H5) state
+  const [activeReportSubmenu, setActiveReportSubmenu] = useState<'h1' | 'h2' | 'h3' | 'h4' | 'h5'>('h1');
+  const [reportStartDate, setReportStartDate] = useState<string>('');
+  const [reportEndDate, setReportEndDate] = useState<string>('');
+  const [appliedStartDate, setAppliedStartDate] = useState<string>('');
+  const [appliedEndDate, setAppliedEndDate] = useState<string>('');
+  const [reportRoleFilter, setReportRoleFilter] = useState<string>('ALL');
+  const [reportEmployeeFilter, setReportEmployeeFilter] = useState<string>('ALL');
+  const [reportCategoryFilter, setReportCategoryFilter] = useState<string>('ALL');
+  const [selectedH1EmployeeDetail, setSelectedH1EmployeeDetail] = useState<ProjectEmployeeRecapItem | null>(null);
+  const [slipGajiModalEmployees, setSlipGajiModalEmployees] = useState<ProjectEmployeeRecapItem[] | null>(null);
+
+  const fetchProjectRecapData = async (start?: string, end?: string) => {
+    setLoadingModuleData(true);
+    try {
+      const s = start && end ? start : undefined;
+      const e = start && end ? end : undefined;
+      const data = await api.getProjectRecap(project.id, s, e);
+      setRecapData(data);
+    } catch (err: any) {
+      showToast('error', err.message || 'Gagal memuat laporan rekap proyek');
+    } finally {
+      setLoadingModuleData(false);
+    }
+  };
+
   // Fetch real statistics
   const fetchStats = async () => {
     setLoadingStats(true);
@@ -404,7 +440,9 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
         setKasbonList(kbs);
         setAssignments(asgs);
       } else if (mod === 'laporan') {
-        const data = await api.getProjectRecap(project.id);
+        const s = appliedStartDate && appliedEndDate ? appliedStartDate : undefined;
+        const e = appliedStartDate && appliedEndDate ? appliedEndDate : undefined;
+        const data = await api.getProjectRecap(project.id, s, e);
         setRecapData(data);
       }
     } catch (err: any) {
@@ -1260,7 +1298,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
               {activeModule === 'kasbon' && 'D. Kasbon Karyawan Terkait'}
               {activeModule === 'transport' && 'E. Biaya Transportasi Proyek'}
               {activeModule === 'operasional' && 'F. Pengeluaran Operasional Proyek'}
-              {activeModule === 'laporan' && 'G. Laporan & Rekap Proyek'}
+              {activeModule === 'laporan' && 'H. Laporan & Rekapitulasi Komprehensif Proyek'}
             </span>
           </div>
 
@@ -1455,27 +1493,71 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
               </div>
             </div>
 
-            {/* G. Laporan Proyek */}
+            {/* H. Laporan & Rekapitulasi Komprehensif Proyek (H1 - H5) */}
             <div
-              onClick={() => setActiveModule('laporan')}
+              onClick={() => {
+                setActiveReportSubmenu('h1');
+                setActiveModule('laporan');
+              }}
               className="bg-white p-5 rounded-2xl border border-[#EAECF0] hover:border-[#4693FD] shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between md:col-span-2 lg:col-span-3"
             >
               <div>
-                <div className="w-10 h-10 rounded-xl bg-[#F8F9FA] text-[#344054] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
-                  <FileSpreadsheet className="w-5 h-5 text-[#4693FD]" />
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#EFF5FF] text-[#155EEF] flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <FileSpreadsheet className="w-5 h-5 text-[#4693FD]" />
+                  </div>
+                  <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#EFF5FF] text-[#155EEF] border border-[#D0E2FF]">
+                    Pusat Rekap Gaji, Slip Gaji, Cetak PDF, Print & Ekspor Excel Proyek
+                  </span>
                 </div>
-                <h3 className="text-sm font-bold text-[#1D2939] group-hover:text-[#4693FD] transition-colors">
-                  G. Laporan & Rekapitulasi Komprehensif Proyek
+                <h3 className="text-base font-bold text-[#1D2939] group-hover:text-[#4693FD] transition-colors">
+                  H. Laporan & Rekapitulasi Komprehensif Proyek
                 </h3>
                 <p className="text-xs text-[#667085] mt-1.5 leading-relaxed">
-                  Rekapitulasi lengkap seluruh operasional proyek: kehadiran tenaga kerja, upah pokok, lembur, kasbon, biaya transportasi, pengeluaran operasional, serta ringkasan perbandingan anggaran vs realisasi riil.
+                  Pusat rekap keuangan resmi proyek {project.name} ({project.code}): rekap gaji per karyawan, rekap total gaji seluruh karyawan, biaya transportasi, pengeluaran operasional lapangan, dan realisasi seluruh anggaran proyek.
                 </p>
+
+                {/* 5 Submenu Quick-Launch Buttons (H1 - H5) */}
+                <div
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mt-4"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {[
+                    { id: 'h1', code: 'H1', label: 'Rekap Gaji Per Karyawan', desc: 'Detail harian, lembur, kasbon & slip gaji' },
+                    { id: 'h2', code: 'H2', label: 'Rekap Total Gaji Seluruh Karyawan', desc: 'Tabel rekap kolektif & grand total upah' },
+                    { id: 'h3', code: 'H3', label: 'Rekap Biaya Transportasi', desc: 'Rincian BBM, tol, parkir & bukti foto' },
+                    { id: 'h4', code: 'H4', label: 'Rekap Operasional Lapangan', desc: 'Rincian belanja lapangan & struk' },
+                    { id: 'h5', code: 'H5', label: 'Rekap Seluruh Pengeluaran', desc: 'Realisasi anggaran vs total biaya proyek' },
+                  ].map((sub) => (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveReportSubmenu(sub.id as any);
+                        setActiveModule('laporan');
+                      }}
+                      className="text-left p-2.5 rounded-xl border border-[#EAECF0] bg-[#F9FAFB] hover:bg-[#EFF5FF] hover:border-[#4693FD] transition-all group/sub"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-[#155EEF] bg-white px-1.5 py-0.5 rounded border border-[#D0E2FF]">
+                          {sub.code}
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-[#98A2B3] group-hover/sub:text-[#155EEF] group-hover/sub:translate-x-0.5 transition-all" />
+                      </div>
+                      <p className="text-xs font-bold text-[#1D2939] mt-1.5 line-clamp-1">{sub.label}</p>
+                      <p className="text-[10px] text-[#667085] mt-0.5 line-clamp-1">{sub.desc}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#F2F4F7] flex items-center justify-between text-xs">
+              <div className="mt-4 pt-3 border-t border-[#F2F4F7] flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span className="font-semibold text-[#4693FD]">
-                  Realisasi Anggaran: {stats.realizationPercentage}% (Sisa: {formatRupiah(stats.budgetRemaining)})
+                  Realisasi Anggaran Proyek: {stats.realizationPercentage}% (Sisa Anggaran: {formatRupiah(stats.budgetRemaining)})
                 </span>
-                <ChevronRight className="w-4 h-4 text-[#98A2B3] group-hover:translate-x-1 transition-transform" />
+                <span className="inline-flex items-center gap-1 font-semibold text-[#155EEF]">
+                  <span>Buka Pusat Laporan H1–H5</span>
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </span>
               </div>
             </div>
           </div>
@@ -2499,130 +2581,1769 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
         </div>
       )}
 
-      {/* SUB-MODULE VIEW G: LAPORAN & REKAPITULASI PROYEK */}
-      {activeModule === 'laporan' && (
-        <div className="space-y-6">
-          {/* Summary Cards */}
-          <div className="bg-white rounded-2xl border border-[#EAECF0] p-6 shadow-xs space-y-4">
-            <h3 className="text-base font-bold text-[#1D2939]">
-              Ringkasan Realisasi Anggaran vs Biaya Riil Proyek
-            </h3>
+      {/* SUB-MODULE VIEW H: LAPORAN & REKAPITULASI KOMPREHENSIF PROYEK (H1 - H5) */}
+      {activeModule === 'laporan' && (() => {
+        const allEmployeeRecaps: ProjectEmployeeRecapItem[] = recapData?.employeeRecaps || [];
+        const allTransportExpenses: ProjectExpense[] = recapData?.transportExpenses || [];
+        const allOperationalExpenses: ProjectExpense[] = recapData?.operationalExpenses || [];
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-[#F8F9FA] p-4 rounded-xl border border-[#EAECF0]">
-                <span className="text-xs text-[#667085] font-medium">Nilai Anggaran Kontrak</span>
-                <p className="text-xl font-bold text-[#1D2939] font-mono mt-1">
-                  {formatRupiah(project.budget)}
-                </p>
-              </div>
-              <div className="bg-[#EFF5FF] p-4 rounded-xl border border-[#D0E2FF]">
-                <span className="text-xs text-[#155EEF] font-medium">Total Akumulasi Realisasi Biaya</span>
-                <p className="text-xl font-bold text-[#155EEF] font-mono mt-1">
-                  {formatRupiah(
-                    (recapData?.summary?.totalProjectCost) ||
-                    (stats.totalTransportationCost + stats.totalOperationalCost)
-                  )}
-                </p>
-                <p className="text-[11px] text-[#155EEF] mt-1">
-                  {stats.realizationPercentage}% dari plafon anggaran
-                </p>
-              </div>
-              <div className="bg-[#ECFDF3] p-4 rounded-xl border border-[#A6F4C5]">
-                <span className="text-xs text-[#027A48] font-medium">Sisa Anggaran Proyek</span>
-                <p className="text-xl font-bold text-[#027A48] font-mono mt-1">
-                  {formatRupiah(stats.budgetRemaining)}
-                </p>
-              </div>
-            </div>
+        // Filtered employee recaps for H1 & H2
+        const filteredEmployeeRecaps = allEmployeeRecaps.filter((emp) => {
+          const matchRole =
+            reportRoleFilter === 'ALL' ||
+            emp.role.toLowerCase() === reportRoleFilter.toLowerCase() ||
+            (reportRoleFilter === 'Helper' && (emp.role === 'Helper' || emp.role === 'Kenek'));
+          const matchEmp =
+            activeReportSubmenu !== 'h1' ||
+            reportEmployeeFilter === 'ALL' ||
+            emp.employeeId === reportEmployeeFilter;
+          return matchRole && matchEmp;
+        });
 
-            {/* Progress bar */}
-            <div>
-              <div className="flex justify-between text-xs text-[#475467] mb-1 font-medium">
-                <span>Persentase Penyerapan Anggaran</span>
-                <span>{stats.realizationPercentage}%</span>
-              </div>
-              <div className="w-full bg-[#EAECF0] h-2.5 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    stats.realizationPercentage > 90 ? 'bg-[#D92D20]' : 'bg-[#4693FD]'
-                  }`}
-                  style={{ width: `${Math.min(100, stats.realizationPercentage)}%` }}
-                />
-              </div>
-            </div>
-          </div>
+        // Filtered transport expenses for H3
+        const transportCategories = Array.from(new Set(allTransportExpenses.map((e) => e.category).filter(Boolean)));
+        const filteredTransportExpenses = allTransportExpenses.filter((e) =>
+          reportCategoryFilter === 'ALL' ? true : e.category === reportCategoryFilter
+        );
 
-          {/* Breakdown Detail Table */}
-          <div className="bg-white rounded-2xl border border-[#EAECF0] shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-[#EAECF0]">
-              <h4 className="text-sm font-bold text-[#1D2939]">Rincian Komponen Biaya Proyek</h4>
-            </div>
+        // Filtered operational expenses for H4
+        const operationalCategories = Array.from(new Set(allOperationalExpenses.map((e) => e.category).filter(Boolean)));
+        const filteredOperationalExpenses = allOperationalExpenses.filter((e) =>
+          reportCategoryFilter === 'ALL' ? true : e.category === reportCategoryFilter
+        );
 
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#F9FAFB] text-[#475467] font-medium border-b border-[#EAECF0]">
-                <tr>
-                  <th className="py-3 px-4">Komponen Pengeluaran</th>
-                  <th className="py-3 px-4">Deskripsi / Satuan</th>
-                  <th className="py-3 px-4 text-right">Subtotal Realisasi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
-                <tr>
-                  <td className="py-3 px-4 font-semibold text-[#1D2939]">1. Gaji Pokok Harian (Penuh & Setengah Hari)</td>
-                  <td className="py-3 px-4 text-[#667085]">
-                    <div>
-                      Total {recapData?.summary?.totalWorkDays || 0} hari kerja efektif
-                    </div>
-                    <div className="text-[11px] text-[#475467] mt-0.5">
-                      • Penuh: {recapData?.summary?.fullWorkDays ?? recapData?.summary?.totalWorkDays ?? 0} hari ({formatRupiah(recapData?.summary?.fullDaySalary ?? recapData?.summary?.totalBasicSalary ?? 0)})
-                      {(recapData?.summary?.halfWorkDays || 0) > 0 && (
-                        <span className="ml-2 text-[#026AA2] font-medium">
-                          • Setengah Hari: {recapData?.summary?.halfWorkDays}x ({formatRupiah(recapData?.summary?.halfDaySalary || 0)})
+        // Computed summary (reflecting active period and role/category filters where applicable)
+        const rawSummary: ProjectRecapSummaryData = recapData?.summary || {
+          totalEmployees: stats.totalAssignedEmployees,
+          totalRecapEmployees: allEmployeeRecaps.length,
+          fullWorkDays: 0,
+          halfWorkDays: 0,
+          absentDays: 0,
+          totalWorkDays: 0,
+          fullDaySalary: 0,
+          halfDaySalary: 0,
+          totalBasicSalary: 0,
+          totalOvertimeHours: 0,
+          totalOvertimePay: 0,
+          totalGrossSalary: 0,
+          totalKasbonInPeriod: 0,
+          totalKasbonDeduction: 0,
+          totalRemainingKasbon: 0,
+          totalOtherDeductions: 0,
+          totalNetSalary: 0,
+          paidPayrollTotal: 0,
+          unpaidPayrollTotal: 0,
+          totalTransport: stats.totalTransportationCost,
+          totalOp: stats.totalOperationalCost,
+          totalOtherCost: 0,
+          totalProjectCost: stats.totalTransportationCost + stats.totalOperationalCost,
+          budget: project.budget,
+          budgetRemaining: stats.budgetRemaining,
+          realizationPercentage: stats.realizationPercentage,
+        };
+
+        // H2 Totals based on filteredEmployeeRecaps
+        const h2Totals = {
+          count: filteredEmployeeRecaps.length,
+          fullWorkDays: filteredEmployeeRecaps.reduce((s, r) => s + r.fullWorkDays, 0),
+          halfWorkDays: filteredEmployeeRecaps.reduce((s, r) => s + r.halfWorkDays, 0),
+          absentDays: filteredEmployeeRecaps.reduce((s, r) => s + r.absentDays, 0),
+          totalWorkDays: filteredEmployeeRecaps.reduce((s, r) => s + r.totalWorkDays, 0),
+          fullDaySalary: filteredEmployeeRecaps.reduce((s, r) => s + r.fullDaySalary, 0),
+          halfDaySalary: filteredEmployeeRecaps.reduce((s, r) => s + r.halfDaySalary, 0),
+          totalBasicSalary: filteredEmployeeRecaps.reduce((s, r) => s + r.totalBasicSalary, 0),
+          overtimeHours: Number(filteredEmployeeRecaps.reduce((s, r) => s + r.overtimeHours, 0).toFixed(4)),
+          totalOvertimePay: filteredEmployeeRecaps.reduce((s, r) => s + r.totalOvertimePay, 0),
+          grossSalary: filteredEmployeeRecaps.reduce((s, r) => s + r.grossSalary, 0),
+          kasbonInPeriod: filteredEmployeeRecaps.reduce((s, r) => s + r.kasbonInPeriod, 0),
+          kasbonDeduction: filteredEmployeeRecaps.reduce((s, r) => s + r.kasbonDeduction, 0),
+          remainingKasbon: filteredEmployeeRecaps.reduce((s, r) => s + r.remainingKasbon, 0),
+          netSalary: filteredEmployeeRecaps.reduce((s, r) => s + r.netSalary, 0),
+        };
+
+        const h3TotalAmount = filteredTransportExpenses.reduce((s, e) => s + e.amount, 0);
+        const h4TotalAmount = filteredOperationalExpenses.reduce((s, e) => s + e.amount, 0);
+
+        const periodDisplayLabel =
+          appliedStartDate && appliedEndDate
+            ? `${formatDateID(appliedStartDate)} s/d ${formatDateID(appliedEndDate)}`
+            : 'Semua Periode Proyek (Kumulatif)';
+
+        const submenuMeta: Record<'h1' | 'h2' | 'h3' | 'h4' | 'h5', { code: string; title: string; subtitle: string }> = {
+          h1: {
+            code: 'H1',
+            title: 'H1. Rekap Gaji Per Karyawan',
+            subtitle: 'Rincian lengkap kehadiran harian, setengah hari, jam lembur aktual, kasbon, gaji kotor, dan gaji bersih per individu.',
+          },
+          h2: {
+            code: 'H2',
+            title: 'H2. Rekap Total Gaji Seluruh Karyawan',
+            subtitle: 'Ringkasan tabel kolektif gaji seluruh tenaga kerja proyek beserta akumulasi grand total komponen pengupahan.',
+          },
+          h3: {
+            code: 'H3',
+            title: 'H3. Rekap Biaya Transportasi Proyek',
+            subtitle: 'Daftar transaksi biaya transportasi proyek (BBM, tol, parkir, ongkos & armada) lengkap dengan bukti foto.',
+          },
+          h4: {
+            code: 'H4',
+            title: 'H4. Rekap Biaya Pengeluaran Operasional Lapangan',
+            subtitle: 'Daftar pengeluaran operasional lapangan proyek (material kecil, alat kerja, konsumsi & darurat) beserta struk bukti.',
+          },
+          h5: {
+            code: 'H5',
+            title: 'H5. Rekap Seluruh Pengeluaran Proyek',
+            subtitle: 'Ringkasan eksekutif penggabungan total gaji karyawan, transportasi, operasional lapangan, sisa anggaran, dan persentase realisasi.',
+          },
+        };
+
+        const handleApplyReportFilter = () => {
+          if ((reportStartDate && !reportEndDate) || (!reportStartDate && reportEndDate)) {
+            showToast('error', 'Pilih Tanggal Mulai dan Tanggal Akhir secara lengkap, atau kosongkan keduanya untuk Semua Periode.');
+            return;
+          }
+          if (reportStartDate && reportEndDate && reportStartDate > reportEndDate) {
+            showToast('error', 'Tanggal Mulai tidak boleh lebih besar dari Tanggal Akhir.');
+            return;
+          }
+          setAppliedStartDate(reportStartDate);
+          setAppliedEndDate(reportEndDate);
+          fetchProjectRecapData(reportStartDate, reportEndDate);
+          showToast('info', 'Filter laporan proyek berhasil diterapkan.');
+        };
+
+        const handleResetReportFilter = () => {
+          setReportStartDate('');
+          setReportEndDate('');
+          setAppliedStartDate('');
+          setAppliedEndDate('');
+          setReportRoleFilter('ALL');
+          setReportEmployeeFilter('ALL');
+          setReportCategoryFilter('ALL');
+          fetchProjectRecapData(undefined, undefined);
+          showToast('info', 'Filter laporan direset ke Semua Periode.');
+        };
+
+        const handleQuickPeriodPreset = (preset: 'all' | '14days' | 'month') => {
+          if (preset === 'all') {
+            setReportStartDate('');
+            setReportEndDate('');
+            setAppliedStartDate('');
+            setAppliedEndDate('');
+            fetchProjectRecapData(undefined, undefined);
+            return;
+          }
+          const now = new Date();
+          const endStr = now.toISOString().split('T')[0];
+          if (preset === '14days') {
+            const start = new Date(now);
+            start.setDate(now.getDate() - 13);
+            const startStr = start.toISOString().split('T')[0];
+            setReportStartDate(startStr);
+            setReportEndDate(endStr);
+            setAppliedStartDate(startStr);
+            setAppliedEndDate(endStr);
+            fetchProjectRecapData(startStr, endStr);
+          } else if (preset === 'month') {
+            const startStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+            setReportStartDate(startStr);
+            setReportEndDate(endStr);
+            setAppliedStartDate(startStr);
+            setAppliedEndDate(endStr);
+            fetchProjectRecapData(startStr, endStr);
+          }
+        };
+
+        const handleExportCurrentSubmenuPDF = (singleEmp?: ProjectEmployeeRecapItem) => {
+          exportProjectReportPDF({
+            submenu: activeReportSubmenu,
+            project,
+            employeeRecaps: filteredEmployeeRecaps,
+            selectedEmployee: singleEmp || null,
+            transportExpenses: filteredTransportExpenses,
+            operationalExpenses: filteredOperationalExpenses,
+            summary: rawSummary,
+            startDate: appliedStartDate || undefined,
+            endDate: appliedEndDate || undefined,
+            roleFilter: reportRoleFilter,
+            categoryFilter: reportCategoryFilter,
+          });
+          showToast('success', `Dokumen PDF ${submenuMeta[activeReportSubmenu].code} berhasil diunduh.`);
+        };
+
+        const handleExportCurrentSubmenuExcel = (singleEmp?: ProjectEmployeeRecapItem) => {
+          exportProjectReportExcel({
+            submenu: activeReportSubmenu,
+            project,
+            employeeRecaps: filteredEmployeeRecaps,
+            selectedEmployee: singleEmp || null,
+            transportExpenses: filteredTransportExpenses,
+            operationalExpenses: filteredOperationalExpenses,
+            summary: rawSummary,
+            startDate: appliedStartDate || undefined,
+            endDate: appliedEndDate || undefined,
+          });
+          showToast('success', `File Excel (.xlsx) ${submenuMeta[activeReportSubmenu].code} berhasil diunduh.`);
+        };
+
+        const handleDirectPrint = () => {
+          window.print();
+        };
+
+        return (
+          <div className="space-y-5">
+            {/* 1. SUBMENU NAVIGATION BAR (H1 - H5) */}
+            <div className="bg-white rounded-2xl border border-[#EAECF0] p-3 shadow-xs print:hidden">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 mb-3 border-b border-[#F2F4F7]">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-[#EFF5FF] text-[#155EEF] border border-[#D0E2FF]">
+                      BAGIAN H
+                    </span>
+                    <h2 className="text-base font-bold text-[#1D2939]">
+                      Laporan & Rekapitulasi Komprehensif Proyek — {project.name} ({project.code})
+                    </h2>
+                  </div>
+                  <p className="text-xs text-[#667085] mt-0.5">
+                    Pilih salah satu dari 5 submenu di bawah untuk melihat rincian, memfilter periode, mencetak PDF, Print langsung, atau mengekspor ke Excel.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleExportCurrentSubmenuPDF()}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#D92D20] hover:bg-[#B42318] text-white text-xs font-semibold transition-colors shadow-xs"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Cetak PDF ({submenuMeta[activeReportSubmenu].code})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDirectPrint}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1D2939] hover:bg-[#344054] text-white text-xs font-semibold transition-colors shadow-xs"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Print Laporan</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExportCurrentSubmenuExcel()}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#027A48] hover:bg-[#05603A] text-white text-xs font-semibold transition-colors shadow-xs"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Ekspor Excel (.xlsx)</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                {(
+                  [
+                    { id: 'h1', code: 'H1', label: 'Rekap Gaji Per Karyawan', badge: `${allEmployeeRecaps.length} Orang` },
+                    { id: 'h2', code: 'H2', label: 'Rekap Total Gaji Seluruh Karyawan', badge: formatRupiah(rawSummary.totalNetSalary) },
+                    { id: 'h3', code: 'H3', label: 'Rekap Biaya Transportasi Proyek', badge: formatRupiah(rawSummary.totalTransport) },
+                    { id: 'h4', code: 'H4', label: 'Rekap Operasional Lapangan', badge: formatRupiah(rawSummary.totalOp) },
+                    { id: 'h5', code: 'H5', label: 'Rekap Seluruh Pengeluaran Proyek', badge: `${rawSummary.realizationPercentage}% Anggaran` },
+                  ] as const
+                ).map((tab) => {
+                  const isActive = activeReportSubmenu === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveReportSubmenu(tab.id);
+                        setReportCategoryFilter('ALL');
+                      }}
+                      className={`text-left p-3 rounded-xl border transition-all flex flex-col justify-between ${
+                        isActive
+                          ? 'bg-[#EFF5FF] border-[#4693FD] ring-2 ring-[#4693FD]/20 shadow-xs'
+                          : 'bg-[#F9FAFB] border-[#EAECF0] hover:bg-white hover:border-[#D0D5DD]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                            isActive ? 'bg-[#155EEF] text-white' : 'bg-white text-[#344054] border border-[#D0D5DD]'
+                          }`}
+                        >
+                          {tab.code}
                         </span>
+                        <span className="text-[10px] font-mono font-semibold text-[#475467] truncate">
+                          {tab.badge}
+                        </span>
+                      </div>
+                      <p className={`text-xs font-bold mt-2 line-clamp-1 ${isActive ? 'text-[#155EEF]' : 'text-[#1D2939]'}`}>
+                        {tab.label}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. FILTER BAR FOR REPORTS (H1 - H5) */}
+            <div className="bg-white rounded-2xl border border-[#EAECF0] p-4 shadow-xs space-y-3 print:hidden">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-[#4693FD]" />
+                  <span className="text-xs font-bold text-[#1D2939]">Filter Periode & Kriteria Laporan</span>
+                  <span className="text-[11px] text-[#667085]">
+                    (Periode Aktif: <strong className="text-[#155EEF]">{periodDisplayLabel}</strong>)
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-[#667085] mr-1">Pilihan Cepat:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickPeriodPreset('all')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
+                      !appliedStartDate && !appliedEndDate
+                        ? 'bg-[#EFF5FF] text-[#155EEF] border-[#4693FD]'
+                        : 'bg-[#F9FAFB] text-[#475467] border-[#EAECF0] hover:bg-[#F2F4F7]'
+                    }`}
+                  >
+                    Semua Periode
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickPeriodPreset('14days')}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#F9FAFB] text-[#475467] border border-[#EAECF0] hover:bg-[#F2F4F7] transition-colors"
+                  >
+                    2 Mingguan (14 Hari Terakhir)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickPeriodPreset('month')}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#F9FAFB] text-[#475467] border border-[#EAECF0] hover:bg-[#F2F4F7] transition-colors"
+                  >
+                    Bulan Ini
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#475467] mb-1">Tanggal Mulai</label>
+                  <input
+                    type="date"
+                    value={reportStartDate}
+                    onChange={(e) => setReportStartDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-[#D0D5DD] rounded-xl focus:outline-none focus:border-[#4693FD]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#475467] mb-1">Tanggal Akhir</label>
+                  <input
+                    type="date"
+                    value={reportEndDate}
+                    onChange={(e) => setReportEndDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-[#D0D5DD] rounded-xl focus:outline-none focus:border-[#4693FD]"
+                  />
+                </div>
+
+                {/* Role filter for H1 & H2 */}
+                {(activeReportSubmenu === 'h1' || activeReportSubmenu === 'h2') && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#475467] mb-1">Filter Jabatan</label>
+                    <select
+                      value={reportRoleFilter}
+                      onChange={(e) => setReportRoleFilter(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-[#D0D5DD] rounded-xl bg-white focus:outline-none focus:border-[#4693FD]"
+                    >
+                      <option value="ALL">Semua Jabatan</option>
+                      <option value="Mandor">Mandor</option>
+                      <option value="Tukang">Tukang</option>
+                      <option value="Helper">Helper / Kenek</option>
+                      <option value="Driver">Driver</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Specific employee filter for H1 */}
+                {activeReportSubmenu === 'h1' && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#475467] mb-1">Pilih Karyawan Proyek</label>
+                    <select
+                      value={reportEmployeeFilter}
+                      onChange={(e) => setReportEmployeeFilter(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-[#D0D5DD] rounded-xl bg-white focus:outline-none focus:border-[#4693FD]"
+                    >
+                      <option value="ALL">Semua Karyawan ({allEmployeeRecaps.length} Orang)</option>
+                      {allEmployeeRecaps.map((emp) => (
+                        <option key={emp.employeeId} value={emp.employeeId}>
+                          [{emp.employeeId}] {emp.employeeName} — {emp.role}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Category filter for H3 */}
+                {activeReportSubmenu === 'h3' && (
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-semibold text-[#475467] mb-1">Filter Kategori Transportasi</label>
+                    <select
+                      value={reportCategoryFilter}
+                      onChange={(e) => setReportCategoryFilter(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-[#D0D5DD] rounded-xl bg-white focus:outline-none focus:border-[#4693FD]"
+                    >
+                      <option value="ALL">Semua Kategori Transportasi</option>
+                      {transportCategories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Category filter for H4 */}
+                {activeReportSubmenu === 'h4' && (
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-semibold text-[#475467] mb-1">Filter Kategori Operasional</label>
+                    <select
+                      value={reportCategoryFilter}
+                      onChange={(e) => setReportCategoryFilter(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-[#D0D5DD] rounded-xl bg-white focus:outline-none focus:border-[#4693FD]"
+                    >
+                      <option value="ALL">Semua Kategori Operasional</option>
+                      {operationalCategories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleApplyReportFilter}
+                    className="flex-1 bg-[#4693FD] hover:bg-[#1849A9] text-white px-3 py-2 rounded-xl text-xs font-semibold transition-colors shadow-xs"
+                  >
+                    Terapkan Filter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetReportFilter}
+                    className="px-3 py-2 rounded-xl border border-[#D0D5DD] bg-white hover:bg-[#F9FAFB] text-[#475467] text-xs font-semibold transition-colors"
+                    title="Reset Filter"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. PRINTABLE & INTERACTIVE REPORT CONTAINER */}
+            {loadingModuleData ? (
+              <div className="bg-white rounded-2xl border border-[#EAECF0] p-12 text-center text-xs text-[#667085]">
+                Memuat data rekapitulasi proyek {project.name}...
+              </div>
+            ) : (
+              <div id="project-report-printable" className="space-y-5">
+                {/* OFFICIAL REPORT HEADER (Visible on Print and as Banner in UI) */}
+                <div className="bg-white rounded-2xl border border-[#EAECF0] p-5 shadow-xs">
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-[#EAECF0] pb-4">
+                    <div>
+                      <p className="text-[11px] font-bold tracking-wider uppercase text-[#155EEF]">
+                        PT ASTA BRATA MATAHARI TERBIT
+                      </p>
+                      <h3 className="text-lg font-bold text-[#1D2939] mt-0.5">
+                        {submenuMeta[activeReportSubmenu].title}
+                      </h3>
+                      <p className="text-xs text-[#667085] mt-0.5">{submenuMeta[activeReportSubmenu].subtitle}</p>
+                    </div>
+                    <div className="text-left md:text-right text-xs space-y-0.5 bg-[#F8F9FA] px-4 py-2.5 rounded-xl border border-[#EAECF0]">
+                      <div>
+                        <span className="text-[#667085]">Proyek: </span>
+                        <strong className="text-[#1D2939]">{project.name} ({project.code})</strong>
+                      </div>
+                      <div>
+                        <span className="text-[#667085]">Lokasi: </span>
+                        <span className="font-medium text-[#344054]">{project.location || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#667085]">Periode Rekap: </span>
+                        <strong className="text-[#155EEF]">{periodDisplayLabel}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ========================================================== */}
+                  {/* SUBMENU H1: REKAP GAJI PER KARYAWAN                        */}
+                  {/* ========================================================== */}
+                  {activeReportSubmenu === 'h1' && (
+                    <div className="mt-4 space-y-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2 bg-[#F8F9FA] p-3 rounded-xl border border-[#EAECF0] print:hidden">
+                        <div className="text-xs text-[#475467]">
+                          Menampilkan <strong>{filteredEmployeeRecaps.length}</strong> karyawan proyek {project.name}.
+                          Klik <strong>Lihat Detail</strong> atau <strong>Cetak Slip Gaji</strong> pada masing-masing karyawan, atau cetak kolektif.
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!filteredEmployeeRecaps.length) {
+                                showToast('error', 'Tidak ada data karyawan untuk dicetak.');
+                                return;
+                              }
+                              setSlipGajiModalEmployees(filteredEmployeeRecaps);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EFF5FF] hover:bg-[#D0E2FF] text-[#155EEF] border border-[#D0E2FF] text-xs font-semibold transition-colors"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Preview & Cetak Semua Slip Gaji ({filteredEmployeeRecaps.length})</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              exportProjectSlipGajiPDF({
+                                project,
+                                employees: filteredEmployeeRecaps,
+                                startDate: appliedStartDate || undefined,
+                                endDate: appliedEndDate || undefined,
+                              })
+                            }
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#155EEF] hover:bg-[#1849A9] text-white text-xs font-semibold transition-colors"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Unduh PDF Semua Slip Gaji</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {filteredEmployeeRecaps.length === 0 ? (
+                        <div className="p-8 text-center text-xs text-[#667085] border border-dashed border-[#D0D5DD] rounded-xl">
+                          Tidak ada data karyawan yang sesuai dengan filter pada proyek ini.
+                        </div>
+                      ) : (
+                        <div className="space-y-5">
+                          {filteredEmployeeRecaps.map((emp, idx) => {
+                            const isDriver = isDriverRole(emp.role);
+                            const sortedAtt = (emp.attendanceRecords || [])
+                              .slice()
+                              .sort((a, b) => a.date.localeCompare(b.date));
+
+                            return (
+                              <div
+                                key={emp.employeeId}
+                                className="rounded-2xl border border-[#D0D5DD] bg-white overflow-hidden shadow-2xs break-inside-avoid"
+                              >
+                                {/* Employee Card Header */}
+                                <div className="bg-[#F8F9FA] p-4 border-b border-[#EAECF0] flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#1D2939] text-white font-mono">
+                                        #{idx + 1} • {emp.employeeId}
+                                      </span>
+                                      <h4 className="text-base font-bold text-[#1D2939]">{emp.employeeName}</h4>
+                                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#EFF5FF] text-[#155EEF] border border-[#D0E2FF]">
+                                        {emp.role}
+                                      </span>
+                                      {isDriver && (
+                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#FEF6EE] text-[#B54708] border border-[#F9DBAF]">
+                                          Driver (Tanpa Upah Lembur)
+                                        </span>
+                                      )}
+                                      {emp.status === 'inactive' && (
+                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#FEF3F2] text-[#B42318] border border-[#FECDCA]">
+                                          Nonaktif (Riwayat Transaksi)
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#475467]">
+                                      <span>
+                                        Tarif Harian: <strong className="font-mono text-[#1D2939]">{formatRupiah(emp.dailyWage)}</strong>
+                                      </span>
+                                      <span>
+                                        Tarif Setengah Hari: <strong className="font-mono text-[#1D2939]">{formatRupiah(Math.round(emp.dailyWage / 2))}</strong>
+                                      </span>
+                                      <span>
+                                        Tarif Lembur/Jam:{' '}
+                                        <strong className="font-mono text-[#1D2939]">
+                                          {isDriver ? 'Rp 0 (Driver)' : formatRupiah(emp.overtimeHourlyWage)}
+                                        </strong>
+                                      </span>
+                                      <span>
+                                        Status Gaji: <strong className="text-[#155EEF]">{emp.paymentStatusLabel}</strong>
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Individual Action Buttons */}
+                                  <div className="flex flex-wrap items-center gap-1.5 print:hidden">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedH1EmployeeDetail(emp)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#F2F4F7] text-[#344054] border border-[#D0D5DD] text-xs font-semibold transition-colors"
+                                    >
+                                      <Eye className="w-3.5 h-3.5 text-[#4693FD]" />
+                                      <span>Lihat Detail</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSlipGajiModalEmployees([emp])}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#EFF5FF] hover:bg-[#D0E2FF] text-[#155EEF] border border-[#D0E2FF] text-xs font-semibold transition-colors"
+                                    >
+                                      <Receipt className="w-3.5 h-3.5" />
+                                      <span>Cetak Slip Gaji</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleExportCurrentSubmenuPDF(emp)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#FEF3F2] hover:bg-[#FEE4E2] text-[#D92D20] border border-[#FECDCA] text-xs font-semibold transition-colors"
+                                    >
+                                      <FileText className="w-3.5 h-3.5" />
+                                      <span>PDF</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleExportCurrentSubmenuExcel(emp)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#ECFDF3] hover:bg-[#D1FADF] text-[#027A48] border border-[#A6F4C5] text-xs font-semibold transition-colors"
+                                    >
+                                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                                      <span>Excel</span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Employee Summary Metrics Grid */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 p-4 bg-white border-b border-[#EAECF0] text-xs">
+                                  <div className="p-2.5 rounded-xl bg-[#F9FAFB] border border-[#EAECF0]">
+                                    <span className="text-[11px] text-[#667085] block">Kehadiran Kerja</span>
+                                    <p className="font-bold text-[#1D2939] mt-0.5">
+                                      {emp.fullWorkDays} Penuh • {emp.halfWorkDays} Setengah
+                                    </p>
+                                    <span className="text-[10px] text-[#667085]">
+                                      Efektif: {emp.totalWorkDays} hari | Absen: {emp.absentDays}
+                                    </span>
+                                  </div>
+
+                                  <div className="p-2.5 rounded-xl bg-[#F9FAFB] border border-[#EAECF0]">
+                                    <span className="text-[11px] text-[#667085] block">Total Gaji Pokok</span>
+                                    <p className="font-bold text-[#1D2939] font-mono mt-0.5">
+                                      {formatRupiah(emp.totalBasicSalary)}
+                                    </p>
+                                    <span className="text-[10px] text-[#667085]">
+                                      Penuh: {formatRupiah(emp.fullDaySalary)} | 1/2: {formatRupiah(emp.halfDaySalary)}
+                                    </span>
+                                  </div>
+
+                                  <div className="p-2.5 rounded-xl bg-[#FEF6EE] border border-[#F9DBAF]">
+                                    <span className="text-[11px] text-[#B54708] block">Total Lembur</span>
+                                    <p className="font-bold text-[#B54708] font-mono mt-0.5">
+                                      {formatRupiah(emp.totalOvertimePay)}
+                                    </p>
+                                    <span className="text-[10px] text-[#B54708]">
+                                      Durasi: {formatOvertimeDuration(emp.overtimeHours)}
+                                      {isDriver ? ' (Driver Rp 0)' : ''}
+                                    </span>
+                                  </div>
+
+                                  <div className="p-2.5 rounded-xl bg-[#EFF5FF] border border-[#D0E2FF]">
+                                    <span className="text-[11px] text-[#155EEF] block">Total Gaji Kotor</span>
+                                    <p className="font-bold text-[#155EEF] font-mono mt-0.5">
+                                      {formatRupiah(emp.grossSalary)}
+                                    </p>
+                                    <span className="text-[10px] text-[#155EEF]">Gaji Pokok + Upah Lembur</span>
+                                  </div>
+
+                                  <div className="p-2.5 rounded-xl bg-[#FEF3F2] border border-[#FECDCA]">
+                                    <span className="text-[11px] text-[#B42318] block">Kasbon & Potongan</span>
+                                    <p className="font-bold text-[#B42318] font-mono mt-0.5">
+                                      - {formatRupiah(emp.kasbonDeduction)}
+                                    </p>
+                                    <span className="text-[10px] text-[#B42318]">
+                                      Pinjaman: {formatRupiah(emp.kasbonInPeriod)} | Sisa: {formatRupiah(emp.remainingKasbon)}
+                                    </span>
+                                  </div>
+
+                                  <div className="p-2.5 rounded-xl bg-[#ECFDF3] border border-[#A6F4C5]">
+                                    <span className="text-[11px] text-[#027A48] font-semibold block">Gaji Bersih Diterima</span>
+                                    <p className="text-sm font-bold text-[#027A48] font-mono mt-0.5">
+                                      {formatRupiah(emp.netSalary)}
+                                    </p>
+                                    <span className="text-[10px] text-[#027A48]">Take Home Pay</span>
+                                  </div>
+                                </div>
+
+                                {/* Daily Work History Table inside H1 */}
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left text-xs">
+                                    <thead className="bg-[#F9FAFB] text-[#475467] font-semibold border-b border-[#EAECF0]">
+                                      <tr>
+                                        <th className="py-2.5 px-3">No</th>
+                                        <th className="py-2.5 px-3">Tanggal</th>
+                                        <th className="py-2.5 px-3">Status Kehadiran</th>
+                                        <th className="py-2.5 px-3">Jam Kerja</th>
+                                        <th className="py-2.5 px-3 text-right">Upah Pokok</th>
+                                        <th className="py-2.5 px-3 text-center">Durasi Lembur</th>
+                                        <th className="py-2.5 px-3 text-right">Upah Lembur</th>
+                                        <th className="py-2.5 px-3 text-right">Kasbon Hari Itu</th>
+                                        <th className="py-2.5 px-3 text-right">Total Upah Harian</th>
+                                        <th className="py-2.5 px-3">Catatan</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+                                      {sortedAtt.length === 0 ? (
+                                        <tr>
+                                          <td colSpan={10} className="py-4 px-3 text-center text-[#98A2B3]">
+                                            Belum ada riwayat kehadiran harian tercatat pada periode ini.
+                                          </td>
+                                        </tr>
+                                      ) : (
+                                        sortedAtt.map((att, rIdx) => {
+                                          const dayBasic =
+                                            att.status === 'Hadir'
+                                              ? att.dailyWageSnapshot || emp.dailyWage
+                                              : att.status === 'Setengah Hari'
+                                              ? Math.round((att.dailyWageSnapshot || emp.dailyWage) / 2)
+                                              : 0;
+                                          const dayOtPay = isDriver
+                                            ? 0
+                                            : att.overtimeApproved && att.overtimeHours > 0
+                                            ? Math.round(att.overtimeHours * (att.overtimeWageSnapshot || emp.overtimeHourlyWage))
+                                            : 0;
+                                          const dayKb = att.hasKasbon && att.kasbonAmount ? att.kasbonAmount : 0;
+
+                                          return (
+                                            <tr key={att.id || rIdx} className="hover:bg-[#F9FAFB]">
+                                              <td className="py-2 px-3 font-mono text-[#667085]">{rIdx + 1}</td>
+                                              <td className="py-2 px-3 font-medium text-[#1D2939]">{formatDateID(att.date)}</td>
+                                              <td className="py-2 px-3">
+                                                <span
+                                                  className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                                    att.status === 'Hadir'
+                                                      ? 'bg-[#ECFDF3] text-[#027A48]'
+                                                      : att.status === 'Setengah Hari'
+                                                      ? 'bg-[#F0F9FF] text-[#026AA2]'
+                                                      : 'bg-[#FEF3F2] text-[#B42318]'
+                                                  }`}
+                                                >
+                                                  {att.status}
+                                                </span>
+                                              </td>
+                                              <td className="py-2 px-3 font-mono text-[11px] text-[#667085]">
+                                                {att.checkIn || '-'} - {att.checkOut || '-'}
+                                              </td>
+                                              <td className="py-2 px-3 text-right font-mono font-medium text-[#1D2939]">
+                                                {formatRupiah(dayBasic)}
+                                              </td>
+                                              <td className="py-2 px-3 text-center font-mono text-[11px] text-[#B54708]">
+                                                {att.overtimeHours > 0 ? formatOvertimeDuration(att.overtimeHours) : '-'}
+                                              </td>
+                                              <td className="py-2 px-3 text-right font-mono text-[#B54708]">
+                                                {isDriver && att.overtimeHours > 0
+                                                  ? 'Rp 0 (Driver)'
+                                                  : formatRupiah(dayOtPay)}
+                                              </td>
+                                              <td className="py-2 px-3 text-right font-mono text-[#B42318]">
+                                                {dayKb > 0 ? formatRupiah(dayKb) : '-'}
+                                              </td>
+                                              <td className="py-2 px-3 text-right font-mono font-bold text-[#155EEF]">
+                                                {formatRupiah(dayBasic + dayOtPay)}
+                                              </td>
+                                              <td className="py-2 px-3 text-[#667085] max-w-[200px] truncate">
+                                                {att.notes || att.kasbonNotes || '-'}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
-                    {formatRupiah(recapData?.summary?.totalBasicSalary || 0)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-4 font-semibold text-[#1D2939]">2. Upah Lembur Disetujui</td>
-                  <td className="py-3 px-4 text-[#667085]">
-                    Lembur tenaga kerja lapangan ({formatOvertimeDuration(recapData?.summary?.totalOvertimeHours || 0)})
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
-                    {formatRupiah(recapData?.summary?.totalOvertimePay || 0)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-4 font-semibold text-[#1D2939]">3. Biaya Transportasi</td>
-                  <td className="py-3 px-4 text-[#667085]">Bensin, toll, parkir, armada</td>
-                  <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
-                    {formatRupiah(stats.totalTransportationCost)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-4 font-semibold text-[#1D2939]">4. Pengeluaran Operasional</td>
-                  <td className="py-3 px-4 text-[#667085]">Belanja alat kerja dan darurat lapangan</td>
-                  <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
-                    {formatRupiah(stats.totalOperationalCost)}
-                  </td>
-                </tr>
-                <tr className="bg-[#F9FAFB] font-bold text-[#1D2939]">
-                  <td className="py-3 px-4" colSpan={2}>TOTAL PENGELUARAN PROYEK</td>
-                  <td className="py-3 px-4 text-right font-mono text-sm text-[#4693FD]">
-                    {formatRupiah(
-                      (recapData?.summary?.totalProjectCost) ||
-                      (stats.totalTransportationCost + stats.totalOperationalCost)
+                  )}
+
+                  {/* ========================================================== */}
+                  {/* SUBMENU H2: REKAP TOTAL GAJI SELURUH KARYAWAN              */}
+                  {/* ========================================================== */}
+                  {activeReportSubmenu === 'h2' && (
+                    <div className="mt-4 space-y-4">
+                      {/* H2 Top Summary Cards */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                        <div className="p-3 rounded-xl bg-[#F8F9FA] border border-[#EAECF0]">
+                          <span className="text-[11px] text-[#667085] block">Total Karyawan</span>
+                          <p className="text-lg font-bold text-[#1D2939] font-mono mt-0.5">{h2Totals.count} Orang</p>
+                          <span className="text-[10px] text-[#667085]">
+                            {h2Totals.fullWorkDays} Penuh • {h2Totals.halfWorkDays} Setengah
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-[#F8F9FA] border border-[#EAECF0]">
+                          <span className="text-[11px] text-[#667085] block">Total Gaji Pokok</span>
+                          <p className="text-base font-bold text-[#1D2939] font-mono mt-0.5">
+                            {formatRupiah(h2Totals.totalBasicSalary)}
+                          </p>
+                          <span className="text-[10px] text-[#667085]">{h2Totals.totalWorkDays} Hari Efektif</span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-[#FEF6EE] border border-[#F9DBAF]">
+                          <span className="text-[11px] text-[#B54708] block">Total Upah Lembur</span>
+                          <p className="text-base font-bold text-[#B54708] font-mono mt-0.5">
+                            {formatRupiah(h2Totals.totalOvertimePay)}
+                          </p>
+                          <span className="text-[10px] text-[#B54708]">{formatOvertimeDuration(h2Totals.overtimeHours)}</span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-[#EFF5FF] border border-[#D0E2FF]">
+                          <span className="text-[11px] text-[#155EEF] block">Total Gaji Kotor</span>
+                          <p className="text-base font-bold text-[#155EEF] font-mono mt-0.5">
+                            {formatRupiah(h2Totals.grossSalary)}
+                          </p>
+                          <span className="text-[10px] text-[#155EEF]">Pokok + Lembur</span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-[#FEF3F2] border border-[#FECDCA]">
+                          <span className="text-[11px] text-[#B42318] block">Total Potongan Kasbon</span>
+                          <p className="text-base font-bold text-[#B42318] font-mono mt-0.5">
+                            - {formatRupiah(h2Totals.kasbonDeduction)}
+                          </p>
+                          <span className="text-[10px] text-[#B42318]">
+                            Sisa Kasbon: {formatRupiah(h2Totals.remainingKasbon)}
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-[#ECFDF3] border border-[#A6F4C5]">
+                          <span className="text-[11px] text-[#027A48] font-semibold block">Total Gaji Bersih</span>
+                          <p className="text-base font-bold text-[#027A48] font-mono mt-0.5">
+                            {formatRupiah(h2Totals.netSalary)}
+                          </p>
+                          <span className="text-[10px] text-[#027A48]">Seluruh Karyawan</span>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto border border-[#EAECF0] rounded-xl">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-[#1D2939] text-white font-semibold">
+                            <tr>
+                              <th className="py-3 px-2.5">No</th>
+                              <th className="py-3 px-2.5">ID</th>
+                              <th className="py-3 px-3">Nama Karyawan</th>
+                              <th className="py-3 px-2.5">Jabatan</th>
+                              <th className="py-3 px-2 text-center">Penuh</th>
+                              <th className="py-3 px-2 text-center">1/2 Hr</th>
+                              <th className="py-3 px-2 text-center">Absen</th>
+                              <th className="py-3 px-2.5 text-right">Tarif/Hr</th>
+                              <th className="py-3 px-2.5 text-right">Total Gaji Pokok</th>
+                              <th className="py-3 px-2.5 text-center">Jam Lembur</th>
+                              <th className="py-3 px-2.5 text-right">Tarif OT</th>
+                              <th className="py-3 px-2.5 text-right">Total Upah Lembur</th>
+                              <th className="py-3 px-2.5 text-right">Total Gaji Kotor</th>
+                              <th className="py-3 px-2.5 text-right">Total Kasbon</th>
+                              <th className="py-3 px-2.5 text-right">Pot. Kasbon</th>
+                              <th className="py-3 px-2.5 text-right">Sisa Kasbon</th>
+                              <th className="py-3 px-3 text-right">Gaji Bersih</th>
+                              <th className="py-3 px-2.5 text-center print:hidden">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+                            {filteredEmployeeRecaps.length === 0 ? (
+                              <tr>
+                                <td colSpan={18} className="py-8 text-center text-[#667085]">
+                                  Tidak ada data rekap gaji karyawan pada periode ini.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredEmployeeRecaps.map((r, i) => {
+                                const isDriver = isDriverRole(r.role);
+                                return (
+                                  <tr key={r.employeeId} className="hover:bg-[#F9FAFB]">
+                                    <td className="py-2.5 px-2.5 font-mono text-[#667085]">{i + 1}</td>
+                                    <td className="py-2.5 px-2.5 font-mono text-[11px] font-semibold text-[#344054]">
+                                      {r.employeeId}
+                                    </td>
+                                    <td className="py-2.5 px-3 font-bold text-[#1D2939]">{r.employeeName}</td>
+                                    <td className="py-2.5 px-2.5">
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#EFF5FF] text-[#155EEF]">
+                                        {r.role}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-2 text-center font-mono font-semibold text-[#027A48]">
+                                      {r.fullWorkDays}
+                                    </td>
+                                    <td className="py-2.5 px-2 text-center font-mono font-semibold text-[#026AA2]">
+                                      {r.halfWorkDays}
+                                    </td>
+                                    <td className="py-2.5 px-2 text-center font-mono text-[#B42318]">
+                                      {r.absentDays}
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono text-[#475467]">
+                                      {formatRupiah(r.dailyWage)}
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono font-semibold text-[#1D2939]">
+                                      {formatRupiah(r.totalBasicSalary)}
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-center font-mono text-[11px] text-[#B54708]">
+                                      {r.overtimeHours > 0 ? formatOvertimeDuration(r.overtimeHours) : '-'}
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono text-[#667085]">
+                                      {isDriver ? 'Rp 0' : formatRupiah(r.overtimeHourlyWage)}
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono font-semibold text-[#B54708]">
+                                      {formatRupiah(r.totalOvertimePay)}
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono font-bold text-[#155EEF]">
+                                      {formatRupiah(r.grossSalary)}
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono text-[#475467]">
+                                      {formatRupiah(r.kasbonInPeriod)}
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono font-semibold text-[#B42318]">
+                                      {r.kasbonDeduction > 0 ? `- ${formatRupiah(r.kasbonDeduction)}` : 'Rp 0'}
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-right font-mono text-[#667085]">
+                                      {formatRupiah(r.remainingKasbon)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-mono font-bold text-[#027A48] bg-[#ECFDF3]/40">
+                                      {formatRupiah(r.netSalary)}
+                                    </td>
+                                    <td className="py-2.5 px-2.5 text-center print:hidden">
+                                      <div className="flex items-center justify-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => setSelectedH1EmployeeDetail(r)}
+                                          className="p-1 rounded hover:bg-[#EFF5FF] text-[#4693FD]"
+                                          title="Lihat Detail Harian Karyawan"
+                                        >
+                                          <Eye className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setSlipGajiModalEmployees([r])}
+                                          className="p-1 rounded hover:bg-[#ECFDF3] text-[#027A48]"
+                                          title="Cetak Slip Gaji Karyawan"
+                                        >
+                                          <Printer className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                          <tfoot className="bg-[#EFF5FF] font-bold text-[#1D2939] border-t-2 border-[#4693FD]">
+                            <tr>
+                              <td colSpan={4} className="py-3 px-3 text-xs uppercase text-[#155EEF]">
+                                GRAND TOTAL ({h2Totals.count} Karyawan Proyek {project.name})
+                              </td>
+                              <td className="py-3 px-2 text-center font-mono text-[#027A48]">{h2Totals.fullWorkDays}</td>
+                              <td className="py-3 px-2 text-center font-mono text-[#026AA2]">{h2Totals.halfWorkDays}</td>
+                              <td className="py-3 px-2 text-center font-mono text-[#B42318]">{h2Totals.absentDays}</td>
+                              <td className="py-3 px-2.5 text-right font-mono">-</td>
+                              <td className="py-3 px-2.5 text-right font-mono text-[#1D2939]">
+                                {formatRupiah(h2Totals.totalBasicSalary)}
+                              </td>
+                              <td className="py-3 px-2.5 text-center font-mono text-[11px] text-[#B54708]">
+                                {formatOvertimeDuration(h2Totals.overtimeHours)}
+                              </td>
+                              <td className="py-3 px-2.5 text-right font-mono">-</td>
+                              <td className="py-3 px-2.5 text-right font-mono text-[#B54708]">
+                                {formatRupiah(h2Totals.totalOvertimePay)}
+                              </td>
+                              <td className="py-3 px-2.5 text-right font-mono text-[#155EEF]">
+                                {formatRupiah(h2Totals.grossSalary)}
+                              </td>
+                              <td className="py-3 px-2.5 text-right font-mono text-[#344054]">
+                                {formatRupiah(h2Totals.kasbonInPeriod)}
+                              </td>
+                              <td className="py-3 px-2.5 text-right font-mono text-[#B42318]">
+                                - {formatRupiah(h2Totals.kasbonDeduction)}
+                              </td>
+                              <td className="py-3 px-2.5 text-right font-mono text-[#475467]">
+                                {formatRupiah(h2Totals.remainingKasbon)}
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono text-sm text-[#027A48]">
+                                {formatRupiah(h2Totals.netSalary)}
+                              </td>
+                              <td className="py-3 px-2.5 print:hidden"></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ========================================================== */}
+                  {/* SUBMENU H3: REKAP BIAYA TRANSPORTASI PROYEK                */}
+                  {/* ========================================================== */}
+                  {activeReportSubmenu === 'h3' && (
+                    <div className="mt-4 space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="p-3.5 rounded-xl bg-[#F0F9FF] border border-[#B9E6FE]">
+                          <span className="text-xs text-[#026AA2] font-medium block">Total Transaksi Transportasi</span>
+                          <p className="text-xl font-bold text-[#026AA2] font-mono mt-1">
+                            {filteredTransportExpenses.length} Transaksi
+                          </p>
+                        </div>
+                        <div className="p-3.5 rounded-xl bg-[#EFF5FF] border border-[#D0E2FF] sm:col-span-2">
+                          <span className="text-xs text-[#155EEF] font-medium block">
+                            Total Biaya Transportasi Proyek ({project.name})
+                          </span>
+                          <p className="text-xl font-bold text-[#155EEF] font-mono mt-1">
+                            {formatRupiah(h3TotalAmount)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto border border-[#EAECF0] rounded-xl">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-[#1D2939] text-white font-semibold">
+                            <tr>
+                              <th className="py-3 px-3">No</th>
+                              <th className="py-3 px-3">Nomor Transaksi</th>
+                              <th className="py-3 px-3">Tanggal</th>
+                              <th className="py-3 px-3">Proyek</th>
+                              <th className="py-3 px-3">Kategori Transportasi</th>
+                              <th className="py-3 px-3">Kendaraan / Armada</th>
+                              <th className="py-3 px-3">Tujuan / Rute</th>
+                              <th className="py-3 px-3">Penanggung Jawab</th>
+                              <th className="py-3 px-3">Keterangan</th>
+                              <th className="py-3 px-3">Metode Bayar</th>
+                              <th className="py-3 px-3 text-right">Nominal Biaya</th>
+                              <th className="py-3 px-3 text-center print:hidden">Bukti Foto</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+                            {filteredTransportExpenses.length === 0 ? (
+                              <tr>
+                                <td colSpan={12} className="py-8 text-center text-[#667085]">
+                                  Tidak ada transaksi biaya transportasi pada periode ini.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredTransportExpenses.map((exp, idx) => (
+                                <tr key={exp.id} className="hover:bg-[#F9FAFB]">
+                                  <td className="py-2.5 px-3 font-mono text-[#667085]">{idx + 1}</td>
+                                  <td className="py-2.5 px-3 font-mono font-semibold text-[#1D2939]">
+                                    {exp.expenseNumber}
+                                  </td>
+                                  <td className="py-2.5 px-3">{formatDateID(exp.date)}</td>
+                                  <td className="py-2.5 px-3 font-semibold text-[#344054]">{project.name}</td>
+                                  <td className="py-2.5 px-3">
+                                    <span className="px-2 py-0.5 rounded-md bg-[#F0F9FF] text-[#026AA2] font-semibold text-[11px]">
+                                      {exp.category}
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-3">{exp.vehicleOrDriver || '-'}</td>
+                                  <td className="py-2.5 px-3">{exp.destinationOrRoute || '-'}</td>
+                                  <td className="py-2.5 px-3 font-medium text-[#1D2939]">{exp.picName || '-'}</td>
+                                  <td className="py-2.5 px-3 text-[#667085]">{exp.description || '-'}</td>
+                                  <td className="py-2.5 px-3">{exp.paymentMethod || '-'}</td>
+                                  <td className="py-2.5 px-3 text-right font-mono font-bold text-[#1D2939]">
+                                    {formatRupiah(exp.amount)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center print:hidden">
+                                    {exp.attachments && exp.attachments.length > 0 ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setViewingProofExpense(exp);
+                                          setActivePhotoIndex(0);
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EFF5FF] text-[#155EEF] hover:bg-[#D0E2FF] border border-[#D0E2FF] text-[11px] font-semibold"
+                                      >
+                                        <ImageIcon className="w-3.5 h-3.5" />
+                                        <span>Lihat ({exp.attachments.length})</span>
+                                      </button>
+                                    ) : (
+                                      <span className="text-[11px] text-[#98A2B3]">Tanpa Foto</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                          <tfoot className="bg-[#EFF5FF] font-bold text-[#1D2939] border-t-2 border-[#4693FD]">
+                            <tr>
+                              <td colSpan={10} className="py-3 px-3 text-xs uppercase text-[#155EEF]">
+                                GRAND TOTAL BIAYA TRANSPORTASI PROYEK ({filteredTransportExpenses.length} Transaksi)
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono text-sm text-[#155EEF]">
+                                {formatRupiah(h3TotalAmount)}
+                              </td>
+                              <td className="py-3 px-3 print:hidden"></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ========================================================== */}
+                  {/* SUBMENU H4: REKAP PENGELUARAN OPERASIONAL LAPANGAN         */}
+                  {/* ========================================================== */}
+                  {activeReportSubmenu === 'h4' && (
+                    <div className="mt-4 space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="p-3.5 rounded-xl bg-[#FDF2FA] border border-[#FCCEEE]">
+                          <span className="text-xs text-[#C11574] font-medium block">Total Transaksi Operasional</span>
+                          <p className="text-xl font-bold text-[#C11574] font-mono mt-1">
+                            {filteredOperationalExpenses.length} Transaksi
+                          </p>
+                        </div>
+                        <div className="p-3.5 rounded-xl bg-[#EFF5FF] border border-[#D0E2FF] sm:col-span-2">
+                          <span className="text-xs text-[#155EEF] font-medium block">
+                            Total Pengeluaran Operasional Lapangan ({project.name})
+                          </span>
+                          <p className="text-xl font-bold text-[#155EEF] font-mono mt-1">
+                            {formatRupiah(h4TotalAmount)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto border border-[#EAECF0] rounded-xl">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-[#1D2939] text-white font-semibold">
+                            <tr>
+                              <th className="py-3 px-3">No</th>
+                              <th className="py-3 px-3">Nomor Transaksi</th>
+                              <th className="py-3 px-3">Tanggal</th>
+                              <th className="py-3 px-3">Proyek</th>
+                              <th className="py-3 px-3">Kategori Operasional</th>
+                              <th className="py-3 px-3">Uraian / Kebutuhan Lapangan</th>
+                              <th className="py-3 px-3">Penanggung Jawab</th>
+                              <th className="py-3 px-3">Metode Bayar</th>
+                              <th className="py-3 px-3 text-right">Nominal Pengeluaran</th>
+                              <th className="py-3 px-3 text-center print:hidden">Bukti Foto</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+                            {filteredOperationalExpenses.length === 0 ? (
+                              <tr>
+                                <td colSpan={10} className="py-8 text-center text-[#667085]">
+                                  Tidak ada transaksi pengeluaran operasional lapangan pada periode ini.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredOperationalExpenses.map((exp, idx) => (
+                                <tr key={exp.id} className="hover:bg-[#F9FAFB]">
+                                  <td className="py-2.5 px-3 font-mono text-[#667085]">{idx + 1}</td>
+                                  <td className="py-2.5 px-3 font-mono font-semibold text-[#1D2939]">
+                                    {exp.expenseNumber}
+                                  </td>
+                                  <td className="py-2.5 px-3">{formatDateID(exp.date)}</td>
+                                  <td className="py-2.5 px-3 font-semibold text-[#344054]">{project.name}</td>
+                                  <td className="py-2.5 px-3">
+                                    <span className="px-2 py-0.5 rounded-md bg-[#FDF2FA] text-[#C11574] font-semibold text-[11px]">
+                                      {exp.category}
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-3 text-[#1D2939]">{exp.description || '-'}</td>
+                                  <td className="py-2.5 px-3 font-medium text-[#1D2939]">{exp.picName || '-'}</td>
+                                  <td className="py-2.5 px-3">{exp.paymentMethod || '-'}</td>
+                                  <td className="py-2.5 px-3 text-right font-mono font-bold text-[#1D2939]">
+                                    {formatRupiah(exp.amount)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center print:hidden">
+                                    {exp.attachments && exp.attachments.length > 0 ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setViewingProofExpense(exp);
+                                          setActivePhotoIndex(0);
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EFF5FF] text-[#155EEF] hover:bg-[#D0E2FF] border border-[#D0E2FF] text-[11px] font-semibold"
+                                      >
+                                        <ImageIcon className="w-3.5 h-3.5" />
+                                        <span>Lihat ({exp.attachments.length})</span>
+                                      </button>
+                                    ) : (
+                                      <span className="text-[11px] text-[#98A2B3]">Tanpa Foto</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                          <tfoot className="bg-[#EFF5FF] font-bold text-[#1D2939] border-t-2 border-[#4693FD]">
+                            <tr>
+                              <td colSpan={8} className="py-3 px-3 text-xs uppercase text-[#155EEF]">
+                                GRAND TOTAL PENGELUARAN OPERASIONAL LAPANGAN ({filteredOperationalExpenses.length} Transaksi)
+                              </td>
+                              <td className="py-3 px-3 text-right font-mono text-sm text-[#155EEF]">
+                                {formatRupiah(h4TotalAmount)}
+                              </td>
+                              <td className="py-3 px-3 print:hidden"></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ========================================================== */}
+                  {/* SUBMENU H5: REKAP SELURUH PENGELUARAN PROYEK               */}
+                  {/* ========================================================== */}
+                  {activeReportSubmenu === 'h5' && (
+                    <div className="mt-4 space-y-5">
+                      {/* 4 Highlight Realization Cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-[#F8F9FA] p-4 rounded-xl border border-[#EAECF0]">
+                          <span className="text-xs text-[#667085] font-medium">1. Nilai Anggaran Proyek</span>
+                          <p className="text-xl font-bold text-[#1D2939] font-mono mt-1">
+                            {formatRupiah(rawSummary.budget)}
+                          </p>
+                          <p className="text-[11px] text-[#667085] mt-1">Plafon kontrak proyek {project.name}</p>
+                        </div>
+
+                        <div className="bg-[#EFF5FF] p-4 rounded-xl border border-[#D0E2FF]">
+                          <span className="text-xs text-[#155EEF] font-medium">2. Total Seluruh Pengeluaran Proyek</span>
+                          <p className="text-xl font-bold text-[#155EEF] font-mono mt-1">
+                            {formatRupiah(rawSummary.totalProjectCost)}
+                          </p>
+                          <p className="text-[11px] text-[#155EEF] mt-1">
+                            Akumulasi Gaji + Transportasi + Operasional
+                          </p>
+                        </div>
+
+                        <div className="bg-[#ECFDF3] p-4 rounded-xl border border-[#A6F4C5]">
+                          <span className="text-xs text-[#027A48] font-medium">3. Sisa Anggaran Proyek</span>
+                          <p className="text-xl font-bold text-[#027A48] font-mono mt-1">
+                            {formatRupiah(rawSummary.budgetRemaining)}
+                          </p>
+                          <p className="text-[11px] text-[#027A48] mt-1">
+                            Nilai Anggaran − Total Pengeluaran Proyek
+                          </p>
+                        </div>
+
+                        <div className="bg-[#FEF6EE] p-4 rounded-xl border border-[#F9DBAF]">
+                          <span className="text-xs text-[#B54708] font-medium">4. Persentase Realisasi Anggaran</span>
+                          <p className="text-xl font-bold text-[#B54708] font-mono mt-1">
+                            {rawSummary.realizationPercentage}%
+                          </p>
+                          <p className="text-[11px] text-[#B54708] mt-1">
+                            (Total Pengeluaran ÷ Nilai Anggaran) × 100%
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Realization Progress Bar */}
+                      <div className="bg-[#F8F9FA] p-4 rounded-xl border border-[#EAECF0]">
+                        <div className="flex justify-between text-xs text-[#344054] mb-1.5 font-semibold">
+                          <span>Tingkat Penyerapan Anggaran Proyek {project.name}</span>
+                          <span className="font-mono text-[#155EEF]">
+                            {formatRupiah(rawSummary.totalProjectCost)} / {formatRupiah(rawSummary.budget)} ({rawSummary.realizationPercentage}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-[#EAECF0] h-3 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              rawSummary.realizationPercentage > 90 ? 'bg-[#D92D20]' : 'bg-[#4693FD]'
+                            }`}
+                            style={{ width: `${Math.min(100, rawSummary.realizationPercentage)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Detailed H5 Breakdown Table */}
+                      <div className="overflow-x-auto border border-[#EAECF0] rounded-xl">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-[#1D2939] text-white font-semibold">
+                            <tr>
+                              <th className="py-3 px-4 w-12">No</th>
+                              <th className="py-3 px-4">Komponen Pengeluaran Proyek</th>
+                              <th className="py-3 px-4">Rincian & Keterangan Realisasi</th>
+                              <th className="py-3 px-4 text-right">Subtotal Realisasi (Rp)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+                            <tr>
+                              <td className="py-3 px-4 font-mono text-[#667085]">1</td>
+                              <td className="py-3 px-4 font-bold text-[#1D2939]">
+                                Gaji Pokok Harian Karyawan Proyek (Hadir Penuh & Setengah Hari)
+                              </td>
+                              <td className="py-3 px-4 text-[#475467]">
+                                <div>
+                                  Total <strong>{rawSummary.totalWorkDays} hari kerja efektif</strong> ({rawSummary.totalRecapEmployees} karyawan)
+                                </div>
+                                <div className="text-[11px] text-[#667085] mt-0.5">
+                                  • Hadir Penuh: {rawSummary.fullWorkDays} hari ({formatRupiah(rawSummary.fullDaySalary)})
+                                  <span className="ml-3">
+                                    • Setengah Hari: {rawSummary.halfWorkDays} hari ({formatRupiah(rawSummary.halfDaySalary)})
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-semibold text-[#1D2939]">
+                                {formatRupiah(rawSummary.totalBasicSalary)}
+                              </td>
+                            </tr>
+
+                            <tr>
+                              <td className="py-3 px-4 font-mono text-[#667085]">2</td>
+                              <td className="py-3 px-4 font-bold text-[#1D2939]">
+                                Upah Lembur Karyawan Proyek Disetujui
+                              </td>
+                              <td className="py-3 px-4 text-[#475467]">
+                                Total durasi lembur aktual: <strong>{formatOvertimeDuration(rawSummary.totalOvertimeHours)}</strong> (Driver = Rp 0 sesuai ketentuan perusahaan)
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-semibold text-[#B54708]">
+                                {formatRupiah(rawSummary.totalOvertimePay)}
+                              </td>
+                            </tr>
+
+                            <tr className="bg-[#F8F9FA]">
+                              <td className="py-3 px-4 font-mono font-bold text-[#155EEF]">1+2</td>
+                              <td className="py-3 px-4 font-bold text-[#155EEF]">
+                                Subtotal Total Gaji Karyawan Proyek (H2)
+                              </td>
+                              <td className="py-3 px-4 text-[11px] text-[#475467]">
+                                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                  <span>
+                                    Sudah Dibayar: <strong className="font-mono text-[#027A48]">{formatRupiah(rawSummary.paidPayrollTotal)}</strong>
+                                  </span>
+                                  <span>
+                                    Belum Dibayar / Terhitung: <strong className="font-mono text-[#B54708]">{formatRupiah(rawSummary.unpaidPayrollTotal)}</strong>
+                                  </span>
+                                  <span>
+                                    Potongan Kasbon: <strong className="font-mono text-[#B42318]">-{formatRupiah(rawSummary.totalKasbonDeduction)}</strong>
+                                  </span>
+                                  <span>
+                                    Gaji Bersih Diterima: <strong className="font-mono text-[#027A48]">{formatRupiah(rawSummary.totalNetSalary)}</strong>
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-bold text-[#155EEF]">
+                                {formatRupiah(rawSummary.totalGrossSalary)}
+                              </td>
+                            </tr>
+
+                            <tr>
+                              <td className="py-3 px-4 font-mono text-[#667085]">3</td>
+                              <td className="py-3 px-4 font-bold text-[#1D2939]">
+                                Total Biaya Transportasi Proyek (H3)
+                              </td>
+                              <td className="py-3 px-4 text-[#475467]">
+                                {allTransportExpenses.length} transaksi transportasi proyek (Bensin, Solar, Tol, Parkir, Ongkos & Sewa Kendaraan)
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-semibold text-[#026AA2]">
+                                {formatRupiah(rawSummary.totalTransport)}
+                              </td>
+                            </tr>
+
+                            <tr>
+                              <td className="py-3 px-4 font-mono text-[#667085]">4</td>
+                              <td className="py-3 px-4 font-bold text-[#1D2939]">
+                                Total Biaya Pengeluaran Operasional Lapangan (H4)
+                              </td>
+                              <td className="py-3 px-4 text-[#475467]">
+                                {allOperationalExpenses.length} transaksi operasional lapangan (Material Kecil, Alat Kerja, Konsumsi & Kebutuhan Darurat)
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-semibold text-[#C11574]">
+                                {formatRupiah(rawSummary.totalOp)}
+                              </td>
+                            </tr>
+
+                            {rawSummary.totalOtherCost > 0 && (
+                              <tr>
+                                <td className="py-3 px-4 font-mono text-[#667085]">5</td>
+                                <td className="py-3 px-4 font-bold text-[#1D2939]">Biaya Proyek Lainnya</td>
+                                <td className="py-3 px-4 text-[#475467]">Komponen pengeluaran proyek lainnya</td>
+                                <td className="py-3 px-4 text-right font-mono font-semibold text-[#1D2939]">
+                                  {formatRupiah(rawSummary.totalOtherCost)}
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                          <tfoot className="border-t-2 border-[#1D2939] text-xs">
+                            <tr className="bg-[#EFF5FF] font-bold text-[#155EEF]">
+                              <td colSpan={3} className="py-3 px-4 uppercase">
+                                TOTAL SELURUH PENGELUARAN PROYEK ({project.name})
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono text-sm">
+                                {formatRupiah(rawSummary.totalProjectCost)}
+                              </td>
+                            </tr>
+                            <tr className="bg-[#F9FAFB] font-bold text-[#1D2939]">
+                              <td colSpan={3} className="py-2.5 px-4 uppercase">
+                                NILAI ANGGARAN KONTRAK PROYEK
+                              </td>
+                              <td className="py-2.5 px-4 text-right font-mono">
+                                {formatRupiah(rawSummary.budget)}
+                              </td>
+                            </tr>
+                            <tr className="bg-[#ECFDF3] font-bold text-[#027A48]">
+                              <td colSpan={3} className="py-2.5 px-4 uppercase">
+                                SISA ANGGARAN PROYEK (Nilai Anggaran − Total Pengeluaran)
+                              </td>
+                              <td className="py-2.5 px-4 text-right font-mono text-sm">
+                                {formatRupiah(rawSummary.budgetRemaining)}
+                              </td>
+                            </tr>
+                            <tr className="bg-[#FEF6EE] font-bold text-[#B54708]">
+                              <td colSpan={3} className="py-2.5 px-4 uppercase">
+                                PERSENTASE REALISASI ANGGARAN ((Total Pengeluaran ÷ Nilai Anggaran) × 100%)
+                              </td>
+                              <td className="py-2.5 px-4 text-right font-mono text-sm">
+                                {rawSummary.realizationPercentage}%
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* OFFICIAL SIGNATURE BLOCK (Visible on Print and Bottom of Report) */}
+                  <div className="mt-8 pt-6 border-t border-[#EAECF0] grid grid-cols-2 gap-8 text-xs text-[#344054]">
+                    <div className="text-center">
+                      <p className="text-[#667085]">Disiapkan Oleh,</p>
+                      <p className="font-semibold text-[#1D2939] mt-0.5">Admin Proyek / Bagian Keuangan</p>
+                      <div className="h-16" />
+                      <p className="font-bold text-[#1D2939] underline">( ____________________________ )</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[#667085]">
+                        {project.location || 'Jakarta'}, {formatDateID(getTodayDateString())}
+                      </p>
+                      <p className="font-semibold text-[#1D2939] mt-0.5">Disetujui Oleh, Pimpinan / Owner</p>
+                      <div className="h-16" />
+                      <p className="font-bold text-[#1D2939] underline">( ____________________________ )</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL H1: LIHAT DETAIL REKAP GAJI KARYAWAN */}
+            {selectedH1EmployeeDetail && (
+              <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 print:hidden">
+                <div className="bg-white rounded-2xl max-w-4xl w-full border border-[#EAECF0] shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
+                  <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between bg-[#F8F9FA]">
+                    <div>
+                      <span className="text-[11px] font-bold text-[#155EEF] uppercase">
+                        Detail Rekap Gaji & Kehadiran Karyawan Proyek (H1)
+                      </span>
+                      <h3 className="text-base font-bold text-[#1D2939] mt-0.5">
+                        {selectedH1EmployeeDetail.employeeName} ({selectedH1EmployeeDetail.employeeId}) — {selectedH1EmployeeDetail.role}
+                      </h3>
+                      <p className="text-xs text-[#667085]">
+                        Proyek: <strong>{project.name} ({project.code})</strong> | Periode: {periodDisplayLabel}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedH1EmployeeDetail(null)}
+                      className="p-1.5 text-[#667085] hover:text-[#1D2939] rounded-lg"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="p-5 overflow-y-auto flex-1 space-y-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="p-3 rounded-xl bg-[#F9FAFB] border border-[#EAECF0]">
+                        <span className="text-[#667085] block">Total Hari Kerja</span>
+                        <p className="text-sm font-bold text-[#1D2939] mt-0.5">
+                          {selectedH1EmployeeDetail.fullWorkDays} Penuh • {selectedH1EmployeeDetail.halfWorkDays} Setengah
+                        </p>
+                        <span className="text-[11px] text-[#667085]">
+                          Tidak Hadir: {selectedH1EmployeeDetail.absentDays} hari
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-[#EFF5FF] border border-[#D0E2FF]">
+                        <span className="text-[#155EEF] block">Total Gaji Kotor</span>
+                        <p className="text-sm font-bold text-[#155EEF] font-mono mt-0.5">
+                          {formatRupiah(selectedH1EmployeeDetail.grossSalary)}
+                        </p>
+                        <span className="text-[11px] text-[#155EEF]">
+                          Pokok: {formatRupiah(selectedH1EmployeeDetail.totalBasicSalary)} + OT: {formatRupiah(selectedH1EmployeeDetail.totalOvertimePay)}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-[#FEF3F2] border border-[#FECDCA]">
+                        <span className="text-[#B42318] block">Potongan Kasbon</span>
+                        <p className="text-sm font-bold text-[#B42318] font-mono mt-0.5">
+                          - {formatRupiah(selectedH1EmployeeDetail.kasbonDeduction)}
+                        </p>
+                        <span className="text-[11px] text-[#B42318]">
+                          Sisa Kasbon: {formatRupiah(selectedH1EmployeeDetail.remainingKasbon)}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-[#ECFDF3] border border-[#A6F4C5]">
+                        <span className="text-[#027A48] font-semibold block">Gaji Bersih Diterima</span>
+                        <p className="text-base font-bold text-[#027A48] font-mono mt-0.5">
+                          {formatRupiah(selectedH1EmployeeDetail.netSalary)}
+                        </p>
+                        <span className="text-[11px] text-[#027A48]">{selectedH1EmployeeDetail.paymentStatusLabel}</span>
+                      </div>
+                    </div>
+
+                    {/* Riwayat Kasbon Karyawan pada Periode */}
+                    {selectedH1EmployeeDetail.kasbonRecords && selectedH1EmployeeDetail.kasbonRecords.length > 0 && (
+                      <div className="border border-[#FECDCA] rounded-xl overflow-hidden">
+                        <div className="bg-[#FEF3F2] px-4 py-2 text-xs font-bold text-[#B42318]">
+                          Riwayat Pengajuan Kasbon Karyawan ({selectedH1EmployeeDetail.kasbonRecords.length} Transaksi)
+                        </div>
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-[#F9FAFB] text-[#475467] border-b border-[#EAECF0]">
+                            <tr>
+                              <th className="py-2 px-3">No. Kasbon</th>
+                              <th className="py-2 px-3">Tanggal</th>
+                              <th className="py-2 px-3">Keperluan</th>
+                              <th className="py-2 px-3">Status</th>
+                              <th className="py-2 px-3 text-right">Nominal</th>
+                              <th className="py-2 px-3 text-right">Sisa Belum Lunas</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#EAECF0]">
+                            {selectedH1EmployeeDetail.kasbonRecords.map((kb: any) => (
+                              <tr key={kb.id}>
+                                <td className="py-2 px-3 font-mono font-semibold">{kb.kasbonNumber}</td>
+                                <td className="py-2 px-3">{formatDateID(kb.requestDate)}</td>
+                                <td className="py-2 px-3">{kb.reason || '-'}</td>
+                                <td className="py-2 px-3">{kb.status}</td>
+                                <td className="py-2 px-3 text-right font-mono font-bold text-[#B42318]">
+                                  {formatRupiah(kb.amount)}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono">
+                                  {formatRupiah(kb.remainingAmount)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  </div>
+
+                  <div className="p-4 border-t border-[#EAECF0] bg-[#F8F9FA] flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedH1EmployeeDetail(null)}
+                      className="px-4 py-2 rounded-xl border border-[#D0D5DD] bg-white text-xs font-semibold text-[#344054]"
+                    >
+                      Tutup
+                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const emp = selectedH1EmployeeDetail;
+                          setSelectedH1EmployeeDetail(null);
+                          setSlipGajiModalEmployees([emp]);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#155EEF] hover:bg-[#1849A9] text-white text-xs font-semibold"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Buka & Cetak Slip Gaji</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExportCurrentSubmenuPDF(selectedH1EmployeeDetail)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#D92D20] hover:bg-[#B42318] text-white text-xs font-semibold"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Unduh PDF Rekap Karyawan</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL SLIP GAJI KARYAWAN PROYEK (SINGLE OR MULTI-EMPLOYEE) */}
+            {slipGajiModalEmployees && slipGajiModalEmployees.length > 0 && (
+              <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+                <div className="bg-white rounded-2xl max-w-3xl w-full border border-[#EAECF0] shadow-xl overflow-hidden max-h-[92vh] flex flex-col">
+                  <div className="p-4 border-b border-[#EAECF0] flex flex-wrap items-center justify-between gap-2 bg-[#F8F9FA] print:hidden">
+                    <div>
+                      <h3 className="text-sm font-bold text-[#1D2939]">
+                        Preview Resmi Slip Gaji Karyawan Proyek ({slipGajiModalEmployees.length} Karyawan)
+                      </h3>
+                      <p className="text-xs text-[#667085]">
+                        Proyek {project.name} ({project.code}) — {periodDisplayLabel}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          exportProjectSlipGajiPDF({
+                            project,
+                            employees: slipGajiModalEmployees,
+                            startDate: appliedStartDate || undefined,
+                            endDate: appliedEndDate || undefined,
+                          })
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#D92D20] hover:bg-[#B42318] text-white text-xs font-semibold"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Cetak PDF Slip Gaji</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1D2939] hover:bg-[#344054] text-white text-xs font-semibold"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Print Langsung</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSlipGajiModalEmployees(null)}
+                        className="p-1.5 text-[#667085] hover:text-[#1D2939] rounded-lg"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div id="project-slip-printable" className="p-6 overflow-y-auto flex-1 space-y-8 bg-white">
+                    {slipGajiModalEmployees.map((emp, idx) => {
+                      const isDriver = isDriverRole(emp.role);
+                      return (
+                        <div
+                          key={emp.employeeId}
+                          className={`border border-[#D0D5DD] rounded-2xl p-6 space-y-4 bg-white ${
+                            idx > 0 ? 'print-page-break' : ''
+                          }`}
+                        >
+                          {/* Header Perusahaan */}
+                          <div className="flex items-start justify-between border-b-2 border-[#1D2939] pb-3">
+                            <div>
+                              <h2 className="text-base font-bold text-[#1D2939] tracking-tight">
+                                PT ASTA BRATA MATAHARI TERBIT
+                              </h2>
+                              <p className="text-[11px] text-[#667085]">
+                                Dokumen Resmi Slip Gaji & Rekap Kehadiran Tenaga Kerja Proyek
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <span className="inline-block px-2.5 py-0.5 rounded bg-[#EFF5FF] text-[#155EEF] font-bold text-xs border border-[#D0E2FF]">
+                                SLIP GAJI KARYAWAN PROYEK
+                              </span>
+                              <p className="text-[10px] text-[#667085] mt-1">
+                                Tanggal Cetak: {formatDateID(getTodayDateString())}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Identitas Karyawan & Proyek */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#F8F9FA] p-3.5 rounded-xl border border-[#EAECF0] text-xs">
+                            <div className="space-y-1">
+                              <div className="flex justify-between">
+                                <span className="text-[#667085]">Nama Karyawan:</span>
+                                <strong className="text-[#1D2939]">{emp.employeeName}</strong>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#667085]">ID Karyawan:</span>
+                                <span className="font-mono font-semibold text-[#344054]">{emp.employeeId}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#667085]">Jabatan / Peran:</span>
+                                <strong className="text-[#155EEF]">
+                                  {emp.role} {isDriver ? '(Tanpa Upah Lembur)' : ''}
+                                </strong>
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between">
+                                <span className="text-[#667085]">Nama Proyek:</span>
+                                <strong className="text-[#1D2939]">{project.name} ({project.code})</strong>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#667085]">Periode Gaji:</span>
+                                <span className="font-semibold text-[#344054]">{periodDisplayLabel}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#667085]">Status Pembayaran:</span>
+                                <span className="font-semibold text-[#027A48]">{emp.paymentStatusLabel}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Rincian Penerimaan & Potongan */}
+                          <table className="w-full text-left text-xs border border-[#EAECF0]">
+                            <thead className="bg-[#1D2939] text-white">
+                              <tr>
+                                <th className="py-2 px-3">Komponen Penerimaan & Potongan</th>
+                                <th className="py-2 px-3">Rincian Perhitungan</th>
+                                <th className="py-2 px-3 text-right">Nominal (Rp)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#EAECF0]">
+                              <tr>
+                                <td className="py-2 px-3 font-medium">1. Upah Hadir Penuh (100%)</td>
+                                <td className="py-2 px-3 text-[#667085]">
+                                  {emp.fullWorkDays} hari × {formatRupiah(emp.dailyWage)}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono">{formatRupiah(emp.fullDaySalary)}</td>
+                              </tr>
+                              <tr>
+                                <td className="py-2 px-3 font-medium">2. Upah Setengah Hari (50%)</td>
+                                <td className="py-2 px-3 text-[#667085]">
+                                  {emp.halfWorkDays} hari × {formatRupiah(Math.round(emp.dailyWage / 2))}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono">{formatRupiah(emp.halfDaySalary)}</td>
+                              </tr>
+                              <tr className="bg-[#F9FAFB] font-semibold">
+                                <td className="py-2 px-3">Total Gaji Pokok</td>
+                                <td className="py-2 px-3 text-[#667085]">
+                                  {emp.totalWorkDays} hari efektif ({emp.absentDays} hari tidak hadir)
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono">{formatRupiah(emp.totalBasicSalary)}</td>
+                              </tr>
+                              <tr>
+                                <td className="py-2 px-3 font-medium">3. Upah Lembur Disetujui</td>
+                                <td className="py-2 px-3 text-[#667085]">
+                                  {isDriver
+                                    ? `Durasi: ${formatOvertimeDuration(emp.overtimeHours)} × Rp 0 (Ketentuan Driver)`
+                                    : `${formatOvertimeDuration(emp.overtimeHours)} × ${formatRupiah(emp.overtimeHourlyWage)}/jam`}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono">{formatRupiah(emp.totalOvertimePay)}</td>
+                              </tr>
+                              <tr className="bg-[#EFF5FF] font-bold text-[#155EEF]">
+                                <td className="py-2.5 px-3">TOTAL GAJI KOTOR (PENERIMAAN)</td>
+                                <td className="py-2.5 px-3">Gaji Pokok + Upah Lembur</td>
+                                <td className="py-2.5 px-3 text-right font-mono">{formatRupiah(emp.grossSalary)}</td>
+                              </tr>
+                              <tr>
+                                <td className="py-2 px-3 font-medium text-[#B42318]">4. Potongan Kasbon Periode Ini</td>
+                                <td className="py-2 px-3 text-[#667085]">
+                                  Total Kasbon: {formatRupiah(emp.kasbonInPeriod)} | Sisa Kasbon: {formatRupiah(emp.remainingKasbon)}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono font-semibold text-[#B42318]">
+                                  - {formatRupiah(emp.kasbonDeduction)}
+                                </td>
+                              </tr>
+                            </tbody>
+                            <tfoot className="bg-[#ECFDF3] font-bold text-[#027A48] border-t-2 border-[#027A48]">
+                              <tr>
+                                <td className="py-3 px-3 text-xs uppercase">GAJI BERSIH DITERIMA (TAKE HOME PAY)</td>
+                                <td className="py-3 px-3 text-[11px] italic">{terbilangRupiah(emp.netSalary)}</td>
+                                <td className="py-3 px-3 text-right font-mono text-sm">{formatRupiah(emp.netSalary)}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+
+                          {/* Tanda Tangan Slip Gaji */}
+                          <div className="grid grid-cols-2 gap-6 pt-4 text-xs text-center text-[#344054]">
+                            <div>
+                              <p className="text-[#667085]">Penerima Upah / Karyawan,</p>
+                              <div className="h-12" />
+                              <p className="font-bold text-[#1D2939] underline">( {emp.employeeName} )</p>
+                            </div>
+                            <div>
+                              <p className="text-[#667085]">Bagian Keuangan / Admin Proyek,</p>
+                              <div className="h-12" />
+                              <p className="font-bold text-[#1D2939] underline">( ________________________ )</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL 1: TAMBAH KARYAWAN PROYEK */}
       {isAddEmployeeModalOpen && (

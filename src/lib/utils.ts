@@ -128,3 +128,49 @@ export function formatOvertimeDuration(decimalHours: number | undefined | null):
   return `${minutes} menit`;
 }
 
+/**
+ * Cek apakah jabatan adalah Driver (Ketentuan: Driver tidak mendapatkan upah lembur / Rp 0).
+ */
+export function isDriverRole(role: string | undefined | null): boolean {
+  return String(role || '').trim().toLowerCase() === 'driver';
+}
+
+/**
+ * Konversi nominal angka Rupiah ke kalimat Terbilang Bahasa Indonesia.
+ */
+export function terbilangRupiah(nominal: number | undefined | null): string {
+  const val = Math.floor(Math.abs(Number(nominal) || 0));
+  if (val === 0) return 'Nol Rupiah';
+
+  const satuan = [
+    '',
+    'Satu',
+    'Dua',
+    'Tiga',
+    'Empat',
+    'Lima',
+    'Enam',
+    'Tujuh',
+    'Delapan',
+    'Sembilan',
+    'Sepuluh',
+    'Sebelas',
+  ];
+
+  function sebut(n: number): string {
+    if (n < 12) return satuan[n];
+    if (n < 20) return `${sebut(n - 10)} Belas`.trim();
+    if (n < 100) return `${sebut(Math.floor(n / 10))} Puluh ${sebut(n % 10)}`.trim();
+    if (n < 200) return `Seratus ${sebut(n - 100)}`.trim();
+    if (n < 1000) return `${sebut(Math.floor(n / 100))} Ratus ${sebut(n % 100)}`.trim();
+    if (n < 2000) return `Seribu ${sebut(n - 1000)}`.trim();
+    if (n < 1000000) return `${sebut(Math.floor(n / 1000))} Ribu ${sebut(n % 1000)}`.trim();
+    if (n < 1000000000) return `${sebut(Math.floor(n / 1000000))} Juta ${sebut(n % 1000000)}`.trim();
+    if (n < 1000000000000) return `${sebut(Math.floor(n / 1000000000))} Miliar ${sebut(n % 1000000000)}`.trim();
+    return `${sebut(Math.floor(n / 1000000000000))} Triliun ${sebut(n % 1000000000000)}`.trim();
+  }
+
+  return `${sebut(val).replace(/\s+/g, ' ').trim()} Rupiah`;
+}
+
+
