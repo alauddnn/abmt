@@ -322,6 +322,11 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
   const [attKasbonPhotoError, setAttKasbonPhotoError] = useState<string | null>(null);
   const attKasbonFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Attendance Deletion Confirmation Modal State
+  const [attendanceToDelete, setAttendanceToDelete] = useState<Attendance | null>(null);
+  const [deletingAttendance, setDeletingAttendance] = useState(false);
+  const [deleteAttendanceError, setDeleteAttendanceError] = useState<string | null>(null);
+
   // Overtime in Project modal
   const [isOvertimeModalOpen, setIsOvertimeModalOpen] = useState(false);
   const [overtimeForm, setOvertimeForm] = useState({
@@ -989,6 +994,34 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
       showToast('error', err.message || 'Gagal menyimpan data kehadiran');
     } finally {
       setSavingAttendance(false);
+    }
+  };
+
+  const openDeleteAttendanceModal = (att: Attendance) => {
+    if (!isAdmin) return;
+    setDeleteAttendanceError(null);
+    setAttendanceToDelete(att);
+  };
+
+  const handleConfirmDeleteAttendance = async () => {
+    if (!isAdmin || !attendanceToDelete) return;
+    setDeletingAttendance(true);
+    setDeleteAttendanceError(null);
+    try {
+      const res = await api.deleteAttendance(attendanceToDelete.id, project.id);
+      showToast(
+        'success',
+        res.message || `Data absensi ${attendanceToDelete.employeeName} (${formatDateID(attendanceToDelete.date)}) berhasil dihapus.`
+      );
+      setAttendanceToDelete(null);
+      fetchStats();
+      fetchModuleData('absensi');
+    } catch (err: any) {
+      const errMsg = err.message || 'Gagal menghapus data absensi';
+      setDeleteAttendanceError(errMsg);
+      showToast('error', errMsg);
+    } finally {
+      setDeletingAttendance(false);
     }
   };
 
@@ -1942,16 +1975,27 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                             </td>
                             <td className="py-3 px-4 text-[#667085]">{att.notes || '-'}</td>
                             {isAdmin && (
-                              <td className="py-3 px-4 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => openEditAttendanceModal(att)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#EFF5FF] text-[#344054] hover:text-[#155EEF] border border-[#D0D5DD] hover:border-[#4693FD] rounded-lg text-xs font-semibold transition-colors shadow-2xs"
-                                  title="Edit Kehadiran & Kasbon"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                  <span>Edit</span>
-                                </button>
+                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                                <div className="inline-flex items-center justify-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditAttendanceModal(att)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#EFF5FF] text-[#344054] hover:text-[#155EEF] border border-[#D0D5DD] hover:border-[#4693FD] rounded-lg text-xs font-semibold transition-colors shadow-2xs"
+                                    title="Edit Kehadiran & Kasbon"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                    <span>Edit</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openDeleteAttendanceModal(att)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#FEF3F2] text-[#D92D20] hover:text-[#B42318] border border-[#FECDCA] hover:border-[#F04438] rounded-lg text-xs font-semibold transition-colors shadow-2xs"
+                                    title="Hapus Data Absensi"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Hapus</span>
+                                  </button>
+                                </div>
                               </td>
                             )}
                           </tr>
@@ -4611,6 +4655,157 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
           </div>
         </div>
       )}
+
+      {/* MODAL KONFIRMASI HAPUS ABSENSI PROYEK (ADMIN ONLY) */}
+      {isAdmin && attendanceToDelete && (() => {
+        const hasActiveKasbon = Boolean(
+          attendanceToDelete.kasbonAmount &&
+            attendanceToDelete.kasbonAmount > 0 &&
+            attendanceToDelete.kasbonStatus !== 'Ditolak'
+        );
+
+        return (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-md w-full border border-[#EAECF0] shadow-xl overflow-hidden">
+              <div className="p-5 bg-[#FEF3F2] border-b border-[#FECDCA] flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#FEE4E2] text-[#D92D20] flex items-center justify-center shrink-0">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-[#912018]">Hapus Data Absensi?</h3>
+                    <p className="text-[11px] text-[#B42318]">
+                      Konfirmasi penghapusan catatan kehadiran karyawan proyek
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttendanceToDelete(null);
+                    setDeleteAttendanceError(null);
+                  }}
+                  disabled={deletingAttendance}
+                  className="text-[#912018]/70 hover:text-[#912018] p-1 rounded-lg hover:bg-[#FEE4E2] transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                {/* Informasi Karyawan, Tanggal, dan Proyek */}
+                <div className="p-3.5 bg-[#F8F9FA] rounded-xl border border-[#EAECF0] space-y-2 text-xs">
+                  <div className="flex justify-between items-center py-0.5">
+                    <span className="text-[#667085]">Nama Karyawan:</span>
+                    <span className="font-semibold text-[#1D2939]">
+                      {attendanceToDelete.employeeName} ({attendanceToDelete.employeeRole})
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-0.5">
+                    <span className="text-[#667085]">Tanggal Absensi:</span>
+                    <span className="font-mono font-semibold text-[#1D2939]">
+                      {formatDateID(attendanceToDelete.date)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-0.5">
+                    <span className="text-[#667085]">Proyek:</span>
+                    <span className="font-semibold text-[#155EEF]">
+                      {project.name} ({project.code})
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-0.5 border-t border-[#EAECF0] pt-2">
+                    <span className="text-[#667085]">Status & Total Harian:</span>
+                    <span className="font-mono font-bold text-[#1D2939]">
+                      {attendanceToDelete.status} · {formatRupiah(attendanceToDelete.totalDailyPay || 0)}
+                    </span>
+                  </div>
+                  {hasActiveKasbon && (
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="text-[#667085]">Kasbon Terkait:</span>
+                      <span className="font-mono font-bold text-[#6941C6]">
+                        {formatRupiah(attendanceToDelete.kasbonAmount || 0)} ({attendanceToDelete.kasbonStatus || 'Disetujui'})
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Peringatan dampak penghapusan */}
+                <div className="p-3 bg-[#FFFAEB] border border-[#FEDF89] rounded-xl text-xs text-[#B54708] space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-[#F79009]" />
+                    <span>Peringatan Dampak Penghapusan</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    Penghapusan data absensi ini dapat memengaruhi perhitungan rekap gaji dua mingguan, jam lembur harian terkait, serta statistik kehadiran proyek.
+                  </p>
+                </div>
+
+                {/* Info / Penolakan jika memiliki Kasbon Aktif atau Periode Gaji yang Sudah Dibayar */}
+                {(hasActiveKasbon || deleteAttendanceError) && (
+                  <div className="p-3.5 bg-[#FEF3F2] border border-[#FECDCA] rounded-xl text-xs text-[#B42318] space-y-2">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-[#D92D20]" />
+                      <span>Penghapusan Langsung Dibatasi</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed">
+                      {deleteAttendanceError
+                        ? deleteAttendanceError
+                        : `Absensi ini memiliki kasbon aktif sebesar ${formatRupiah(
+                            attendanceToDelete.kasbonAmount || 0
+                          )}. Demi menjaga keutuhan riwayat kasbon dan bukti foto, penghapusan permanen langsung tidak diizinkan. Silakan gunakan fitur Edit Absensi untuk mengoreksi status kehadiran atau pengajuan kasbon.`}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = attendanceToDelete;
+                        setAttendanceToDelete(null);
+                        setDeleteAttendanceError(null);
+                        openEditAttendanceModal(target);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#EFF5FF] text-[#155EEF] border border-[#4693FD] rounded-lg text-[11px] font-semibold transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>Gunakan Edit Absensi untuk Koreksi</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-5 py-3.5 bg-[#F9FAFB] border-t border-[#EAECF0] flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttendanceToDelete(null);
+                    setDeleteAttendanceError(null);
+                  }}
+                  disabled={deletingAttendance}
+                  className="px-4 py-2 bg-white hover:bg-[#F2F4F7] text-[#344054] border border-[#D0D5DD] rounded-xl text-xs font-semibold transition-colors shadow-xs"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteAttendance}
+                  disabled={deletingAttendance}
+                  className="px-4 py-2 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-50"
+                >
+                  {deletingAttendance ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <span>Menghapus...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Hapus</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL 4: LIGHTBOX PRATINJAU FOTO BUKTI KASBON (ADMIN & OWNER) */}
       {viewingProofKasbon && (() => {

@@ -2078,10 +2078,99 @@ export const pgService = {
     return enriched[0];
   },
 
-  async deleteAttendance(id: string, userName: string, userRole: string): Promise<void> {
-    await query('DELETE FROM overtime_records WHERE attendance_id = $1', [id]);
-    await query('DELETE FROM attendance WHERE id = $1', [id]);
-    await insertAuditLog(userName, userRole as any, 'Hapus Absensi', 'Absensi', `Menghapus absensi ID ${id}`);
+  async deleteAttendance(id: string, userName: string, userRole: string, projectId?: string): Promise<Attendance> {
+    await ensureAllSchemasOnce();
+    return withTransaction(async (client) => {
+      const currRes = await client.query('SELECT * FROM attendance WHERE id = $1 FOR UPDATE', [id]);
+      if (!currRes.rows.length) {
+        const notFoundErr: any = new Error('Data absensi tidak ditemukan.');
+        notFoundErr.statusCode = 404;
+        throw notFoundErr;
+      }
+      const att = mapAttendance(currRes.rows[0]);
+
+      // 1. Validate project access context if projectId is provided
+      if (projectId && att.projectId && att.projectId !== projectId) {
+        const projErr: any = new Error(
+          'Penghapusan ditolak: Data absensi ini milik proyek lain dan tidak sesuai dengan konteks proyek yang sedang dibuka.'
+        );
+        projErr.statusCode = 403;
+        throw projErr;
+      }
+
+      // 2. Check linked active kasbon or kasbon financial history
+      const kbRes = await client.query(
+        `SELECT id, kasbon_number, amount, deducted_amount, remaining_amount, status
+         FROM kasbon_records
+         WHERE attendance_id = $1
+            OR (attendance_id IS NULL AND employee_id = $2 AND request_date = $3 AND (project_id = $4 OR project_id IS NULL OR $4::varchar IS NULL))
+         ORDER BY id DESC LIMIT 1`,
+        [att.id, att.employeeId, att.date, att.projectId || null]
+      );
+
+      if (kbRes.rows.length > 0) {
+        const kb = kbRes.rows[0];
+        if (kb.status !== 'Ditolak') {
+          const kbErr: any = new Error(
+            `Penghapusan ditolak: Absensi ini memiliki transaksi kasbon terkait (${kb.kasbon_number} sebesar Rp ${Number(
+              kb.amount || 0
+            ).toLocaleString('id-ID')}, status: ${kb.status}). Untuk menjaga riwayat kasbon dan bukti foto, silakan gunakan tombol Edit pada baris absensi untuk mengoreksi status kehadiran atau pengajuan kasbon.`
+          );
+          kbErr.statusCode = 409;
+          throw kbErr;
+        }
+      }
+
+      // 3. Check if attendance date is already included in a processed or paid biweekly payroll period
+      const payRes = await client.query(
+        `SELECT id, payment_number, period_start, period_end, status
+         FROM salary_payments
+         WHERE employee_id = $1
+           AND period_start <= $2
+           AND period_end >= $2
+           AND status != 'Dibatalkan'
+         ORDER BY id DESC LIMIT 1`,
+        [att.employeeId, att.date]
+      );
+
+      if (payRes.rows.length > 0) {
+        const pay = payRes.rows[0];
+        const pStart =
+          typeof pay.period_start === 'string'
+            ? pay.period_start.split('T')[0]
+            : pay.period_start?.toISOString().split('T')[0] || '';
+        const pEnd =
+          typeof pay.period_end === 'string'
+            ? pay.period_end.split('T')[0]
+            : pay.period_end?.toISOString().split('T')[0] || '';
+        const payErr: any = new Error(
+          `Penghapusan ditolak: Data absensi tanggal ${att.date} sudah masuk ke periode gaji yang telah diproses/dibayarkan (${pay.payment_number}, periode ${pStart} s/d ${pEnd}, status: ${pay.status}). Gunakan mekanisme koreksi penggajian yang sesuai.`
+        );
+        payErr.statusCode = 409;
+        throw payErr;
+      }
+
+      // 4. Delete linked overtime record(s) and the attendance record inside the transaction
+      await client.query(
+        `DELETE FROM overtime_records
+         WHERE attendance_id = $1
+            OR (attendance_id IS NULL AND employee_id = $2 AND date = $3)`,
+        [att.id, att.employeeId, att.date]
+      );
+      await client.query('DELETE FROM attendance WHERE id = $1', [att.id]);
+
+      await insertAuditLog(
+        userName,
+        userRole as any,
+        'Hapus Absensi',
+        'Absensi',
+        `Menghapus data absensi ${att.employeeName} (${att.employeeId}) pada tanggal ${att.date}${
+          att.projectName ? ` di proyek ${att.projectName}` : ''
+        }`
+      );
+
+      return att;
+    });
   },
 
   // 5. Overtime

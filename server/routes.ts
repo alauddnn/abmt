@@ -2311,6 +2311,90 @@ router.put('/attendance/:id', async (req: Request, res: Response) => {
   return res.json(updated);
 });
 
+// Delete attendance record (Admin only, with Kasbon & Payroll integrity checks)
+router.delete('/attendance/:id', async (req: Request, res: Response) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak menghapus data absensi' });
+  }
+
+  const { id } = req.params;
+  const projectId = (req.query.projectId as string | undefined) || (req.body?.projectId as string | undefined);
+
+  if (isPostgresConfigured) {
+    try {
+      const deleted = await pgService.deleteAttendance(id, user.name, user.role, projectId);
+      return res.json({
+        message: `Data absensi ${deleted.employeeName} pada tanggal ${deleted.date} berhasil dihapus.`,
+        deleted,
+      });
+    } catch (err: any) {
+      const status = err.statusCode || 400;
+      return res.status(status).json({ error: err.message || 'Gagal menghapus data absensi di PostgreSQL' });
+    }
+  }
+
+  const db = dbManager.getDb();
+  const target = db.attendance.find((a) => a.id === id);
+  if (!target) {
+    return res.status(404).json({ error: 'Data absensi tidak ditemukan.' });
+  }
+
+  if (projectId && target.projectId && target.projectId !== projectId) {
+    return res.status(403).json({
+      error: 'Penghapusan ditolak: Data absensi ini milik proyek lain dan tidak sesuai dengan konteks proyek yang sedang dibuka.',
+    });
+  }
+
+  const linkedKasbon = db.kasbon.find(
+    (k) =>
+      k.attendanceId === target.id ||
+      (!k.attendanceId && k.employeeId === target.employeeId && k.requestDate === target.date)
+  );
+  if (linkedKasbon && linkedKasbon.status !== 'Ditolak') {
+    return res.status(409).json({
+      error: `Penghapusan ditolak: Absensi ini memiliki transaksi kasbon terkait (${linkedKasbon.kasbonNumber} sebesar Rp ${Number(
+        linkedKasbon.amount || 0
+      ).toLocaleString('id-ID')}, status: ${linkedKasbon.status}). Untuk menjaga riwayat kasbon dan bukti foto, silakan gunakan tombol Edit pada baris absensi untuk mengoreksi status kehadiran atau pengajuan kasbon.`,
+    });
+  }
+
+  const existingPayroll = db.salaryPayments.find(
+    (p) =>
+      p.employeeId === target.employeeId &&
+      p.periodStart <= target.date &&
+      p.periodEnd >= target.date &&
+      p.status !== 'Dibatalkan'
+  );
+  if (existingPayroll) {
+    return res.status(409).json({
+      error: `Penghapusan ditolak: Data absensi tanggal ${target.date} sudah masuk ke periode gaji yang telah diproses/dibayarkan (${existingPayroll.paymentNumber}, periode ${existingPayroll.periodStart} s/d ${existingPayroll.periodEnd}, status: ${existingPayroll.status}). Gunakan mekanisme koreksi penggajian yang sesuai.`,
+    });
+  }
+
+  dbManager.mutate((database) => {
+    database.overtime = database.overtime.filter(
+      (o) =>
+        o.attendanceId !== target.id &&
+        !(o.employeeId === target.employeeId && o.date === target.date)
+    );
+    database.attendance = database.attendance.filter((a) => a.id !== target.id);
+  });
+
+  dbManager.addAuditLog(
+    user.name,
+    user.role,
+    'Hapus Absensi',
+    'Absensi',
+    `Menghapus data absensi ${target.employeeName} (${target.employeeId}) pada tanggal ${target.date}`
+  );
+
+  return res.json({
+    message: `Data absensi ${target.employeeName} pada tanggal ${target.date} berhasil dihapus.`,
+    deleted: target,
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 5. OVERTIME (SISTEM LEMBUR & PERSETUJUAN)
 // ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@ import {
   Filter,
   AlertTriangle,
   Edit2,
+  Trash2,
   Layers,
   ArrowRight,
   X,
@@ -80,6 +81,11 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
   } | null>(null);
   const [kasbonPhotoError, setKasbonPhotoError] = useState<string | null>(null);
   const kasbonFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Delete Confirmation Modal State
+  const [attToDelete, setAttToDelete] = useState<Attendance | null>(null);
+  const [deletingAtt, setDeletingAtt] = useState(false);
+  const [deleteAttError, setDeleteAttError] = useState<string | null>(null);
 
   // Bulk Input Modal (For entering all active employees quickly)
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
@@ -398,6 +404,34 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
     }
   };
 
+  const openDeleteModal = (att: Attendance) => {
+    if (!isAdmin) return;
+    setDeleteAttError(null);
+    setAttToDelete(att);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!isAdmin || !attToDelete) return;
+    setDeletingAtt(true);
+    setDeleteAttError(null);
+    try {
+      const res = await api.deleteAttendance(attToDelete.id, attToDelete.projectId);
+      showToast(
+        'success',
+        res.message || `Data absensi ${attToDelete.employeeName} (${formatDateID(attToDelete.date)}) berhasil dihapus.`
+      );
+      setAttToDelete(null);
+      fetchData();
+      onDataChanged();
+    } catch (err: any) {
+      const errMsg = err.message || 'Gagal menghapus data absensi';
+      setDeleteAttError(errMsg);
+      showToast('error', errMsg);
+    } finally {
+      setDeletingAtt(false);
+    }
+  };
+
   const filteredAttendance = attendanceList.filter((a) => {
     const matchesDate = !selectedDate || a.date === selectedDate;
     const matchesRole =
@@ -693,13 +727,24 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
                       </td>
                       <td className="py-3 px-4 text-center whitespace-nowrap">
                         {isAdmin ? (
-                          <button
-                            onClick={() => openSingleModal(a)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-md border border-[#D0D5DD] transition-colors text-xs"
-                          >
-                            <Edit2 className="w-3 h-3 text-[#667085]" />
-                            Edit
-                          </button>
+                          <div className="inline-flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => openSingleModal(a)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#EFF5FF] text-[#344054] hover:text-[#155EEF] font-medium rounded-md border border-[#D0D5DD] hover:border-[#4693FD] transition-colors text-xs"
+                              title="Edit Data Absensi"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              onClick={() => openDeleteModal(a)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#FEF3F2] text-[#D92D20] hover:text-[#B42318] font-medium rounded-md border border-[#FECDCA] hover:border-[#F04438] transition-colors text-xs"
+                              title="Hapus Data Absensi"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Hapus</span>
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-[#98A2B3] text-[11px]">Hanya Lihat (Owner)</span>
                         )}
@@ -1267,6 +1312,154 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
           </div>
         </div>
       )}
+
+      {/* Delete Attendance Confirmation Modal */}
+      {isAdmin && attToDelete && (() => {
+        const hasActiveKasbon = Boolean(
+          attToDelete.kasbonAmount &&
+            attToDelete.kasbonAmount > 0 &&
+            attToDelete.kasbonStatus !== 'Ditolak'
+        );
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/50 backdrop-blur-xs">
+            <div className="bg-white rounded-2xl max-w-md w-full border border-[#EAECF0] shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
+              <div className="p-5 bg-[#FEF3F2] border-b border-[#FECDCA] flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#FEE4E2] text-[#D92D20] flex items-center justify-center shrink-0">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-[#912018]">Hapus Data Absensi?</h3>
+                    <p className="text-[11px] text-[#B42318]">
+                      Konfirmasi penghapusan catatan kehadiran karyawan
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttToDelete(null);
+                    setDeleteAttError(null);
+                  }}
+                  disabled={deletingAtt}
+                  className="text-[#912018]/70 hover:text-[#912018] p-1 rounded-lg hover:bg-[#FEE4E2] transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div className="p-3.5 bg-[#F8F9FA] rounded-xl border border-[#EAECF0] space-y-2 text-xs">
+                  <div className="flex justify-between items-center py-0.5">
+                    <span className="text-[#667085]">Nama Karyawan:</span>
+                    <span className="font-semibold text-[#1D2939]">
+                      {attToDelete.employeeName} ({attToDelete.employeeRole})
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-0.5">
+                    <span className="text-[#667085]">Tanggal Absensi:</span>
+                    <span className="font-mono font-semibold text-[#1D2939]">
+                      {formatDateID(attToDelete.date)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-0.5">
+                    <span className="text-[#667085]">Proyek:</span>
+                    <span className="font-semibold text-[#155EEF]">
+                      {attToDelete.projectName || attToDelete.projectId || 'Proyek Umum'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-0.5 border-t border-[#EAECF0] pt-2">
+                    <span className="text-[#667085]">Status & Total Harian:</span>
+                    <span className="font-mono font-bold text-[#1D2939]">
+                      {attToDelete.status} · {formatRupiah(attToDelete.totalDailyPay || 0)}
+                    </span>
+                  </div>
+                  {hasActiveKasbon && (
+                    <div className="flex justify-between items-center py-0.5">
+                      <span className="text-[#667085]">Kasbon Terkait:</span>
+                      <span className="font-mono font-bold text-[#6941C6]">
+                        {formatRupiah(attToDelete.kasbonAmount || 0)} ({attToDelete.kasbonStatus || 'Disetujui'})
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 bg-[#FFFAEB] border border-[#FEDF89] rounded-xl text-xs text-[#B54708] space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-[#F79009]" />
+                    <span>Peringatan Dampak Penghapusan</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    Penghapusan data absensi ini dapat memengaruhi perhitungan rekap gaji dua mingguan, jam lembur harian terkait, serta statistik kehadiran proyek.
+                  </p>
+                </div>
+
+                {(hasActiveKasbon || deleteAttError) && (
+                  <div className="p-3.5 bg-[#FEF3F2] border border-[#FECDCA] rounded-xl text-xs text-[#B42318] space-y-2">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-[#D92D20]" />
+                      <span>Penghapusan Langsung Dibatasi</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed">
+                      {deleteAttError
+                        ? deleteAttError
+                        : `Absensi ini memiliki kasbon aktif sebesar ${formatRupiah(
+                            attToDelete.kasbonAmount || 0
+                          )}. Demi menjaga keutuhan riwayat kasbon dan bukti foto, penghapusan permanen langsung tidak diizinkan. Silakan gunakan fitur Edit Absensi untuk mengoreksi status kehadiran atau pengajuan kasbon.`}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = attToDelete;
+                        setAttToDelete(null);
+                        setDeleteAttError(null);
+                        openSingleModal(target);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#EFF5FF] text-[#155EEF] border border-[#4693FD] rounded-lg text-[11px] font-semibold transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>Gunakan Edit Absensi untuk Koreksi</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-5 py-3.5 bg-[#F9FAFB] border-t border-[#EAECF0] flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttToDelete(null);
+                    setDeleteAttError(null);
+                  }}
+                  disabled={deletingAtt}
+                  className="px-4 py-2 bg-white hover:bg-[#F2F4F7] text-[#344054] border border-[#D0D5DD] rounded-xl text-xs font-semibold transition-colors shadow-xs"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={deletingAtt}
+                  className="px-4 py-2 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-50"
+                >
+                  {deletingAtt ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <span>Menghapus...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Hapus</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

@@ -336,6 +336,13 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+  deleteAttendance: (id: string, projectId?: string) =>
+    request<{ message: string; deleted?: Attendance }>(
+      `/attendance/${id}${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`,
+      {
+        method: 'DELETE',
+      }
+    ),
 
   // Overtime
   getOvertime: () => request<OvertimeRecord[]>('/overtime'),
