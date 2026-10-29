@@ -1398,32 +1398,27 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
                   </p>
                 </div>
 
-                {(hasActiveKasbon || deleteAttError) && (
+                {hasActiveKasbon && !deleteAttError && (
+                  <div className="p-3.5 bg-[#EFF8FF] border border-[#B2DDFF] rounded-xl text-xs text-[#175CD3] space-y-1.5">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-[#155EEF]" />
+                      <span>Informasi Kasbon Terkait</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-[#1849A9]">
+                      Absensi ini memiliki transaksi kasbon terkait sebesar <strong className="font-bold">{formatRupiah(attToDelete.kasbonAmount || 0)}</strong> ({attToDelete.kasbonStatus || 'Disetujui'}). Menghapus absensi ini akan otomatis menghapus catatan kasbon dan lembur pada hari ini.
+                    </p>
+                  </div>
+                )}
+
+                {deleteAttError && (
                   <div className="p-3.5 bg-[#FEF3F2] border border-[#FECDCA] rounded-xl text-xs text-[#B42318] space-y-2">
                     <div className="flex items-center gap-1.5 font-bold">
                       <AlertCircle className="w-4 h-4 shrink-0 text-[#D92D20]" />
-                      <span>Penghapusan Langsung Dibatasi</span>
+                      <span>Penghapusan Ditolak</span>
                     </div>
                     <p className="text-[11px] leading-relaxed">
-                      {deleteAttError
-                        ? deleteAttError
-                        : `Absensi ini memiliki kasbon aktif sebesar ${formatRupiah(
-                            attToDelete.kasbonAmount || 0
-                          )}. Demi menjaga keutuhan riwayat kasbon dan bukti foto, penghapusan permanen langsung tidak diizinkan. Silakan gunakan fitur Edit Absensi untuk mengoreksi status kehadiran atau pengajuan kasbon.`}
+                      {deleteAttError}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const target = attToDelete;
-                        setAttToDelete(null);
-                        setDeleteAttError(null);
-                        openSingleModal(target);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#EFF5FF] text-[#155EEF] border border-[#4693FD] rounded-lg text-[11px] font-semibold transition-colors"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      <span>Gunakan Edit Absensi untuk Koreksi</span>
-                    </button>
                   </div>
                 )}
               </div>

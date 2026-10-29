@@ -3369,6 +3369,52 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   {/* ========================================================== */}
                   {activeReportSubmenu === 'h2' && (
                     <div className="mt-4 space-y-4">
+                      {/* H2 Action Bar for Cetak PDF and Print */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#F8F9FA] p-3.5 rounded-xl border border-[#EAECF0] print:hidden shadow-xs">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-[#EFF5FF] text-[#155EEF] border border-[#D0E2FF]">
+                              H2
+                            </span>
+                            <h4 className="text-xs font-bold text-[#1D2939]">
+                              Rekapitulasi Total Penggajian Proyek ({filteredEmployeeRecaps.length} Karyawan)
+                            </h4>
+                          </div>
+                          <p className="text-[11px] text-[#667085]">
+                            Periode: <strong className="text-[#1D2939]">{periodDisplayLabel}</strong> • Cetak dokumen PDF resmi atau cetak langsung via printer browser
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleExportCurrentSubmenuPDF()}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#D92D20] hover:bg-[#B42318] text-white text-xs font-semibold transition-colors shadow-xs"
+                            title="Unduh Dokumen PDF Rekapitulasi Total Gaji H2"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Cetak PDF Rekap H2</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDirectPrint}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1D2939] hover:bg-[#344054] text-white text-xs font-semibold transition-colors shadow-xs"
+                            title="Print Langsung Halaman / Dialog Cetak Browser"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Print Langsung</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleExportCurrentSubmenuExcel()}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#027A48] hover:bg-[#05603A] text-white text-xs font-semibold transition-colors shadow-xs"
+                            title="Ekspor Data Rekap ke Microsoft Excel"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5" />
+                            <span>Ekspor Excel (.xlsx)</span>
+                          </button>
+                        </div>
+                      </div>
+
                       {/* H2 Top Summary Cards */}
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                         <div className="p-3 rounded-xl bg-[#F8F9FA] border border-[#EAECF0]">
@@ -6542,33 +6588,28 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   </p>
                 </div>
 
-                {/* Info / Penolakan jika memiliki Kasbon Aktif atau Periode Gaji yang Sudah Dibayar */}
-                {(hasActiveKasbon || deleteAttendanceError) && (
+                {/* Info jika memiliki Kasbon Terkait atau Penolakan Sistem */}
+                {hasActiveKasbon && !deleteAttendanceError && (
+                  <div className="p-3.5 bg-[#EFF8FF] border border-[#B2DDFF] rounded-xl text-xs text-[#175CD3] space-y-1.5">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-[#155EEF]" />
+                      <span>Informasi Kasbon Terkait</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-[#1849A9]">
+                      Absensi ini memiliki transaksi kasbon terkait sebesar <strong className="font-bold">{formatRupiah(attendanceToDelete.kasbonAmount || 0)}</strong> ({attendanceToDelete.kasbonStatus || 'Disetujui'}). Menghapus absensi ini akan otomatis menghapus catatan kasbon dan lembur pada hari ini.
+                    </p>
+                  </div>
+                )}
+
+                {deleteAttendanceError && (
                   <div className="p-3.5 bg-[#FEF3F2] border border-[#FECDCA] rounded-xl text-xs text-[#B42318] space-y-2">
                     <div className="flex items-center gap-1.5 font-bold">
                       <AlertCircle className="w-4 h-4 shrink-0 text-[#D92D20]" />
-                      <span>Penghapusan Langsung Dibatasi</span>
+                      <span>Penghapusan Ditolak</span>
                     </div>
                     <p className="text-[11px] leading-relaxed">
-                      {deleteAttendanceError
-                        ? deleteAttendanceError
-                        : `Absensi ini memiliki kasbon aktif sebesar ${formatRupiah(
-                            attendanceToDelete.kasbonAmount || 0
-                          )}. Demi menjaga keutuhan riwayat kasbon dan bukti foto, penghapusan permanen langsung tidak diizinkan. Silakan gunakan fitur Edit Absensi untuk mengoreksi status kehadiran atau pengajuan kasbon.`}
+                      {deleteAttendanceError}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const target = attendanceToDelete;
-                        setAttendanceToDelete(null);
-                        setDeleteAttendanceError(null);
-                        openEditAttendanceModal(target);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#EFF5FF] text-[#155EEF] border border-[#4693FD] rounded-lg text-[11px] font-semibold transition-colors"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      <span>Gunakan Edit Absensi untuk Koreksi</span>
-                    </button>
                   </div>
                 )}
               </div>

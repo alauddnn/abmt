@@ -2890,27 +2890,58 @@ export const pgService = {
         throw projErr;
       }
 
-      // 2. Check linked active kasbon or kasbon financial history
+      // 2. Check and clean up linked kasbon records
       const kbRes = await client.query(
-        `SELECT id, kasbon_number, amount, deducted_amount, remaining_amount, status
+        `SELECT id, kasbon_number, amount, deducted_amount, remaining_amount, status, attachment_file_path
          FROM kasbon_records
          WHERE attendance_id = $1
             OR (attendance_id IS NULL AND employee_id = $2 AND request_date = $3 AND (project_id = $4 OR project_id IS NULL OR $4::varchar IS NULL))
-         ORDER BY id DESC LIMIT 1`,
+         ORDER BY id DESC`,
         [att.id, att.employeeId, att.date, att.projectId || null]
       );
 
-      if (kbRes.rows.length > 0) {
-        const kb = kbRes.rows[0];
-        if (kb.status !== 'Ditolak') {
+      for (const kb of kbRes.rows) {
+        const deducted = Number(kb.deducted_amount || 0);
+        if (deducted > 0 || kb.status === 'Lunas' || kb.status === 'Dipotong sebagian') {
           const kbErr: any = new Error(
-            `Penghapusan ditolak: Absensi ini memiliki transaksi kasbon terkait (${kb.kasbon_number} sebesar Rp ${Number(
-              kb.amount || 0
-            ).toLocaleString('id-ID')}, status: ${kb.status}). Untuk menjaga riwayat kasbon dan bukti foto, silakan gunakan tombol Edit pada baris absensi untuk mengoreksi status kehadiran atau pengajuan kasbon.`
+            `Penghapusan ditolak: Kasbon terkait (${kb.kasbon_number}) sudah memiliki riwayat pemotongan gaji (Rp ${deducted.toLocaleString(
+              'id-ID'
+            )}). Batalkan slip gaji terkait terlebih dahulu jika ingin menghapus absensi ini.`
           );
           kbErr.statusCode = 409;
           throw kbErr;
         }
+
+        const checkDeductions = await client.query(
+          'SELECT id FROM kasbon_deductions WHERE kasbon_id = $1 LIMIT 1',
+          [kb.id]
+        );
+        if (checkDeductions.rows.length > 0) {
+          const kbErr: any = new Error(
+            `Penghapusan ditolak: Kasbon (${kb.kasbon_number}) telah tercatat dalam riwayat potongan gaji.`
+          );
+          kbErr.statusCode = 409;
+          throw kbErr;
+        }
+
+        // Clean up attachments and delete kasbon_records
+        const atts = await client.query('SELECT * FROM kasbon_attachments WHERE kasbon_id = $1', [kb.id]);
+        for (const a of atts.rows) {
+          try {
+            await deleteFromStorage(a.file_path);
+          } catch (e) {
+            console.warn('Could not delete storage file:', a.file_path);
+          }
+        }
+        if (kb.attachment_file_path) {
+          try {
+            await deleteFromStorage(kb.attachment_file_path);
+          } catch (e) {
+            console.warn('Could not delete main attachment file:', kb.attachment_file_path);
+          }
+        }
+        await client.query('DELETE FROM kasbon_attachments WHERE kasbon_id = $1', [kb.id]);
+        await client.query('DELETE FROM kasbon_records WHERE id = $1', [kb.id]);
       }
 
       // 3. Check if attendance date is already included in a processed or paid biweekly payroll period
@@ -3188,8 +3219,9 @@ export const pgService = {
     const datePrefix = (data.requestDate || new Date().toISOString()).slice(0, 7).replace('-', '');
     let kasbonNumber = '';
     while (true) {
-      const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
-      kasbonNumber = `KB-${datePrefix}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
+      const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const timeMs = Date.now().toString().slice(-6);
+      kasbonNumber = `KB-${datePrefix}-${timeMs}-${randomSuffix}`;
       const dupCheck = await query('SELECT id FROM kasbon_records WHERE kasbon_number = $1 LIMIT 1', [kasbonNumber]);
       if (!dupCheck.rows.length) break;
     }

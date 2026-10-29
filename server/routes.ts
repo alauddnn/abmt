@@ -2354,17 +2354,21 @@ router.delete('/attendance/:id', async (req: Request, res: Response) => {
     });
   }
 
-  const linkedKasbon = db.kasbon.find(
+  const linkedKasbonList = db.kasbon.filter(
     (k) =>
       k.attendanceId === target.id ||
       (!k.attendanceId && k.employeeId === target.employeeId && k.requestDate === target.date)
   );
-  if (linkedKasbon && linkedKasbon.status !== 'Ditolak') {
-    return res.status(409).json({
-      error: `Penghapusan ditolak: Absensi ini memiliki transaksi kasbon terkait (${linkedKasbon.kasbonNumber} sebesar Rp ${Number(
-        linkedKasbon.amount || 0
-      ).toLocaleString('id-ID')}, status: ${linkedKasbon.status}). Untuk menjaga riwayat kasbon dan bukti foto, silakan gunakan tombol Edit pada baris absensi untuk mengoreksi status kehadiran atau pengajuan kasbon.`,
-    });
+
+  for (const linkedKasbon of linkedKasbonList) {
+    const deducted = Number(linkedKasbon.deductedAmount || 0);
+    if (deducted > 0 || linkedKasbon.status === 'Lunas' || linkedKasbon.status === 'Dipotong sebagian') {
+      return res.status(409).json({
+        error: `Penghapusan ditolak: Kasbon terkait (${linkedKasbon.kasbonNumber}) sudah memiliki riwayat pemotongan gaji (Rp ${deducted.toLocaleString(
+          'id-ID'
+        )}). Batalkan slip gaji terkait terlebih dahulu jika ingin menghapus absensi ini.`,
+      });
+    }
   }
 
   const existingPayroll = db.salaryPayments.find(
@@ -2386,6 +2390,8 @@ router.delete('/attendance/:id', async (req: Request, res: Response) => {
         o.attendanceId !== target.id &&
         !(o.employeeId === target.employeeId && o.date === target.date)
     );
+    const linkedKbIds = new Set(linkedKasbonList.map((k) => k.id));
+    database.kasbon = database.kasbon.filter((k) => !linkedKbIds.has(k.id));
     database.attendance = database.attendance.filter((a) => a.id !== target.id);
   });
 
