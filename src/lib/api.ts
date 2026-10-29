@@ -58,11 +58,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     let errorMsg = `Permintaan gagal (Status HTTP ${response.status}${response.statusText ? ` - ${response.statusText}` : ''})`;
+    let errorMeta: any = null;
     try {
       const rawText = await response.text();
       try {
         const data = JSON.parse(rawText);
         if (data && typeof data === 'object') {
+          errorMeta = data;
           if (data.error && typeof data.error === 'string') {
             errorMsg = data.error;
           } else if (data.message && typeof data.message === 'string') {
@@ -78,7 +80,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         }
       }
     } catch {}
-    throw new Error(errorMsg);
+    const errObj: any = new Error(errorMsg);
+    if (errorMeta) {
+      errObj.status = response.status;
+      errObj.transactionCounts = errorMeta.transactionCounts;
+      errObj.canDeactivate = errorMeta.canDeactivate;
+    }
+    throw errObj;
   }
 
   return response.json();

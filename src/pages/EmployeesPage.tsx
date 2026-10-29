@@ -43,6 +43,12 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
   const [isViewOnly, setIsViewOnly] = useState(false);
 
+  // Delete / Deactivate Confirmation Modal State
+  const [empToDelete, setEmpToDelete] = useState<Employee | null>(null);
+  const [deletingEmp, setDeletingEmp] = useState(false);
+  const [deleteConflictError, setDeleteConflictError] = useState<string | null>(null);
+  const [deleteConflictCounts, setDeleteConflictCounts] = useState<any>(null);
+
   const [formData, setFormData] = useState<{
     id: string;
     name: string;
@@ -108,7 +114,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
       name: emp.name,
       role: (emp.role === 'Kenek' ? 'Helper' : emp.role) as EmployeeRole,
       dailyWage: emp.dailyWage,
-      overtimeHourlyWage: emp.overtimeHourlyWage,
+      overtimeHourlyWage: emp.role === 'Driver' ? 0 : emp.overtimeHourlyWage,
       startDate: emp.startDate,
       status: emp.status,
       phone: emp.phone || '',
@@ -125,7 +131,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
       name: emp.name,
       role: (emp.role === 'Kenek' ? 'Helper' : emp.role) as EmployeeRole,
       dailyWage: emp.dailyWage,
-      overtimeHourlyWage: emp.overtimeHourlyWage,
+      overtimeHourlyWage: emp.role === 'Driver' ? 0 : emp.overtimeHourlyWage,
       startDate: emp.startDate,
       status: emp.status,
       phone: emp.phone || '',
@@ -146,7 +152,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
       overtimeHourlyWage = settings?.overtimeHelperHourly || settings?.overtimeKenekHourly || 15000;
     } else if (role === 'Driver') {
       dailyWage = settings?.wageDriverDaily || 140000;
-      overtimeHourlyWage = settings?.overtimeDriverHourly || 18000;
+      overtimeHourlyWage = 0;
     }
 
     setFormData({
@@ -184,22 +190,55 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
     }
   };
 
-  const handleDelete = async (emp: Employee) => {
+  const handleDelete = (emp: Employee) => {
     if (!isAdmin) {
       showToast('error', 'Akses ditolak: Hanya Administrator yang berhak menghapus karyawan.');
       return;
     }
+    setDeleteConflictError(null);
+    setDeleteConflictCounts(null);
+    setEmpToDelete(emp);
+  };
 
-    if (!window.confirm(`Hapus data karyawan "${emp.name}" (${emp.id})? Tindakan ini tidak dapat dibatalkan.`)) {
-      return;
-    }
-
+  const handleConfirmDelete = async () => {
+    if (!empToDelete || !isAdmin) return;
+    setDeletingEmp(true);
+    setDeleteConflictError(null);
     try {
-      await api.deleteEmployee(emp.id);
-      showToast('success', `Data karyawan ${emp.name} berhasil dihapus.`);
+      const res: any = await api.deleteEmployee(empToDelete.id);
+      showToast('success', res?.message || `Karyawan ${empToDelete.name} (${empToDelete.id}) berhasil dihapus permanen dari database.`);
+      setEmpToDelete(null);
       fetchEmployees();
     } catch (err: any) {
-      showToast('error', err.message || 'Gagal menghapus karyawan');
+      if (err?.status === 409 || err?.canDeactivate) {
+        setDeleteConflictError(err.message);
+        setDeleteConflictCounts(err.transactionCounts || null);
+      } else {
+        showToast('error', err.message || 'Gagal menghapus karyawan');
+        setEmpToDelete(null);
+      }
+    } finally {
+      setDeletingEmp(false);
+    }
+  };
+
+  const handleDeactivateInstead = async (emp: Employee) => {
+    if (!isAdmin) return;
+    setDeletingEmp(true);
+    try {
+      await api.updateEmployee(emp.id, { status: 'inactive' });
+      showToast(
+        'success',
+        `Karyawan ${emp.name} (${emp.id}) dinonaktifkan. Seluruh riwayat transaksi lama tetap aman.`
+      );
+      setEmpToDelete(null);
+      setDeleteConflictError(null);
+      setDeleteConflictCounts(null);
+      fetchEmployees();
+    } catch (err: any) {
+      showToast('error', err.message || 'Gagal menonaktifkan karyawan');
+    } finally {
+      setDeletingEmp(false);
     }
   };
 
@@ -459,7 +498,14 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
                       <div className="text-[10px] text-[#667085]">½ Hari: {formatRupiah(Math.round(emp.dailyWage / 2))}</div>
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-[#667085] tabular-nums">
-                      {formatRupiah(emp.overtimeHourlyWage)}
+                      {emp.role === 'Driver' ? (
+                        <div>
+                          <div className="text-[#0E9384] font-semibold">Rp0</div>
+                          <div className="text-[10px] text-[#0E9384]">Tanpa Upah Lembur</div>
+                        </div>
+                      ) : (
+                        formatRupiah(emp.overtimeHourlyWage)
+                      )}
                     </td>
                     <td className="py-3 px-4 text-[#667085] whitespace-nowrap">
                       {formatDateID(emp.startDate)}
@@ -669,17 +715,26 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
                     type="number"
                     step={1000}
                     required
-                    disabled={isViewOnly}
-                    value={formData.overtimeHourlyWage}
+                    disabled={isViewOnly || formData.role === 'Driver'}
+                    value={formData.role === 'Driver' ? 0 : formData.overtimeHourlyWage}
                     onChange={(e) =>
-                      setFormData({ ...formData, overtimeHourlyWage: Number(e.target.value) })
+                      setFormData({
+                        ...formData,
+                        overtimeHourlyWage: formData.role === 'Driver' ? 0 : Number(e.target.value),
+                      })
                     }
                     className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg font-mono text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                     placeholder="Contoh: 20000"
                   />
-                  <p className="text-[10px] text-[#667085] font-mono mt-0.5">
-                    1j 30m: {formatRupiah(Math.round((formData.overtimeHourlyWage || 0) * 1.5))}
-                  </p>
+                  {formData.role === 'Driver' ? (
+                    <p className="text-[10px] text-[#0E9384] font-medium mt-0.5">
+                      Ketentuan perusahaan: Driver tidak mendapat upah lembur (Rp0)
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-[#667085] font-mono mt-0.5">
+                      1j 30m: {formatRupiah(Math.round((formData.overtimeHourlyWage || 0) * 1.5))}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -757,6 +812,128 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
                 )}
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Delete / Deactivate Confirmation Modal */}
+      {empToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full border border-[#EAECF0] overflow-hidden">
+            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between bg-[#FEF3F2]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#FEE4E2] text-[#D92D20] flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-[#1D2939]">
+                    {deleteConflictError ? 'Penghapusan Permanen Ditolak' : 'Hapus Permanen Karyawan?'}
+                  </h3>
+                  <p className="text-[11px] text-[#667085]">
+                    ID: <span className="font-mono font-semibold text-[#4693FD]">{empToDelete.id}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmpToDelete(null);
+                  setDeleteConflictError(null);
+                  setDeleteConflictCounts(null);
+                }}
+                disabled={deletingEmp}
+                className="p-1 text-[#667085] hover:text-[#1D2939] rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="p-3.5 bg-[#F8F9FA] rounded-xl border border-[#EAECF0] space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-[#667085]">Nama Karyawan:</span>
+                  <span className="font-semibold text-[#1D2939]">{empToDelete.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#667085]">Jabatan:</span>
+                  <span className="font-semibold text-[#1D2939]">{empToDelete.role}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#667085]">Status Saat Ini:</span>
+                  <span className="font-semibold text-[#1D2939]">
+                    {empToDelete.status === 'active' ? 'Aktif' : 'Nonaktif'}
+                  </span>
+                </div>
+              </div>
+
+              {deleteConflictError ? (
+                <div className="p-3.5 bg-[#FEF3F2] border border-[#FECDCA] rounded-xl text-[#B42318] space-y-2">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-[#D92D20]" />
+                    <span>Memiliki Riwayat Transaksi Sah</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">{deleteConflictError}</p>
+                  {deleteConflictCounts && (
+                    <div className="p-2.5 bg-white/80 rounded-lg border border-[#FECDCA] font-mono text-[11px] space-y-1">
+                      <div>• Absensi tercatat: {deleteConflictCounts.attendanceCount || 0} data</div>
+                      <div>• Lembur tercatat: {deleteConflictCounts.overtimeCount || 0} data</div>
+                      <div>• Kasbon tercatat: {deleteConflictCounts.kasbonCount || 0} data</div>
+                      <div>• Pembayaran Gaji: {deleteConflictCounts.salaryCount || 0} slip</div>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-[#344054] font-medium pt-1">
+                    Solusi: Gunakan tombol <strong>Nonaktifkan Karyawan</strong> di bawah agar karyawan tidak lagi muncul sebagai personel aktif tanpa merusak riwayat keuangan lama.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-[#FFFAEB] border border-[#FEDF89] rounded-xl text-[#B54708] space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-[#F79009]" />
+                    <span>Ketentuan Penghapusan Permanen</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    Jika karyawan ini salah input dan <strong>belum memiliki transaksi absensi, lembur, kasbon, maupun gaji</strong>, data karyawan beserta penugasan proyeknya akan <strong>dihapus permanen dari database PostgreSQL/Supabase</strong>.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-3.5 bg-[#F9FAFB] border-t border-[#EAECF0] flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmpToDelete(null);
+                  setDeleteConflictError(null);
+                  setDeleteConflictCounts(null);
+                }}
+                disabled={deletingEmp}
+                className="px-3.5 py-2 bg-white hover:bg-[#F2F4F7] text-[#344054] border border-[#D0D5DD] rounded-xl text-xs font-semibold transition-colors"
+              >
+                Batal
+              </button>
+              {deleteConflictError ? (
+                empToDelete.status === 'active' && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeactivateInstead(empToDelete)}
+                    disabled={deletingEmp}
+                    className="px-4 py-2 bg-[#F79009] hover:bg-[#DC6803] text-white rounded-xl text-xs font-semibold transition-colors"
+                  >
+                    {deletingEmp ? 'Memproses...' : 'Nonaktifkan Karyawan'}
+                  </button>
+                )
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={deletingEmp}
+                  className="px-4 py-2 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-xl text-xs font-semibold transition-colors inline-flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{deletingEmp ? 'Menghapus...' : 'Ya, Hapus Permanen'}</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -350,7 +350,7 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   wageHelperDaily: 125000,
   overtimeHelperHourly: 15000,
   wageDriverDaily: 140000,
-  overtimeDriverHourly: 18000,
+  overtimeDriverHourly: 0,
   wageKenekDaily: 125000,
   overtimeKenekHourly: 15000,
   minTenureDaysForKasbon: 7,

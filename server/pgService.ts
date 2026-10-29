@@ -42,12 +42,18 @@ export function resolveOvertimeDecimalHours(data: {
   return Number((totalMinutes / 60).toFixed(4));
 }
 
+export function isDriverRole(role?: string | null): boolean {
+  return String(role || '').trim().toLowerCase() === 'driver';
+}
+
 export function calcOvertimePayExact(
   decimalHours: number | undefined | null,
   hourlyRate: number | undefined | null,
   durationHours?: number,
-  durationMinutes?: number
+  durationMinutes?: number,
+  role?: string | null
 ): number {
+  if (isDriverRole(role)) return 0;
   let totalMinutes = Math.round(Math.max(0, Number(decimalHours) || 0) * 60);
   if (durationHours !== undefined || durationMinutes !== undefined) {
     const h = Math.max(0, Math.floor(Number(durationHours) || 0));
@@ -77,7 +83,7 @@ function mapSettings(row: any): CompanySettings {
     wageHelperDaily: Number(row.wage_helper_daily || row.wage_kenek_daily || 125000),
     overtimeHelperHourly: Number(row.overtime_helper_hourly || row.overtime_kenek_hourly || 15000),
     wageDriverDaily: Number(row.wage_driver_daily || 140000),
-    overtimeDriverHourly: Number(row.overtime_driver_hourly || 18000),
+    overtimeDriverHourly: 0,
     wageKenekDaily: Number(row.wage_kenek_daily || 125000),
     overtimeKenekHourly: Number(row.overtime_kenek_hourly || 15000),
     minTenureDaysForKasbon: Number(row.min_tenure_days_for_kasbon || 7),
@@ -85,13 +91,15 @@ function mapSettings(row: any): CompanySettings {
 }
 
 function mapEmployee(row: any): Employee {
+  const role = row.role;
+  const isDriver = isDriverRole(role);
   return {
     id: row.id,
     name: row.name,
     nik: row.nik || undefined,
-    role: row.role,
+    role,
     dailyWage: Number(row.daily_wage),
-    overtimeHourlyWage: Number(row.overtime_hourly_wage),
+    overtimeHourlyWage: isDriver ? 0 : Number(row.overtime_hourly_wage),
     startDate: row.start_date ? (typeof row.start_date === 'string' ? row.start_date.split('T')[0] : row.start_date.toISOString().split('T')[0]) : '',
     status: row.status,
     phone: row.phone || '',
@@ -117,6 +125,9 @@ function mapProject(row: any): Project {
 }
 
 function mapAttendance(row: any): Attendance {
+  const isDriver = isDriverRole(row.employee_role);
+  const dailySnap = Number(row.daily_wage_snapshot || 0);
+  const basicOnly = calcBasicPayByStatus(row.status, dailySnap);
   return {
     id: row.id,
     date: row.date ? (typeof row.date === 'string' ? row.date : row.date.toISOString().split('T')[0]) : '',
@@ -130,9 +141,9 @@ function mapAttendance(row: any): Attendance {
     checkOut: row.check_out,
     overtimeHours: Number(row.overtime_hours || 0),
     overtimeApproved: Boolean(row.overtime_approved),
-    dailyWageSnapshot: Number(row.daily_wage_snapshot || 0),
-    overtimeWageSnapshot: Number(row.overtime_wage_snapshot || 0),
-    totalDailyPay: Number(row.total_daily_pay || 0),
+    dailyWageSnapshot: dailySnap,
+    overtimeWageSnapshot: isDriver ? 0 : Number(row.overtime_wage_snapshot || 0),
+    totalDailyPay: isDriver ? basicOnly : Number(row.total_daily_pay || 0),
     notes: row.notes || '',
     createdBy: row.created_by || '',
     createdAt: row.created_at ? (typeof row.created_at === 'string' ? row.created_at : row.created_at.toISOString()) : '',
@@ -146,6 +157,7 @@ function mapOvertime(row: any): OvertimeRecord {
   const totalMinutes = Math.round(hours * 60);
   const durationHours = Math.floor(totalMinutes / 60);
   const durationMinutes = totalMinutes % 60;
+  const isDriver = isDriverRole(row.employee_role);
   return {
     id: row.id,
     attendanceId: row.attendance_id || undefined,
@@ -160,8 +172,8 @@ function mapOvertime(row: any): OvertimeRecord {
     hours,
     durationHours,
     durationMinutes,
-    hourlyRateSnapshot: Number(row.hourly_rate_snapshot || 0),
-    totalPay: Number(row.total_pay || 0),
+    hourlyRateSnapshot: isDriver ? 0 : Number(row.hourly_rate_snapshot || 0),
+    totalPay: isDriver ? 0 : Number(row.total_pay || 0),
     status: row.status,
     approvedBy: row.approved_by || undefined,
     approvedAt: row.approved_at ? (typeof row.approved_at === 'string' ? row.approved_at : row.approved_at.toISOString()) : undefined,
@@ -327,7 +339,9 @@ function mapProjectAssignment(row: any): ProjectAssignment {
     employeeStartDate: row.employee_start_date ? (typeof row.employee_start_date === 'string' ? row.employee_start_date.split('T')[0] : row.employee_start_date.toISOString().split('T')[0]) : '',
     employeeStatus: row.employee_status || 'active',
     dailyWage: row.daily_wage !== undefined ? Number(row.daily_wage) : undefined,
-    overtimeHourlyWage: row.overtime_hourly_wage !== undefined ? Number(row.overtime_hourly_wage) : undefined,
+    overtimeHourlyWage: isDriverRole(row.employee_role || row.role_in_project)
+      ? 0
+      : (row.overtime_hourly_wage !== undefined ? Number(row.overtime_hourly_wage) : undefined),
   };
 }
 
@@ -393,7 +407,7 @@ export async function ensureAllSchemasOnce(): Promise<void> {
           wage_helper_daily NUMERIC(15, 2) DEFAULT 125000,
           overtime_helper_hourly NUMERIC(15, 2) DEFAULT 15000,
           wage_driver_daily NUMERIC(15, 2) DEFAULT 140000,
-          overtime_driver_hourly NUMERIC(15, 2) DEFAULT 18000,
+          overtime_driver_hourly NUMERIC(15, 2) DEFAULT 0,
           wage_kenek_daily NUMERIC(15, 2) DEFAULT 125000,
           overtime_kenek_hourly NUMERIC(15, 2) DEFAULT 15000,
           min_tenure_days_for_kasbon INT DEFAULT 7,
@@ -407,7 +421,7 @@ export async function ensureAllSchemasOnce(): Promise<void> {
         ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS wage_helper_daily NUMERIC(15, 2) DEFAULT 125000;
         ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS overtime_helper_hourly NUMERIC(15, 2) DEFAULT 15000;
         ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS wage_driver_daily NUMERIC(15, 2) DEFAULT 140000;
-        ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS overtime_driver_hourly NUMERIC(15, 2) DEFAULT 18000;
+        ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS overtime_driver_hourly NUMERIC(15, 2) DEFAULT 0;
         ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS wage_kenek_daily NUMERIC(15, 2) DEFAULT 125000;
         ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS overtime_kenek_hourly NUMERIC(15, 2) DEFAULT 15000;
         ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS min_tenure_days_for_kasbon INT DEFAULT 7;
@@ -486,6 +500,138 @@ export async function ensureAllSchemasOnce(): Promise<void> {
           uploaded_by VARCHAR(150),
           created_at TIMESTAMPTZ DEFAULT NOW()
         );
+
+        -- Data Integrity Reconciliation:
+        -- 0. Company Policy: Driver does NOT receive overtime pay (Rp0). Keep overtime duration intact, set rate & pay to 0.
+        UPDATE company_settings SET overtime_driver_hourly = 0 WHERE overtime_driver_hourly != 0;
+
+        UPDATE employees SET overtime_hourly_wage = 0 WHERE LOWER(role) = 'driver' AND overtime_hourly_wage != 0;
+
+        UPDATE attendance a
+        SET overtime_wage_snapshot = 0,
+            total_daily_pay = (
+              CASE
+                WHEN a.status = 'Hadir' THEN ROUND(a.daily_wage_snapshot)
+                WHEN a.status = 'Setengah Hari' THEN ROUND(a.daily_wage_snapshot / 2.0)
+                ELSE 0
+              END
+            )
+        FROM employees e
+        WHERE a.employee_id = e.id
+          AND (LOWER(e.role) = 'driver' OR LOWER(a.employee_role) = 'driver')
+          AND (
+            a.overtime_wage_snapshot != 0
+            OR a.total_daily_pay != (
+              CASE
+                WHEN a.status = 'Hadir' THEN ROUND(a.daily_wage_snapshot)
+                WHEN a.status = 'Setengah Hari' THEN ROUND(a.daily_wage_snapshot / 2.0)
+                ELSE 0
+              END
+            )
+          );
+
+        UPDATE overtime_records o
+        SET hourly_rate_snapshot = 0,
+            total_pay = 0
+        FROM employees e
+        WHERE o.employee_id = e.id
+          AND (LOWER(e.role) = 'driver' OR LOWER(o.employee_role) = 'driver')
+          AND (o.hourly_rate_snapshot != 0 OR o.total_pay != 0);
+
+        -- 1. Project-created employees (PRJ...) who were removed from project_assignments and have no active project_assignments should be marked 'inactive'
+        UPDATE employees e
+        SET status = 'inactive'
+        WHERE e.status = 'active'
+          AND e.id LIKE 'PRJ%'
+          AND NOT EXISTS (
+            SELECT 1 FROM project_assignments pa
+            WHERE pa.employee_id = e.id AND pa.status = 'active'
+          );
+
+        -- 1B. Permanently delete inactive orphan employees who were mistakenly added & deleted and have 0 project_assignments and 0 transactions across all tables
+        DELETE FROM employees e
+        WHERE e.status = 'inactive'
+          AND NOT EXISTS (SELECT 1 FROM project_assignments pa WHERE pa.employee_id = e.id)
+          AND NOT EXISTS (SELECT 1 FROM attendance a WHERE a.employee_id = e.id)
+          AND NOT EXISTS (SELECT 1 FROM overtime_records o WHERE o.employee_id = e.id)
+          AND NOT EXISTS (SELECT 1 FROM kasbon_records k WHERE k.employee_id = e.id)
+          AND NOT EXISTS (SELECT 1 FROM kasbon_deductions kd WHERE kd.employee_id = e.id)
+          AND NOT EXISTS (SELECT 1 FROM salary_payments sp WHERE sp.employee_id = e.id);
+
+        -- 2. Repair any attendance rows where overtime_wage_snapshot was 0 but the employee (non-Driver) has a valid overtime_hourly_wage > 0
+        UPDATE attendance a
+        SET overtime_wage_snapshot = e.overtime_hourly_wage,
+            overtime_approved = CASE WHEN a.overtime_hours > 0 THEN true ELSE a.overtime_approved END,
+            total_daily_pay = (
+              CASE
+                WHEN a.status = 'Hadir' THEN ROUND(a.daily_wage_snapshot)
+                WHEN a.status = 'Setengah Hari' THEN ROUND(a.daily_wage_snapshot / 2.0)
+                ELSE 0
+              END
+            ) + (
+              CASE
+                WHEN a.overtime_hours > 0 THEN ROUND((ROUND(a.overtime_hours * 60.0) * e.overtime_hourly_wage) / 60.0)
+                ELSE 0
+              END
+            )
+        FROM employees e
+        WHERE a.employee_id = e.id
+          AND LOWER(e.role) != 'driver'
+          AND LOWER(a.employee_role) != 'driver'
+          AND (a.overtime_wage_snapshot = 0 OR (a.overtime_hours > 0 AND a.overtime_approved = false))
+          AND e.overtime_hourly_wage > 0;
+
+        -- 3. Repair any overtime_records rows where hourly_rate_snapshot = 0 or total_pay = 0 despite hours > 0 (non-Driver only)
+        UPDATE overtime_records o
+        SET hourly_rate_snapshot = e.overtime_hourly_wage,
+            total_pay = ROUND((ROUND(o.hours * 60.0) * e.overtime_hourly_wage) / 60.0)
+        FROM employees e
+        WHERE o.employee_id = e.id
+          AND LOWER(e.role) != 'driver'
+          AND LOWER(o.employee_role) != 'driver'
+          AND o.hours > 0
+          AND (o.hourly_rate_snapshot = 0 OR o.total_pay = 0)
+          AND e.overtime_hourly_wage > 0;
+
+        -- 4. Insert missing overtime_records for any attendance rows that have overtime_hours > 0
+        INSERT INTO overtime_records (
+          id, attendance_id, date, employee_id, employee_name, employee_role,
+          project_id, project_name, start_time, end_time, hours,
+          hourly_rate_snapshot, total_pay, status, approved_by, approved_at, notes, audit_trail
+        )
+        SELECT
+          'OVT-SYNC-' || a.id,
+          a.id,
+          a.date,
+          a.employee_id,
+          a.employee_name,
+          a.employee_role,
+          a.project_id,
+          a.project_name,
+          COALESCE(NULLIF(a.check_out, '-'), '16:00'),
+          '',
+          a.overtime_hours,
+          CASE WHEN LOWER(e.role) = 'driver' OR LOWER(a.employee_role) = 'driver' THEN 0 WHEN a.overtime_wage_snapshot > 0 THEN a.overtime_wage_snapshot ELSE e.overtime_hourly_wage END,
+          CASE WHEN LOWER(e.role) = 'driver' OR LOWER(a.employee_role) = 'driver' THEN 0 ELSE ROUND((ROUND(a.overtime_hours * 60.0) * (CASE WHEN a.overtime_wage_snapshot > 0 THEN a.overtime_wage_snapshot ELSE e.overtime_hourly_wage END)) / 60.0) END,
+          'Disetujui',
+          COALESCE(NULLIF(a.created_by, ''), 'Administrator'),
+          NOW(),
+          COALESCE(NULLIF(a.notes, ''), 'Lembur dari absensi harian'),
+          jsonb_build_array(
+            jsonb_build_object(
+              'timestamp', NOW()::text,
+              'user', 'Sistem Integritas',
+              'action', 'Sinkronisasi otomatis lembur dari data absensi'
+            )
+          )
+        FROM attendance a
+        JOIN employees e ON e.id = a.employee_id
+        WHERE a.overtime_hours > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM overtime_records o
+            WHERE o.attendance_id = a.id
+               OR (o.employee_id = a.employee_id AND o.date = a.date)
+          );
       `);
       isSchemaEnsured = true;
     } catch (err: any) {
@@ -530,7 +676,7 @@ export const pgService = {
     const tukangDaily = updated.wageTukangDaily || 150000;
     const tukangOt = updated.overtimeTukangHourly || 20000;
     const driverDaily = updated.wageDriverDaily || 140000;
-    const driverOt = updated.overtimeDriverHourly || 18000;
+    const driverOt = 0; // Ketentuan perusahaan: Driver tidak mendapatkan upah lembur (Rp0)
 
     const res = await query(
       `UPDATE company_settings SET
@@ -562,7 +708,7 @@ export const pgService = {
       await query(`UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2 WHERE role = 'Mandor' AND status = 'active'`, [mandorDaily, mandorOt]);
       await query(`UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2 WHERE role = 'Tukang' AND status = 'active'`, [tukangDaily, tukangOt]);
       await query(`UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2 WHERE role IN ('Helper', 'Kenek') AND status = 'active'`, [helperDaily, helperOt]);
-      await query(`UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2 WHERE role = 'Driver' AND status = 'active'`, [driverDaily, driverOt]);
+      await query(`UPDATE employees SET daily_wage = $1, overtime_hourly_wage = 0 WHERE role = 'Driver' AND status = 'active'`, [driverDaily]);
     } else {
       // Automatically update active employees who were using the exact previous default role rate
       await query(
@@ -581,9 +727,9 @@ export const pgService = {
         [helperDaily, helperOt, current.wageHelperDaily || current.wageKenekDaily, current.overtimeHelperHourly || current.overtimeKenekHourly]
       );
       await query(
-        `UPDATE employees SET daily_wage = $1, overtime_hourly_wage = $2
-         WHERE role = 'Driver' AND status = 'active' AND daily_wage = $3 AND overtime_hourly_wage = $4`,
-        [driverDaily, driverOt, current.wageDriverDaily, current.overtimeDriverHourly]
+        `UPDATE employees SET daily_wage = $1, overtime_hourly_wage = 0
+         WHERE role = 'Driver' AND status = 'active' AND daily_wage = $2`,
+        [driverDaily, current.wageDriverDaily]
       );
     }
 
@@ -593,6 +739,7 @@ export const pgService = {
 
   // 2. Employees (supports manual ID and cascading update)
   async getEmployees(): Promise<Employee[]> {
+    await ensureAllSchemasOnce();
     const res = await query('SELECT * FROM employees ORDER BY role DESC, id ASC');
     return res.rows.map(mapEmployee);
   },
@@ -621,15 +768,17 @@ export const pgService = {
       defaultOvertime = settings.overtimeHelperHourly || settings.overtimeKenekHourly || 15000;
     } else if (data.role === 'Driver') {
       defaultDaily = settings.wageDriverDaily || 140000;
-      defaultOvertime = settings.overtimeDriverHourly || 18000;
+      defaultOvertime = 0;
     }
 
     const dailyWage = data.dailyWage !== undefined && data.dailyWage !== null && data.dailyWage !== ('' as any)
       ? Number(data.dailyWage)
       : defaultDaily;
-    const overtimeHourlyWage = data.overtimeHourlyWage !== undefined && data.overtimeHourlyWage !== null && data.overtimeHourlyWage !== ('' as any)
-      ? Number(data.overtimeHourlyWage)
-      : defaultOvertime;
+    const overtimeHourlyWage = isDriverRole(data.role)
+      ? 0
+      : (data.overtimeHourlyWage !== undefined && data.overtimeHourlyWage !== null && data.overtimeHourlyWage !== ('' as any)
+        ? Number(data.overtimeHourlyWage)
+        : defaultOvertime);
     const startDate = data.startDate || new Date().toISOString().split('T')[0];
 
     const res = await query(
@@ -658,32 +807,153 @@ export const pgService = {
         await client.query('UPDATE project_assignments SET employee_id = $1 WHERE employee_id = $2', [targetId, oldId]);
       }
 
+      const nextOvertimeRate = isDriverRole(data.role) ? 0 : data.overtimeHourlyWage;
+
       const res = await client.query(
         `UPDATE employees SET
           id = $1, name = COALESCE($2, name), role = COALESCE($3, role),
-          daily_wage = COALESCE($4, daily_wage), overtime_hourly_wage = COALESCE($5, overtime_hourly_wage),
+          daily_wage = COALESCE($4, daily_wage), overtime_hourly_wage = CASE WHEN LOWER(COALESCE($3, role)) = 'driver' THEN 0 ELSE COALESCE($5, overtime_hourly_wage) END,
           start_date = COALESCE($6, start_date), status = COALESCE($7, status),
           phone = COALESCE($8, phone), notes = COALESCE($9, notes)
          WHERE id = $10 RETURNING *`,
-        [targetId, data.name?.trim(), data.role, data.dailyWage, data.overtimeHourlyWage, data.startDate, data.status, data.phone, data.notes, oldId]
+        [targetId, data.name?.trim(), data.role, data.dailyWage, nextOvertimeRate, data.startDate, data.status, data.phone, data.notes, oldId]
       );
 
       if (!res.rows.length) {
         throw new Error('Karyawan tidak ditemukan.');
       }
 
+      // Sync project_assignments status when master employee status is explicitly changed
+      if (data.status === 'inactive') {
+        await client.query(
+          `UPDATE project_assignments SET status = 'inactive' WHERE employee_id = $1 AND status = 'active'`,
+          [targetId]
+        );
+      } else if (data.status === 'active') {
+        await client.query(
+          `UPDATE project_assignments SET status = 'active' WHERE employee_id = $1 AND status = 'inactive'`,
+          [targetId]
+        );
+      }
+
+      const updatedEmp = mapEmployee(res.rows[0]);
+      if (isDriverRole(updatedEmp.role)) {
+        await client.query(
+          `UPDATE attendance
+           SET employee_role = $1,
+               overtime_wage_snapshot = 0,
+               total_daily_pay = (
+                 CASE
+                   WHEN status = 'Hadir' THEN ROUND(daily_wage_snapshot)
+                   WHEN status = 'Setengah Hari' THEN ROUND(daily_wage_snapshot / 2.0)
+                   ELSE 0
+                 END
+               )
+           WHERE employee_id = $2`,
+          [updatedEmp.role, targetId]
+        );
+        await client.query(
+          `UPDATE overtime_records
+           SET employee_role = $1,
+               hourly_rate_snapshot = 0,
+               total_pay = 0
+           WHERE employee_id = $2`,
+          [updatedEmp.role, targetId]
+        );
+      } else if (updatedEmp.overtimeHourlyWage > 0) {
+        await client.query(
+          `UPDATE attendance
+           SET overtime_wage_snapshot = $1,
+               total_daily_pay = (
+                 CASE
+                   WHEN status = 'Hadir' THEN ROUND(daily_wage_snapshot)
+                   WHEN status = 'Setengah Hari' THEN ROUND(daily_wage_snapshot / 2.0)
+                   ELSE 0
+                 END
+               ) + (
+                 CASE
+                   WHEN overtime_hours > 0 AND overtime_approved = true THEN ROUND((ROUND(overtime_hours * 60.0) * $1) / 60.0)
+                   ELSE 0
+                 END
+               )
+           WHERE employee_id = $2 AND overtime_wage_snapshot = 0`,
+          [updatedEmp.overtimeHourlyWage, targetId]
+        );
+        await client.query(
+          `UPDATE overtime_records
+           SET hourly_rate_snapshot = $1,
+               total_pay = ROUND((ROUND(hours * 60.0) * $1) / 60.0)
+           WHERE employee_id = $2 AND hours > 0 AND (hourly_rate_snapshot = 0 OR total_pay = 0)`,
+          [updatedEmp.overtimeHourlyWage, targetId]
+        );
+      }
+
       await insertAuditLog(userName, userRole as any, 'Ubah Data Karyawan', 'Karyawan', `Memperbarui data karyawan ID: ${oldId} -> ${targetId}`);
-      return mapEmployee(res.rows[0]);
+      return updatedEmp;
     });
   },
 
-  async deleteEmployee(id: string, userName: string, userRole: string): Promise<void> {
-    const empRes = await query('SELECT name FROM employees WHERE id = $1', [id]);
-    if (!empRes.rows.length) throw new Error('Karyawan tidak ditemukan.');
-    const empName = empRes.rows[0].name;
+  async deleteEmployee(
+    id: string,
+    userName: string,
+    userRole: string
+  ): Promise<{ deletedPermanently: boolean; employeeId: string; employeeName: string; message: string }> {
+    await ensureAllSchemasOnce();
+    return withTransaction(async (client) => {
+      const empRes = await client.query('SELECT id, name FROM employees WHERE id = $1 FOR UPDATE', [id]);
+      if (!empRes.rows.length) {
+        const notFoundErr: any = new Error('Karyawan tidak ditemukan.');
+        notFoundErr.statusCode = 404;
+        throw notFoundErr;
+      }
+      const empName = empRes.rows[0].name;
 
-    await query('DELETE FROM employees WHERE id = $1', [id]);
-    await insertAuditLog(userName, userRole as any, 'Hapus Karyawan', 'Karyawan', `Menghapus karyawan: ${empName} (${id})`);
+      // Check if employee has historical transactions in attendance, overtime_records, kasbon_records, kasbon_deductions, or salary_payments
+      const txRes = await client.query(
+        `SELECT
+          (SELECT COUNT(*)::int FROM attendance WHERE employee_id = $1) AS att_count,
+          (SELECT COUNT(*)::int FROM overtime_records WHERE employee_id = $1) AS ot_count,
+          (SELECT COUNT(*)::int FROM kasbon_records WHERE employee_id = $1) AS kb_count,
+          (SELECT COUNT(*)::int FROM kasbon_deductions WHERE employee_id = $1) AS kd_count,
+          (SELECT COUNT(*)::int FROM salary_payments WHERE employee_id = $1) AS pay_count`,
+        [id]
+      );
+      const counts = txRes.rows[0];
+      const totalTx =
+        (counts?.att_count || 0) +
+        (counts?.ot_count || 0) +
+        (counts?.kb_count || 0) +
+        (counts?.kd_count || 0) +
+        (counts?.pay_count || 0);
+
+      if (totalTx > 0) {
+        const refErr: any = new Error(
+          `Penghapusan permanen ditolak: Karyawan "${empName}" (${id}) sudah memiliki riwayat transaksi sah (${counts.att_count} absensi, ${counts.ot_count} lembur, ${counts.kb_count} kasbon, ${counts.pay_count} pembayaran gaji). Untuk menjaga keakuratan rekap gaji dan laporan keuangan historis, silakan gunakan fitur Nonaktifkan Karyawan.`
+        );
+        refErr.statusCode = 409;
+        refErr.transactionCounts = counts;
+        throw refErr;
+      }
+
+      // Safe permanent deletion in foreign-key order
+      await client.query('DELETE FROM project_assignments WHERE employee_id = $1', [id]);
+      await client.query('DELETE FROM employees WHERE id = $1', [id]);
+
+      await insertAuditLog(
+        userName,
+        userRole as any,
+        'Hapus Karyawan Permanen',
+        'Karyawan',
+        `Menghapus permanen karyawan tanpa riwayat transaksi dari database: ${empName} (${id})`
+      );
+
+      return {
+        deletedPermanently: true,
+        employeeId: id,
+        employeeName: empName,
+        message: `Data karyawan "${empName}" (${id}) berhasil dihapus permanen dari database.`,
+      };
+    });
   },
 
   // 3. Projects
@@ -800,6 +1070,25 @@ export const pgService = {
     const startDate = data.startDate || new Date().toISOString().split('T')[0];
     const status = data.status || 'active';
 
+    const settings = await this.getSettings();
+    let defaultDaily = settings.wageTukangDaily || 150000;
+    let defaultOvertime = settings.overtimeTukangHourly || 20000;
+    if (data.role === 'Mandor') {
+      defaultDaily = settings.wageMandorDaily || 200000;
+      defaultOvertime = settings.overtimeMandorHourly || 25000;
+    } else if (data.role === 'Helper' || data.role === 'Kenek') {
+      defaultDaily = settings.wageHelperDaily || settings.wageKenekDaily || 125000;
+      defaultOvertime = settings.overtimeHelperHourly || settings.overtimeKenekHourly || 15000;
+    } else if (data.role === 'Driver') {
+      defaultDaily = settings.wageDriverDaily || 140000;
+      defaultOvertime = 0;
+    }
+
+    const finalDailyWage = Number(data.dailyWage) > 0 ? Number(data.dailyWage) : defaultDaily;
+    const finalOvertimeWage = isDriverRole(data.role)
+      ? 0
+      : (Number(data.overtimeHourlyWage) > 0 ? Number(data.overtimeHourlyWage) : defaultOvertime);
+
     return withTransaction(async (client) => {
       // 1. Insert into employees master
       await client.query(
@@ -810,8 +1099,8 @@ export const pgService = {
           trimmedName,
           data.nik?.trim() || null,
           data.role,
-          Number(data.dailyWage),
-          Number(data.overtimeHourlyWage),
+          finalDailyWage,
+          finalOvertimeWage,
           startDate,
           status,
           data.phone?.trim() || '',
@@ -883,7 +1172,35 @@ export const pgService = {
     const empId = asg.employee_id;
 
     return withTransaction(async (client) => {
-      // 1. Update employee record
+      // 1. Update assignment status and role in project first
+      await client.query(
+        `UPDATE project_assignments SET
+          role_in_project = COALESCE($1, role_in_project),
+          status = COALESCE($2, status),
+          notes = COALESCE($3, notes)
+         WHERE id = $4`,
+        [data.role || asg.role_in_project, data.status || asg.status, data.notes !== undefined ? data.notes : asg.notes, assignmentId]
+      );
+
+      // Determine effective master employee status across all projects
+      let effectiveEmpStatus: string | null = data.status || null;
+      if (data.status === 'inactive') {
+        const otherActive = await client.query(
+          `SELECT COUNT(*)::int AS cnt FROM project_assignments WHERE employee_id = $1 AND status = 'active'`,
+          [empId]
+        );
+        effectiveEmpStatus = (otherActive.rows[0]?.cnt || 0) > 0 ? 'active' : 'inactive';
+      } else if (data.status === 'active') {
+        effectiveEmpStatus = 'active';
+      }
+
+      // 2. Update employee record
+      const targetRole = data.role || asg.role_in_project;
+      const isDriverTarget = isDriverRole(targetRole);
+      const effectiveOvertimeRate = isDriverTarget
+        ? 0
+        : (data.overtimeHourlyWage !== undefined && data.overtimeHourlyWage !== null ? Number(data.overtimeHourlyWage) : null);
+
       await client.query(
         `UPDATE employees SET
           name = COALESCE($1, name),
@@ -892,7 +1209,7 @@ export const pgService = {
           role = COALESCE($4, role),
           start_date = COALESCE($5, start_date),
           daily_wage = COALESCE($6, daily_wage),
-          overtime_hourly_wage = COALESCE($7, overtime_hourly_wage),
+          overtime_hourly_wage = CASE WHEN LOWER(COALESCE($4, role)) = 'driver' THEN 0 ELSE COALESCE($7, overtime_hourly_wage) END,
           status = COALESCE($8, status),
           notes = COALESCE($9, notes)
          WHERE id = $10`,
@@ -903,22 +1220,67 @@ export const pgService = {
           data.role,
           data.startDate,
           data.dailyWage !== undefined && data.dailyWage !== null ? Number(data.dailyWage) : null,
-          data.overtimeHourlyWage !== undefined && data.overtimeHourlyWage !== null ? Number(data.overtimeHourlyWage) : null,
-          data.status,
+          effectiveOvertimeRate,
+          effectiveEmpStatus,
           data.notes,
           empId,
         ]
       );
 
-      // 2. Update assignment status and role in project
-      await client.query(
-        `UPDATE project_assignments SET
-          role_in_project = COALESCE($1, role_in_project),
-          status = COALESCE($2, status),
-          notes = COALESCE($3, notes)
-         WHERE id = $4`,
-        [data.role || asg.role_in_project, data.status || asg.status, data.notes !== undefined ? data.notes : asg.notes, assignmentId]
-      );
+      if (isDriverTarget) {
+        await client.query(
+          `UPDATE attendance
+           SET employee_role = $1,
+               overtime_wage_snapshot = 0,
+               total_daily_pay = (
+                 CASE
+                   WHEN status = 'Hadir' THEN ROUND(daily_wage_snapshot)
+                   WHEN status = 'Setengah Hari' THEN ROUND(daily_wage_snapshot / 2.0)
+                   ELSE 0
+                 END
+               )
+           WHERE employee_id = $2`,
+          [targetRole, empId]
+        );
+        await client.query(
+          `UPDATE overtime_records
+           SET employee_role = $1,
+               hourly_rate_snapshot = 0,
+               total_pay = 0
+           WHERE employee_id = $2`,
+          [targetRole, empId]
+        );
+      } else {
+        // Repair any 0-rate overtime snapshots if overtimeHourlyWage > 0 was provided
+        const newOtRate = effectiveOvertimeRate ?? 0;
+        if (newOtRate > 0) {
+          await client.query(
+            `UPDATE attendance
+             SET overtime_wage_snapshot = $1,
+                 total_daily_pay = (
+                   CASE
+                     WHEN status = 'Hadir' THEN ROUND(daily_wage_snapshot)
+                     WHEN status = 'Setengah Hari' THEN ROUND(daily_wage_snapshot / 2.0)
+                     ELSE 0
+                   END
+                 ) + (
+                   CASE
+                     WHEN overtime_hours > 0 AND overtime_approved = true THEN ROUND((ROUND(overtime_hours * 60.0) * $1) / 60.0)
+                     ELSE 0
+                   END
+                 )
+             WHERE employee_id = $2 AND overtime_wage_snapshot = 0`,
+            [newOtRate, empId]
+          );
+          await client.query(
+            `UPDATE overtime_records
+             SET hourly_rate_snapshot = $1,
+                 total_pay = ROUND((ROUND(hours * 60.0) * $1) / 60.0)
+             WHERE employee_id = $2 AND hours > 0 AND (hourly_rate_snapshot = 0 OR total_pay = 0)`,
+            [newOtRate, empId]
+          );
+        }
+      }
 
       await insertAuditLog(
         userName,
@@ -990,6 +1352,9 @@ export const pgService = {
       );
     }
 
+    // Ensure master employee is marked active when assigned to a project
+    await query(`UPDATE employees SET status = 'active' WHERE id = $1`, [data.employeeId]);
+
     await insertAuditLog(
       userName,
       userRole as any,
@@ -1000,6 +1365,7 @@ export const pgService = {
 
     const full = await query(
       `SELECT pa.*, e.name as employee_name, e.role as employee_role, e.phone as employee_phone,
+              e.nik as employee_nik, e.start_date as employee_start_date, e.status as employee_status,
               e.daily_wage, e.overtime_hourly_wage
        FROM project_assignments pa
        JOIN employees e ON pa.employee_id = e.id
@@ -1024,9 +1390,23 @@ export const pgService = {
       [data.roleInProject, data.status, data.notes, id]
     );
     if (!res.rows.length) throw new Error('Penugasan proyek tidak ditemukan.');
+    const empId = res.rows[0].employee_id;
+
+    if (data.status === 'active') {
+      await query(`UPDATE employees SET status = 'active' WHERE id = $1`, [empId]);
+    } else if (data.status === 'inactive' || data.status === 'completed' || data.status === 'transferred') {
+      const otherActive = await query(
+        `SELECT COUNT(*)::int AS cnt FROM project_assignments WHERE employee_id = $1 AND status = 'active'`,
+        [empId]
+      );
+      if ((otherActive.rows[0]?.cnt || 0) === 0) {
+        await query(`UPDATE employees SET status = 'inactive' WHERE id = $1`, [empId]);
+      }
+    }
 
     const full = await query(
       `SELECT pa.*, e.name as employee_name, e.role as employee_role, e.phone as employee_phone,
+              e.nik as employee_nik, e.start_date as employee_start_date, e.status as employee_status,
               e.daily_wage, e.overtime_hourly_wage
        FROM project_assignments pa
        JOIN employees e ON pa.employee_id = e.id
@@ -1037,14 +1417,108 @@ export const pgService = {
     return mapProjectAssignment(full.rows[0]);
   },
 
-  async removeProjectAssignment(id: string, userName: string, userRole: string): Promise<void> {
-    const check = await query(
-      'SELECT pa.*, e.name as emp_name FROM project_assignments pa JOIN employees e ON pa.employee_id = e.id WHERE pa.id = $1',
-      [id]
-    );
-    if (!check.rows.length) throw new Error('Penugasan tidak ditemukan.');
-    await query('DELETE FROM project_assignments WHERE id = $1', [id]);
-    await insertAuditLog(userName, userRole as any, 'Hapus Penugasan', 'Proyek', `Menghapus penugasan karyawan ${check.rows[0].emp_name}`);
+  async removeProjectAssignment(
+    id: string,
+    userName: string,
+    userRole: string
+  ): Promise<{
+    deletedPermanently: boolean;
+    employeeId: string;
+    employeeName: string;
+    transactionCounts: { att_count: number; ot_count: number; kb_count: number; pay_count: number };
+    message: string;
+  }> {
+    await ensureAllSchemasOnce();
+    return withTransaction(async (client) => {
+      const check = await client.query(
+        'SELECT pa.*, e.name as emp_name FROM project_assignments pa JOIN employees e ON pa.employee_id = e.id WHERE pa.id = $1 FOR UPDATE',
+        [id]
+      );
+      if (!check.rows.length) throw new Error('Penugasan tidak ditemukan.');
+      const row = check.rows[0];
+      const empId = row.employee_id;
+      const empName = row.emp_name;
+
+      // 1. Remove assignment from this project
+      await client.query('DELETE FROM project_assignments WHERE id = $1', [id]);
+
+      // 2. Check if employee has ANY assignments in other projects
+      const otherAllRes = await client.query(
+        `SELECT
+          COUNT(*)::int AS total_cnt,
+          COUNT(*) FILTER (WHERE status = 'active')::int AS active_cnt
+         FROM project_assignments WHERE employee_id = $1`,
+        [empId]
+      );
+      const remainingTotalAssignments = Number(otherAllRes.rows[0]?.total_cnt || 0);
+      const remainingActiveCount = Number(otherAllRes.rows[0]?.active_cnt || 0);
+
+      // 3. Check if employee has ANY valid historical transactions across all financial/operational tables
+      const txRes = await client.query(
+        `SELECT
+          (SELECT COUNT(*)::int FROM attendance WHERE employee_id = $1) AS att_count,
+          (SELECT COUNT(*)::int FROM overtime_records WHERE employee_id = $1) AS ot_count,
+          (SELECT COUNT(*)::int FROM kasbon_records WHERE employee_id = $1) AS kb_count,
+          (SELECT COUNT(*)::int FROM kasbon_deductions WHERE employee_id = $1) AS kd_count,
+          (SELECT COUNT(*)::int FROM salary_payments WHERE employee_id = $1) AS pay_count`,
+        [empId]
+      );
+      const counts = txRes.rows[0] || { att_count: 0, ot_count: 0, kb_count: 0, kd_count: 0, pay_count: 0 };
+      const totalTx =
+        Number(counts.att_count || 0) +
+        Number(counts.ot_count || 0) +
+        Number(counts.kb_count || 0) +
+        Number(counts.kd_count || 0) +
+        Number(counts.pay_count || 0);
+
+      // Case A: Employee has 0 transactions AND 0 other project assignments -> PERMANENTLY delete from master employees table!
+      if (totalTx === 0 && remainingTotalAssignments === 0) {
+        await client.query('DELETE FROM employees WHERE id = $1', [empId]);
+        await insertAuditLog(
+          userName,
+          userRole as any,
+          'Hapus Permanen Karyawan Proyek',
+          'Karyawan',
+          `Menghapus permanen karyawan salah input / tanpa riwayat transaksi dari proyek & database: ${empName} (${empId})`
+        );
+        return {
+          deletedPermanently: true,
+          employeeId: empId,
+          employeeName: empName,
+          transactionCounts: counts,
+          message: `Data karyawan "${empName}" (${empId}) belum memiliki riwayat transaksi dan telah dihapus permanen dari proyek serta database.`,
+        };
+      }
+
+      // Case B: Employee has valid historical transactions (or is assigned to another project)
+      // Keep master employee record for historical integrity, set status = 'inactive' if no active assignments remain.
+      if (remainingActiveCount === 0) {
+        await client.query(`UPDATE employees SET status = 'inactive' WHERE id = $1`, [empId]);
+      }
+
+      await insertAuditLog(
+        userName,
+        userRole as any,
+        'Lepas Penugasan Proyek',
+        'Proyek',
+        `Melepas penugasan karyawan ${empName} (${empId}) dari proyek${
+          remainingActiveCount === 0
+            ? ` dan menonaktifkan status karyawan (riwayat ${counts.att_count} absensi, ${counts.kb_count} kasbon, ${counts.pay_count} gaji tetap terjaga)`
+            : ''
+        }`
+      );
+
+      return {
+        deletedPermanently: false,
+        employeeId: empId,
+        employeeName: empName,
+        transactionCounts: counts,
+        message:
+          remainingActiveCount === 0
+            ? `Karyawan "${empName}" (${empId}) dilepas dari proyek dan dinonaktifkan. Riwayat transaksi (${counts.att_count} absensi, ${counts.ot_count} lembur, ${counts.kb_count} kasbon, ${counts.pay_count} slip gaji) tetap tersimpan aman untuk laporan keuangan.`
+            : `Penugasan "${empName}" (${empId}) pada proyek ini telah dihapus (karyawan masih aktif di proyek lain).`,
+      };
+    });
   },
 
   // 3C. Project Expenses (Biaya Transportasi & Pengeluaran Operasional Proyek)
@@ -1086,7 +1560,8 @@ export const pgService = {
     const countRes = await query('SELECT COUNT(*) FROM project_expenses');
     const nextSeq = Number(countRes.rows[0]?.count || 0) + 1;
     const prefix = data.expenseType === 'transportasi' ? 'TRP' : 'PRJ-EXP';
-    const txNum = `${prefix}-${new Date().getFullYear()}-${String(nextSeq).padStart(4, '0')}`;
+    const randomSuffix = Math.random().toString(36).substr(2, 3).toUpperCase();
+    const txNum = `${prefix}-${new Date().getFullYear()}-${String(nextSeq).padStart(4, '0')}-${randomSuffix}`;
     const id = `PEXP-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
     const res = await query(
@@ -1284,7 +1759,10 @@ export const pgService = {
     const budget = Number(project.budget || 0);
 
     const assignRes = await query(
-      `SELECT employee_id FROM project_assignments WHERE project_id = $1 AND status = 'active'`,
+      `SELECT pa.employee_id
+       FROM project_assignments pa
+       JOIN employees e ON pa.employee_id = e.id
+       WHERE pa.project_id = $1 AND pa.status = 'active' AND e.status = 'active'`,
       [projectId]
     );
     const assignedEmpIds: string[] = assignRes.rows.map((r) => r.employee_id);
@@ -1306,26 +1784,32 @@ export const pgService = {
     }
 
     let overtimeCount = 0;
-    if (assignedEmpIds.length > 0) {
-      const otRes = await query(
-        `SELECT COUNT(DISTINCT employee_id) as emp_count
-         FROM overtime_records
-         WHERE (project_id = $1 OR employee_id = ANY($2)) AND status = 'Disetujui'`,
-        [projectId, assignedEmpIds]
-      );
-      overtimeCount = Number(otRes.rows[0]?.emp_count || 0);
-    }
+    const otRes = await query(
+      assignedEmpIds.length > 0
+        ? `SELECT COUNT(DISTINCT employee_id) as emp_count
+           FROM overtime_records
+           WHERE (project_id = $1 OR employee_id = ANY($2)) AND status = 'Disetujui'`
+        : `SELECT COUNT(DISTINCT employee_id) as emp_count
+           FROM overtime_records
+           WHERE project_id = $1 AND status = 'Disetujui'`,
+      assignedEmpIds.length > 0 ? [projectId, assignedEmpIds] : [projectId]
+    );
+    overtimeCount = Number(otRes.rows[0]?.emp_count || 0);
 
     let totalKasbon = 0;
-    if (assignedEmpIds.length > 0) {
-      const kbRes = await query(
-        `SELECT SUM(remaining_amount) as total_sisa
-         FROM kasbon_records
-         WHERE employee_id = ANY($1) AND (status = 'Disetujui' OR status = 'Dipotong sebagian')`,
-        [assignedEmpIds]
-      );
-      totalKasbon = Number(kbRes.rows[0]?.total_sisa || 0);
-    }
+    const kbRes = await query(
+      assignedEmpIds.length > 0
+        ? `SELECT SUM(remaining_amount) as total_sisa
+           FROM kasbon_records
+           WHERE (project_id = $1 OR (project_id IS NULL AND employee_id = ANY($2)))
+             AND (status = 'Disetujui' OR status = 'Dipotong sebagian')`
+        : `SELECT SUM(remaining_amount) as total_sisa
+           FROM kasbon_records
+           WHERE project_id = $1
+             AND (status = 'Disetujui' OR status = 'Dipotong sebagian')`,
+      assignedEmpIds.length > 0 ? [projectId, assignedEmpIds] : [projectId]
+    );
+    totalKasbon = Number(kbRes.rows[0]?.total_sisa || 0);
 
     const trRes = await query(
       `SELECT SUM(amount) as total FROM project_expenses WHERE project_id = $1 AND expense_type = 'transportasi'`,
@@ -1359,12 +1843,15 @@ export const pgService = {
 
   // 3E. Project Detailed Recap for Reports
   async getProjectRecap(projectId: string, startDate?: string, endDate?: string) {
+    await ensureAllSchemasOnce();
     const projRes = await query('SELECT * FROM projects WHERE id = $1', [projectId]);
     if (!projRes.rows.length) throw new Error('Proyek tidak ditemukan.');
     const project = mapProject(projRes.rows[0]);
 
     const assignments = await this.getProjectAssignments(projectId);
-    const assignedEmpIds = assignments.filter((a) => a.status === 'active').map((a) => a.employeeId);
+    const assignedEmpIds = assignments
+      .filter((a) => a.status === 'active' && a.employeeStatus !== 'inactive')
+      .map((a) => a.employeeId);
 
     let attSql = `SELECT * FROM attendance WHERE (project_id = $1`;
     const attParams: any[] = [projectId];
@@ -1411,14 +1898,13 @@ export const pgService = {
     const otRes = await query(otSql, otParams);
     const overtime = otRes.rows.map(mapOvertime);
 
-    let kasbon: KasbonRecord[] = [];
-    if (assignedEmpIds.length > 0) {
-      const kbRes = await query(
-        `SELECT * FROM kasbon_records WHERE employee_id = ANY($1) ORDER BY request_date DESC`,
-        [assignedEmpIds]
-      );
-      kasbon = kbRes.rows.map(mapKasbon);
-    }
+    const kbRes = await query(
+      assignedEmpIds.length > 0
+        ? `SELECT * FROM kasbon_records WHERE project_id = $1 OR employee_id = ANY($2) ORDER BY request_date DESC`
+        : `SELECT * FROM kasbon_records WHERE project_id = $1 ORDER BY request_date DESC`,
+      assignedEmpIds.length > 0 ? [projectId, assignedEmpIds] : [projectId]
+    );
+    const kasbon: KasbonRecord[] = kbRes.rows.map(mapKasbon);
 
     const expenses = await this.getProjectExpenses(projectId);
     const filteredExpenses = (startDate && endDate)
@@ -1435,7 +1921,9 @@ export const pgService = {
     const halfDaySalary = attendance.reduce((s, a) => (a.status === 'Setengah Hari' ? s + Math.round(a.dailyWageSnapshot / 2) : s), 0);
     const totalBasicSalary = fullDaySalary + halfDaySalary;
 
-    const totalOvertimePay = overtime.filter((o) => o.status === 'Disetujui').reduce((s, o) => s + o.totalPay, 0);
+    const approvedOts = overtime.filter((o) => o.status === 'Disetujui');
+    const totalOvertimeHours = Number(approvedOts.reduce((s, o) => s + o.hours, 0).toFixed(4));
+    const totalOvertimePay = approvedOts.reduce((s, o) => s + (isDriverRole(o.employeeRole) ? 0 : o.totalPay), 0);
     const totalTransport = transportExpenses.reduce((s, e) => s + e.amount, 0);
     const totalOp = operationalExpenses.reduce((s, e) => s + e.amount, 0);
     const totalProjectCost = totalBasicSalary + totalOvertimePay + totalTransport + totalOp;
@@ -1449,13 +1937,14 @@ export const pgService = {
       transportExpenses,
       operationalExpenses,
       summary: {
-        totalEmployees: assignments.filter((a) => a.status === 'active').length,
+        totalEmployees: assignments.filter((a) => a.status === 'active' && a.employeeStatus !== 'inactive').length,
         fullWorkDays,
         halfWorkDays,
         totalWorkDays,
         fullDaySalary,
         halfDaySalary,
         totalBasicSalary,
+        totalOvertimeHours,
         totalOvertimePay,
         totalTransport,
         totalOp,
@@ -1781,6 +2270,12 @@ export const pgService = {
       return this.updateAttendance(existingRes.rows[0].id, data, userName, userRole, kasbonAttachments);
     }
 
+    if (emp.status === 'inactive') {
+      throw new Error(
+        `Karyawan "${emp.name}" (${emp.id}) berstatus Nonaktif atau sudah dilepas dari proyek sehingga tidak dapat dicatat absensi baru.`
+      );
+    }
+
     const id = `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     const status = data.status || 'Hadir';
     const isWorkingStatus = status === 'Hadir' || status === 'Setengah Hari';
@@ -1789,8 +2284,10 @@ export const pgService = {
     const overtimeHours = isWorkingStatus ? resolveOvertimeDecimalHours(data) : 0;
     const isApprovedOt = userRole === 'admin' && overtimeHours > 0;
 
+    const isDriver = isDriverRole(emp.role);
+    const effectiveOtWage = isDriver ? 0 : emp.overtimeHourlyWage;
     const basicPay = calcBasicPayByStatus(status, emp.dailyWage);
-    const overtimePay = isApprovedOt ? calcOvertimePayExact(overtimeHours, emp.overtimeHourlyWage) : 0;
+    const overtimePay = isApprovedOt && !isDriver ? calcOvertimePayExact(overtimeHours, effectiveOtWage, undefined, undefined, emp.role) : 0;
     const totalDailyPay = basicPay + overtimePay;
 
     const res = await query(
@@ -1804,14 +2301,14 @@ export const pgService = {
       [
         id, data.date, emp.id, emp.name, emp.role, data.projectId || null, data.projectName || null,
         status, checkIn, checkOut, overtimeHours, isApprovedOt,
-        emp.dailyWage, emp.overtimeHourlyWage, totalDailyPay,
+        emp.dailyWage, effectiveOtWage, totalDailyPay,
         data.notes || '', userName,
       ]
     );
 
     // Sync with overtime_records if overtimeHours > 0 (without duplicating)
     if (overtimeHours > 0) {
-      const totalOtPay = calcOvertimePayExact(overtimeHours, emp.overtimeHourlyWage);
+      const totalOtPay = isDriver ? 0 : calcOvertimePayExact(overtimeHours, effectiveOtWage, undefined, undefined, emp.role);
       const existingOt = await query(
         'SELECT id FROM overtime_records WHERE attendance_id = $1 OR (employee_id = $2 AND date = $3) LIMIT 1',
         [id, emp.id, data.date]
@@ -1823,7 +2320,7 @@ export const pgService = {
             status = $5, approved_by = $6, approved_at = NOW(), notes = COALESCE($7, notes)
            WHERE id = $8`,
           [
-            id, overtimeHours, emp.overtimeHourlyWage, totalOtPay,
+            id, overtimeHours, effectiveOtWage, totalOtPay,
             isApprovedOt ? 'Disetujui' : 'Menunggu persetujuan',
             isApprovedOt ? userName : null,
             data.notes || null,
@@ -1841,7 +2338,7 @@ export const pgService = {
           [
             otId, id, data.date, emp.id, emp.name, emp.role,
             data.projectId || null, data.projectName || null, checkOut !== '-' ? checkOut : '16:00', '',
-            overtimeHours, emp.overtimeHourlyWage, totalOtPay,
+            overtimeHours, effectiveOtWage, totalOtPay,
             isApprovedOt ? 'Disetujui' : 'Menunggu persetujuan',
             isApprovedOt ? userName : null,
             data.notes || 'Lembur dari absensi harian',
@@ -1882,6 +2379,10 @@ export const pgService = {
         const empRes = await client.query('SELECT * FROM employees WHERE id = $1', [entry.employeeId]);
         if (!empRes.rows.length) continue;
         const emp = mapEmployee(empRes.rows[0]);
+        if (emp.status === 'inactive') {
+          skipped.push(emp.name);
+          continue;
+        }
 
         const id = `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
         const status = entry.status || 'Hadir';
@@ -1891,8 +2392,10 @@ export const pgService = {
         const otHours = isWorkingStatus ? resolveOvertimeDecimalHours(entry) : 0;
         const isApprovedOt = userRole === 'admin' && otHours > 0;
 
+        const isDriver = isDriverRole(emp.role);
+        const effectiveOtWage = isDriver ? 0 : emp.overtimeHourlyWage;
         const basicPay = calcBasicPayByStatus(status, emp.dailyWage);
-        const overtimePay = isApprovedOt ? calcOvertimePayExact(otHours, emp.overtimeHourlyWage) : 0;
+        const overtimePay = isApprovedOt && !isDriver ? calcOvertimePayExact(otHours, effectiveOtWage, undefined, undefined, emp.role) : 0;
         const totalPay = basicPay + overtimePay;
 
         const res = await client.query(
@@ -1905,13 +2408,13 @@ export const pgService = {
           [
             id, date, emp.id, emp.name, emp.role, entry.projectId || null, entry.projectName || null,
             status, checkIn, checkOut, otHours, isApprovedOt,
-            emp.dailyWage, emp.overtimeHourlyWage, totalPay, entry.notes || '', userName,
+            emp.dailyWage, effectiveOtWage, totalPay, entry.notes || '', userName,
           ]
         );
         created.push(mapAttendance(res.rows[0]));
 
         if (otHours > 0) {
-          const totalOtPay = calcOvertimePayExact(otHours, emp.overtimeHourlyWage);
+          const totalOtPay = isDriver ? 0 : calcOvertimePayExact(otHours, effectiveOtWage, undefined, undefined, emp.role);
           const otId = `OVT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
           await client.query(
             `INSERT INTO overtime_records (
@@ -1922,7 +2425,7 @@ export const pgService = {
             [
               otId, id, date, emp.id, emp.name, emp.role,
               entry.projectId || null, entry.projectName || null, checkOut !== '-' ? checkOut : '16:00', '',
-              otHours, emp.overtimeHourlyWage, totalOtPay,
+              otHours, effectiveOtWage, totalOtPay,
               isApprovedOt ? 'Disetujui' : 'Menunggu persetujuan',
               isApprovedOt ? userName : null,
               entry.notes || 'Lembur dari absensi massal',
@@ -1995,8 +2498,10 @@ export const pgService = {
       : 0;
     const isApprovedOt = newOtHours > 0 ? (userRole === 'admin' || prev.overtimeApproved) : false;
 
+    const isDriver = isDriverRole(empRole);
+    const effectiveOtSnapshot = isDriver ? 0 : overtimeSnapshot;
     const basicPay = calcBasicPayByStatus(newStatus, dailySnapshot);
-    const overtimePay = isApprovedOt ? calcOvertimePayExact(newOtHours, overtimeSnapshot) : 0;
+    const overtimePay = isApprovedOt && !isDriver ? calcOvertimePayExact(newOtHours, effectiveOtSnapshot, undefined, undefined, empRole) : 0;
     const totalDailyPay = basicPay + overtimePay;
 
     const res = await query(
@@ -2009,7 +2514,7 @@ export const pgService = {
        WHERE id = $15 RETURNING *`,
       [
         newDate, empId, empName, empRole,
-        dailySnapshot, overtimeSnapshot,
+        dailySnapshot, effectiveOtSnapshot,
         newStatus, newCheckIn, newCheckOut, newOtHours,
         isApprovedOt, totalDailyPay, data.notes !== undefined ? data.notes : prev.notes,
         userName, id,
@@ -2022,7 +2527,7 @@ export const pgService = {
       [id, prev.employeeId, prev.date]
     );
     if (newOtHours > 0) {
-      const totalOtPay = calcOvertimePayExact(newOtHours, overtimeSnapshot);
+      const totalOtPay = isDriver ? 0 : calcOvertimePayExact(newOtHours, effectiveOtSnapshot, undefined, undefined, empRole);
       if (existingOt.rows.length > 0) {
         await query(
           `UPDATE overtime_records SET
@@ -2033,7 +2538,7 @@ export const pgService = {
            WHERE id = $12`,
           [
             id, newDate, empId, empName, empRole,
-            overtimeSnapshot, newOtHours, totalOtPay,
+            effectiveOtSnapshot, newOtHours, totalOtPay,
             isApprovedOt ? 'Disetujui' : existingOt.rows[0].status,
             isApprovedOt ? userName : null,
             data.notes !== undefined ? data.notes : null,
@@ -2051,7 +2556,7 @@ export const pgService = {
           [
             otId, id, newDate, empId, empName, empRole,
             prev.projectId || null, prev.projectName || null, newCheckOut !== '-' ? newCheckOut : '16:00', '',
-            newOtHours, overtimeSnapshot, totalOtPay,
+            newOtHours, effectiveOtSnapshot, totalOtPay,
             isApprovedOt ? 'Disetujui' : 'Menunggu persetujuan',
             isApprovedOt ? userName : null,
             data.notes || prev.notes || 'Lembur dari koreksi absensi',
@@ -2185,14 +2690,20 @@ export const pgService = {
     const empRes = await query('SELECT * FROM employees WHERE id = $1', [data.employeeId]);
     if (!empRes.rows.length) throw new Error('Karyawan tidak ditemukan.');
     const emp = mapEmployee(empRes.rows[0]);
+    if (emp.status === 'inactive') {
+      throw new Error(
+        `Karyawan "${emp.name}" (${emp.id}) berstatus Nonaktif atau sudah dilepas dari proyek sehingga tidak dapat dicatat lembur baru.`
+      );
+    }
 
     const id = `OVT-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     const hours = resolveOvertimeDecimalHours(data);
     if (hours <= 0) {
       throw new Error('Durasi lembur (jam/menit) harus lebih besar dari 0.');
     }
-    const hourlyRate = emp.overtimeHourlyWage;
-    const totalPay = calcOvertimePayExact(hours, hourlyRate);
+    const isDriver = isDriverRole(emp.role);
+    const hourlyRate = isDriver ? 0 : emp.overtimeHourlyWage;
+    const totalPay = isDriver ? 0 : calcOvertimePayExact(hours, hourlyRate, undefined, undefined, emp.role);
     const isApproved = data.status ? data.status === 'Disetujui' : userRole === 'admin';
     const finalStatus = data.status || (isApproved ? 'Disetujui' : 'Menunggu persetujuan');
 
@@ -2245,10 +2756,10 @@ export const pgService = {
     if (attRes.rows.length > 0) {
       const att = mapAttendance(attRes.rows[0]);
       const basicPay = calcBasicPayByStatus(att.status, att.dailyWageSnapshot);
-      const newTotalDailyPay = basicPay + (finalStatus === 'Disetujui' ? totalPay : 0);
+      const newTotalDailyPay = basicPay + (finalStatus === 'Disetujui' && !isDriver ? totalPay : 0);
       await query(
-        `UPDATE attendance SET overtime_hours = $1, overtime_approved = $2, total_daily_pay = $3 WHERE id = $4`,
-        [hours, finalStatus === 'Disetujui', newTotalDailyPay, att.id]
+        `UPDATE attendance SET overtime_hours = $1, overtime_approved = $2, overtime_wage_snapshot = CASE WHEN $5 THEN 0 ELSE overtime_wage_snapshot END, total_daily_pay = $3 WHERE id = $4`,
+        [hours, finalStatus === 'Disetujui', newTotalDailyPay, att.id, isDriver]
       );
     }
 
@@ -2276,12 +2787,14 @@ export const pgService = {
     const ovtRes = await query('SELECT * FROM overtime_records WHERE id = $1', [id]);
     if (!ovtRes.rows.length) throw new Error('Catatan lembur tidak ditemukan.');
     const current = mapOvertime(ovtRes.rows[0]);
+    const isDriver = isDriverRole(current.employeeRole);
 
     const hasNewDuration = hours !== undefined || durationHours !== undefined || durationMinutes !== undefined;
     const finalHours = hasNewDuration
       ? resolveOvertimeDecimalHours({ hours, durationHours, durationMinutes })
       : current.hours;
-    const totalPay = calcOvertimePayExact(finalHours, current.hourlyRateSnapshot);
+    const effectiveRate = isDriver ? 0 : current.hourlyRateSnapshot;
+    const totalPay = isDriver ? 0 : calcOvertimePayExact(finalHours, effectiveRate, undefined, undefined, current.employeeRole);
     const finalStatus = status || current.status;
     const trail = [
       ...current.auditTrail,
@@ -2294,10 +2807,10 @@ export const pgService = {
 
     const res = await query(
       `UPDATE overtime_records SET
-        status = $1, hours = $2, total_pay = $3, notes = COALESCE($4, notes),
-        approved_by = $5, approved_at = NOW(), audit_trail = $6
-       WHERE id = $7 RETURNING *`,
-      [finalStatus, finalHours, totalPay, notes, userName || 'Admin', JSON.stringify(trail), id]
+        status = $1, hours = $2, hourly_rate_snapshot = $3, total_pay = $4, notes = COALESCE($5, notes),
+        approved_by = $6, approved_at = NOW(), audit_trail = $7
+       WHERE id = $8 RETURNING *`,
+      [finalStatus, finalHours, effectiveRate, totalPay, notes, userName || 'Admin', JSON.stringify(trail), id]
     );
 
     // Sync linked attendance record if exists
@@ -2385,10 +2898,15 @@ export const pgService = {
     const emp = mapEmployee(empRes.rows[0]);
 
     const settings = await this.getSettings();
-    const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
     const datePrefix = (data.requestDate || new Date().toISOString()).slice(0, 7).replace('-', '');
-    const kasbonNumber = `KB-${datePrefix}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
-    const id = `KB-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    let kasbonNumber = '';
+    while (true) {
+      const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
+      kasbonNumber = `KB-${datePrefix}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
+      const dupCheck = await query('SELECT id FROM kasbon_records WHERE kasbon_number = $1 LIMIT 1', [kasbonNumber]);
+      if (!dupCheck.rows.length) break;
+    }
+    const id = `KB-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
     const reqDate = new Date(data.requestDate || new Date());
     const empStartDate = new Date(emp.startDate);
@@ -2720,6 +3238,7 @@ export const pgService = {
       );
       const computedBasicSalary = computedFullDaySalary + computedHalfDaySalary;
 
+      const isDriver = isDriverRole(emp.role);
       const ovtRes = await client.query(
         `SELECT hours, total_pay FROM overtime_records
          WHERE employee_id = $1 AND date >= $2 AND date <= $3 AND status = 'Disetujui'`,
@@ -2728,7 +3247,9 @@ export const pgService = {
       const computedOtHours = Number(
         ovtRes.rows.reduce((sum: number, r: any) => sum + Number(r.hours || 0), 0).toFixed(4)
       );
-      const computedOtPay = ovtRes.rows.reduce((sum: number, r: any) => sum + Math.round(Number(r.total_pay || 0)), 0);
+      const computedOtPay = isDriver
+        ? 0
+        : ovtRes.rows.reduce((sum: number, r: any) => sum + Math.round(Number(r.total_pay || 0)), 0);
 
       const fullWorkDays = data.fullWorkDays !== undefined ? Number(data.fullWorkDays) : computedFullDays;
       const halfWorkDays = data.halfWorkDays !== undefined ? Number(data.halfWorkDays) : computedHalfDays;
@@ -2743,9 +3264,11 @@ export const pgService = {
       const approvedOvertimeHours = !isNaN(Number(data.approvedOvertimeHours)) && Number(data.approvedOvertimeHours) > 0
         ? Number(data.approvedOvertimeHours)
         : computedOtHours;
-      const totalOvertimePay = !isNaN(Number(data.totalOvertimePay ?? data.overtimePay)) && Number(data.totalOvertimePay ?? data.overtimePay) > 0
-        ? Number(data.totalOvertimePay ?? data.overtimePay)
-        : computedOtPay;
+      const totalOvertimePay = isDriver
+        ? 0
+        : (!isNaN(Number(data.totalOvertimePay ?? data.overtimePay)) && Number(data.totalOvertimePay ?? data.overtimePay) > 0
+          ? Number(data.totalOvertimePay ?? data.overtimePay)
+          : computedOtPay);
       const numGross = totalBasicSalary + totalOvertimePay;
 
       let numKasbonDeduction = Number(data.kasbonDeduction);

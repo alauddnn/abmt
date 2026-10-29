@@ -166,9 +166,10 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
       });
     } else {
       setEditingAtt(null);
+      const firstActiveEmp = employees.find((e) => e.status === 'active');
       setSingleForm({
         date: selectedDate || getTodayDateString(),
-        employeeId: employees[0]?.id || '',
+        employeeId: firstActiveEmp?.id || '',
         status: 'Hadir',
         checkIn: settings?.workHourStart || '08:00',
         checkOut: settings?.workHourEnd || '16:00',
@@ -795,11 +796,13 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
                     onChange={(e) => setSingleForm({ ...singleForm, employeeId: e.target.value })}
                     className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                   >
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.name} ({emp.role})
-                      </option>
-                    ))}
+                    {employees
+                      .filter((emp) => emp.status === 'active' || (editingAtt && emp.id === editingAtt.employeeId))
+                      .map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name} ({emp.role})
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>

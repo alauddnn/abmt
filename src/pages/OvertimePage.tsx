@@ -459,11 +459,13 @@ export const OvertimePage: React.FC<OvertimePageProps> = ({ showToast, onDataCha
                     className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                   >
                     <option value="">-- Pilih Karyawan --</option>
-                    {employees.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name} ({e.role})
-                      </option>
-                    ))}
+                    {employees
+                      .filter((e) => e.status === 'active')
+                      .map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.name} ({e.role})
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>

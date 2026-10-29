@@ -44,7 +44,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
     wageHelperDaily: 125000,
     overtimeHelperHourly: 15000,
     wageDriverDaily: 140000,
-    overtimeDriverHourly: 18000,
+    overtimeDriverHourly: 0,
     wageKenekDaily: 125000,
     overtimeKenekHourly: 15000,
     minTenureDaysForKasbon: 7,
@@ -71,7 +71,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
         wageHelperDaily: settings.wageHelperDaily || settings.wageKenekDaily || 125000,
         overtimeHelperHourly: settings.overtimeHelperHourly || settings.overtimeKenekHourly || 15000,
         wageDriverDaily: settings.wageDriverDaily || 140000,
-        overtimeDriverHourly: settings.overtimeDriverHourly || 18000,
+        overtimeDriverHourly: 0,
         wageKenekDaily: settings.wageHelperDaily || settings.wageKenekDaily || 125000,
         overtimeKenekHourly: settings.overtimeHelperHourly || settings.overtimeKenekHourly || 15000,
         minTenureDaysForKasbon: settings.minTenureDaysForKasbon,
@@ -90,6 +90,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
     try {
       const payload = {
         ...form,
+        overtimeDriverHourly: 0,
         wageKenekDaily: form.wageHelperDaily,
         overtimeKenekHourly: form.overtimeHelperHourly,
         syncActiveEmployees,
@@ -120,7 +121,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
       wageHelperDaily: 125000,
       overtimeHelperHourly: 15000,
       wageDriverDaily: 140000,
-      overtimeDriverHourly: 18000,
+      overtimeDriverHourly: 0,
       wageKenekDaily: 125000,
       overtimeKenekHourly: 15000,
       minTenureDaysForKasbon: 7,
@@ -444,12 +445,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
                   <label className="block text-[#344054] text-xs mb-1">Tarif Lembur / Jam (IDR)</label>
                   <input
                     type="number"
-                    step={1000}
-                    disabled={!isAdmin}
-                    value={form.overtimeDriverHourly}
-                    onChange={(e) => setForm({ ...form, overtimeDriverHourly: Number(e.target.value) })}
-                    className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg font-mono font-medium text-xs text-[#262626] focus:outline-none focus:border-[#0E9384]"
+                    disabled={true}
+                    value={0}
+                    readOnly
+                    className="w-full px-3 py-1.5 bg-[#F2F4F7] border border-[#D0D5DD] rounded-lg font-mono font-medium text-xs text-[#667085] cursor-not-allowed"
                   />
+                  <p className="text-[10px] text-[#0E9384] mt-1 font-medium">
+                    Ketentuan perusahaan: Driver tidak mendapat upah lembur (Rp0).
+                  </p>
                 </div>
               </div>
             </div>

@@ -19,7 +19,7 @@ import {
 } from './db.js';
 
 import { isPostgresConfigured, query as pgQuery } from './postgres.js';
-import { pgService, calcBasicPayByStatus, resolveOvertimeDecimalHours, calcOvertimePayExact } from './pgService.js';
+import { pgService, calcBasicPayByStatus, resolveOvertimeDecimalHours, calcOvertimePayExact, isDriverRole } from './pgService.js';
 import { verifyTurnstileToken, consumeTurnstileTicket } from './turnstile.js';
 import {
   uploadToStorage,
@@ -950,8 +950,8 @@ router.delete('/projects/:id/assignments/:assignmentId', async (req: Request, re
 
   if (isPostgresConfigured) {
     try {
-      await pgService.removeProjectAssignment(assignmentId, user.name, user.role);
-      return res.json({ message: 'Penugasan karyawan berhasil dihapus' });
+      const result = await pgService.removeProjectAssignment(assignmentId, user.name, user.role);
+      return res.json(result);
     } catch (err: any) {
       return res.status(500).json({ error: 'Gagal menghapus penugasan: ' + err.message });
     }
@@ -987,7 +987,7 @@ router.post('/projects/:id/employees', async (req: Request, res: Response) => {
           role,
           startDate: startDate || new Date().toISOString().split('T')[0],
           dailyWage: Number(dailyWage || 0),
-          overtimeHourlyWage: Number(overtimeHourlyWage || 0),
+          overtimeHourlyWage: isDriverRole(role) ? 0 : Number(overtimeHourlyWage || 0),
           status: status || 'active',
           notes: notes?.trim(),
         },
@@ -1024,7 +1024,7 @@ router.put('/projects/:id/employees/:assignmentId', async (req: Request, res: Re
           role,
           startDate,
           dailyWage: dailyWage !== undefined ? Number(dailyWage) : undefined,
-          overtimeHourlyWage: overtimeHourlyWage !== undefined ? Number(overtimeHourlyWage) : undefined,
+          overtimeHourlyWage: isDriverRole(role) ? 0 : (overtimeHourlyWage !== undefined ? Number(overtimeHourlyWage) : undefined),
           status,
           notes,
         },
@@ -1049,8 +1049,8 @@ router.delete('/projects/:id/employees/:assignmentId', async (req: Request, res:
   const { assignmentId } = req.params;
   if (isPostgresConfigured) {
     try {
-      await pgService.removeProjectAssignment(assignmentId, user.name, user.role);
-      return res.json({ message: 'Karyawan berhasil dilepas dari proyek' });
+      const result = await pgService.removeProjectAssignment(assignmentId, user.name, user.role);
+      return res.json(result);
     } catch (err: any) {
       return res.status(500).json({ error: 'Gagal melepas karyawan dari proyek: ' + err.message });
     }
@@ -1660,15 +1660,17 @@ router.post('/employees', async (req: Request, res: Response) => {
     defaultOt = db.settings.overtimeHelperHourly || db.settings.overtimeKenekHourly || 15000;
   } else if (role === 'Driver') {
     defaultDaily = db.settings.wageDriverDaily || 140000;
-    defaultOt = db.settings.overtimeDriverHourly || 18000;
+    defaultOt = 0;
   }
 
   const finalDailyWage = dailyWage !== undefined && dailyWage !== null && dailyWage !== ''
     ? Number(dailyWage)
     : defaultDaily;
-  const finalOtWage = overtimeHourlyWage !== undefined && overtimeHourlyWage !== null && overtimeHourlyWage !== ''
-    ? Number(overtimeHourlyWage)
-    : defaultOt;
+  const finalOtWage = isDriverRole(role)
+    ? 0
+    : (overtimeHourlyWage !== undefined && overtimeHourlyWage !== null && overtimeHourlyWage !== ''
+      ? Number(overtimeHourlyWage)
+      : defaultOt);
 
   const newEmp: Employee = {
     id,
@@ -1750,7 +1752,9 @@ router.put('/employees/:id', async (req: Request, res: Response) => {
         name: name !== undefined ? name.trim() : database.employees[idx].name,
         role: role !== undefined ? role : database.employees[idx].role,
         dailyWage: dailyWage !== undefined ? Number(dailyWage) : database.employees[idx].dailyWage,
-        overtimeHourlyWage: overtimeHourlyWage !== undefined ? Number(overtimeHourlyWage) : database.employees[idx].overtimeHourlyWage,
+        overtimeHourlyWage: isDriverRole(role !== undefined ? role : database.employees[idx].role)
+          ? 0
+          : (overtimeHourlyWage !== undefined ? Number(overtimeHourlyWage) : database.employees[idx].overtimeHourlyWage),
         startDate: startDate !== undefined ? startDate : database.employees[idx].startDate,
         status: status !== undefined ? status : database.employees[idx].status,
         phone: phone !== undefined ? phone : database.employees[idx].phone,
@@ -1785,10 +1789,14 @@ router.delete('/employees/:id', async (req: Request, res: Response) => {
 
   if (isPostgresConfigured) {
     try {
-      await pgService.deleteEmployee(req.params.id, user.name, user.role);
-      return res.json({ message: 'Karyawan berhasil dihapus' });
+      const result = await pgService.deleteEmployee(req.params.id, user.name, user.role);
+      return res.json(result);
     } catch (err: any) {
-      return res.status(500).json({ error: 'Gagal menghapus karyawan di PostgreSQL: ' + err.message });
+      const code = err.statusCode || 500;
+      return res.status(code).json({
+        error: err.message || 'Gagal menghapus karyawan di PostgreSQL',
+        transactionCounts: err.transactionCounts,
+      });
     }
   }
 
@@ -2789,7 +2797,20 @@ router.get('/payroll/preview', async (req: Request, res: Response) => {
   const pEnd = String(periodEnd);
 
   const db = await getEffectiveDb();
-  let employeesToProcess = db.employees.filter((e) => e.status === 'active');
+  // Include employees who are currently active OR who have transactions (attendance, approved overtime, salary payment, or active kasbon) in the period
+  let employeesToProcess = db.employees.filter((e) => {
+    if (e.status === 'active') return true;
+    const hasAttInPeriod = db.attendance.some(
+      (a) => a.employeeId === e.id && a.date >= pStart && a.date <= pEnd
+    );
+    const hasOtInPeriod = db.overtime.some(
+      (o) => o.employeeId === e.id && o.date >= pStart && o.date <= pEnd && o.status === 'Disetujui'
+    );
+    const hasPaymentInPeriod = db.salaryPayments.some(
+      (p) => p.employeeId === e.id && p.periodStart === pStart && p.periodEnd === pEnd && p.status !== 'Dibatalkan'
+    );
+    return hasAttInPeriod || hasOtInPeriod || hasPaymentInPeriod;
+  });
   if (employeeId) {
     employeesToProcess = employeesToProcess.filter((e) => e.id === employeeId);
   }
@@ -2819,12 +2840,13 @@ router.get('/payroll/preview', async (req: Request, res: Response) => {
     }, 0);
     const totalBasicSalary = fullDaySalary + halfDaySalary;
 
-    // 2. Get approved overtime in range
+    // 2. Get approved overtime in range (Ketentuan perusahaan: Driver tidak mendapatkan upah lembur -> Rp0)
+    const isDriver = isDriverRole(emp.role);
     const ots = db.overtime.filter(
       (o) => o.employeeId === emp.id && o.date >= pStart && o.date <= pEnd && o.status === 'Disetujui'
     );
     const approvedOvertimeHours = Number(ots.reduce((sum, o) => sum + o.hours, 0).toFixed(4));
-    const totalOvertimePay = ots.reduce((sum, o) => sum + o.totalPay, 0);
+    const totalOvertimePay = isDriver ? 0 : ots.reduce((sum, o) => sum + o.totalPay, 0);
 
     const grossSalary = totalBasicSalary + totalOvertimePay;
 
@@ -2857,8 +2879,9 @@ router.get('/payroll/preview', async (req: Request, res: Response) => {
       employeeName: emp.name,
       role: emp.role,
       employeeRole: emp.role,
+      employeeStatus: emp.status,
       dailyWage: emp.dailyWage,
-      overtimeRate: emp.overtimeHourlyWage,
+      overtimeRate: isDriver ? 0 : emp.overtimeHourlyWage,
       periodStart: pStart,
       periodEnd: pEnd,
       workDays: paidWorkDays,
@@ -2978,6 +3001,8 @@ router.post('/payroll/process', async (req: Request, res: Response) => {
     let numOtPay = Number(totalOvertimePay ?? req.body.overtimePay);
     let numGross = Number(grossSalary);
 
+    const isDriver = isDriverRole(emp.role);
+
     if (isNaN(numGross) || numGross <= 0 || isNaN(numBasic)) {
       numWorkDays = Number((calcFullDays + calcHalfDays * 0.5).toFixed(2));
       numBasic = calcFullSalary + calcHalfSalary;
@@ -2986,8 +3011,13 @@ router.post('/payroll/process', async (req: Request, res: Response) => {
         (o) => o.employeeId === employeeId && o.date >= periodStart && o.date <= periodEnd && o.status === 'Disetujui'
       );
       numOtHours = Number(ots.reduce((sum, o) => sum + o.hours, 0).toFixed(4));
-      numOtPay = ots.reduce((sum, o) => sum + o.totalPay, 0);
+      numOtPay = isDriver ? 0 : ots.reduce((sum, o) => sum + o.totalPay, 0);
       numGross = numBasic + numOtPay;
+    }
+
+    if (isDriver) {
+      numOtPay = 0;
+      numGross = numBasic;
     }
 
     if (isNaN(numWorkDays)) numWorkDays = 0;
@@ -3775,11 +3805,11 @@ router.get('/dashboard/stats', async (req: Request, res: Response) => {
     return sum + calcBasicPayByStatus(a.status, a.dailyWageSnapshot);
   }, 0);
 
-  // 2. Total Upah Lembur (Disetujui) in period
+  // 2. Total Upah Lembur (Disetujui) in period (Ketentuan perusahaan: Driver lembur = Rp0)
   const overtimeInPeriod = db.overtime.filter(
     (o) => o.date >= rangeStart && o.date <= rangeEnd && o.status === 'Disetujui'
   );
-  const totalUpahLembur = overtimeInPeriod.reduce((sum, o) => sum + o.totalPay, 0);
+  const totalUpahLembur = overtimeInPeriod.reduce((sum, o) => sum + (isDriverRole(o.employeeRole) ? 0 : o.totalPay), 0);
 
   // 3. Total Kasbon yang Belum Dipotong (Seluruh sisa kasbon disetujui / aktif)
   // Piutang kasbon aktif perusahaan
@@ -3866,8 +3896,9 @@ router.get('/dashboard/stats', async (req: Request, res: Response) => {
     if (!dailyMap[o.date]) {
       dailyMap[o.date] = { date: o.date, gaji: 0, lembur: 0, owner: 0, asisten: 0, total: 0 };
     }
-    dailyMap[o.date].lembur += o.totalPay;
-    dailyMap[o.date].total += o.totalPay;
+    const effectiveOtPay = isDriverRole(o.employeeRole) ? 0 : o.totalPay;
+    dailyMap[o.date].lembur += effectiveOtPay;
+    dailyMap[o.date].total += effectiveOtPay;
   });
 
   expensesInPeriod.forEach((e) => {
@@ -3960,7 +3991,8 @@ router.get('/reports', async (req: Request, res: Response) => {
     const basic = fullSalary + halfSalary;
     const empOts = ots.filter((o) => o.employeeId === emp.id);
     const otHours = Number(empOts.reduce((s, o) => s + o.hours, 0).toFixed(4));
-    const otPay = empOts.reduce((s, o) => s + o.totalPay, 0);
+    const isDriver = isDriverRole(emp.role);
+    const otPay = isDriver ? 0 : empOts.reduce((s, o) => s + (isDriverRole(o.employeeRole) ? 0 : o.totalPay), 0);
     return {
       id: emp.id,
       name: emp.name,
@@ -3977,12 +4009,20 @@ router.get('/reports', async (req: Request, res: Response) => {
     };
   };
 
+  const shouldIncludeEmployeeInReport = (emp: Employee, atts: Attendance[], ots: OvertimeRecord[]) => {
+    if (emp.status === 'active') return true;
+    const hasAtt = atts.some((a) => a.employeeId === emp.id);
+    const hasOt = ots.some((o) => o.employeeId === emp.id);
+    return hasAtt || hasOt;
+  };
+
   switch (type) {
     case 'rekap_gaji_semua': {
       // A. Rekap Gaji Seluruh Karyawan
       const atts = db.attendance.filter((a) => a.date >= rStart && a.date <= rEnd);
       const ots = db.overtime.filter((o) => o.date >= rStart && o.date <= rEnd && o.status === 'Disetujui');
-      const byEmp = db.employees.map((emp) => mapEmpReport(emp, atts, ots));
+      const eligibleEmps = db.employees.filter((emp) => shouldIncludeEmployeeInReport(emp, atts, ots));
+      const byEmp = eligibleEmps.map((emp) => mapEmpReport(emp, atts, ots));
       return res.json({ title: 'Rekap Gaji Seluruh Karyawan', data: byEmp });
     }
 
@@ -3992,7 +4032,9 @@ router.get('/reports', async (req: Request, res: Response) => {
       const ots = db.overtime.filter(
         (o) => o.date >= rStart && o.date <= rEnd && o.employeeRole === 'Tukang' && o.status === 'Disetujui'
       );
-      const tukangs = db.employees.filter((e) => e.role === 'Tukang');
+      const tukangs = db.employees.filter(
+        (e) => e.role === 'Tukang' && shouldIncludeEmployeeInReport(e, atts, ots)
+      );
       const byEmp = tukangs.map((emp) => mapEmpReport(emp, atts, ots));
       return res.json({ title: 'Rekap Gaji Tukang', data: byEmp });
     }
@@ -4003,7 +4045,9 @@ router.get('/reports', async (req: Request, res: Response) => {
       const ots = db.overtime.filter(
         (o) => o.date >= rStart && o.date <= rEnd && o.employeeRole === 'Mandor' && o.status === 'Disetujui'
       );
-      const mandors = db.employees.filter((e) => e.role === 'Mandor');
+      const mandors = db.employees.filter(
+        (e) => e.role === 'Mandor' && shouldIncludeEmployeeInReport(e, atts, ots)
+      );
       const byEmp = mandors.map((emp) => mapEmpReport(emp, atts, ots));
       return res.json({ title: 'Rekap Gaji Mandor', data: byEmp });
     }
@@ -4021,7 +4065,9 @@ router.get('/reports', async (req: Request, res: Response) => {
           (o.employeeRole === 'Helper' || o.employeeRole === 'Kenek') &&
           o.status === 'Disetujui'
       );
-      const helpers = db.employees.filter((e) => e.role === 'Helper' || e.role === 'Kenek');
+      const helpers = db.employees.filter(
+        (e) => (e.role === 'Helper' || e.role === 'Kenek') && shouldIncludeEmployeeInReport(e, atts, ots)
+      );
       const byEmp = helpers.map((emp) => mapEmpReport(emp, atts, ots));
       return res.json({ title: 'Rekap Gaji Helper', data: byEmp });
     }
@@ -4032,14 +4078,22 @@ router.get('/reports', async (req: Request, res: Response) => {
       const ots = db.overtime.filter(
         (o) => o.date >= rStart && o.date <= rEnd && o.employeeRole === 'Driver' && o.status === 'Disetujui'
       );
-      const drivers = db.employees.filter((e) => e.role === 'Driver');
+      const drivers = db.employees.filter(
+        (e) => e.role === 'Driver' && shouldIncludeEmployeeInReport(e, atts, ots)
+      );
       const byEmp = drivers.map((emp) => mapEmpReport(emp, atts, ots));
       return res.json({ title: 'Rekap Gaji Driver', data: byEmp });
     }
 
     case 'rekap_lembur': {
-      // D. Rekap Upah Lembur
-      const ots = db.overtime.filter((o) => o.date >= rStart && o.date <= rEnd);
+      // D. Rekap Upah Lembur (Pastikan Driver hourlyRateSnapshot=0 dan totalPay=0)
+      const ots = db.overtime
+        .filter((o) => o.date >= rStart && o.date <= rEnd)
+        .map((o) =>
+          isDriverRole(o.employeeRole)
+            ? { ...o, hourlyRateSnapshot: 0, totalPay: 0 }
+            : o
+        );
       return res.json({ title: 'Rekap Upah Lembur', data: ots });
     }
 
@@ -4111,7 +4165,7 @@ router.get('/reports', async (req: Request, res: Response) => {
       const exps = db.operationalExpenses.filter((e) => e.date >= rStart && e.date <= rEnd);
 
       const totalBasic = atts.reduce((s, a) => s + calcBasicPayByStatus(a.status, a.dailyWageSnapshot), 0);
-      const totalOvertime = ots.reduce((s, o) => s + o.totalPay, 0);
+      const totalOvertime = ots.reduce((s, o) => s + (isDriverRole(o.employeeRole) ? 0 : o.totalPay), 0);
       const ownerExp = exps.filter((e) => e.personType === 'Owner').reduce((s, e) => s + e.amount, 0);
       const asistenExp = exps.filter((e) => e.personType === 'Asisten').reduce((s, e) => s + e.amount, 0);
 
@@ -4143,7 +4197,7 @@ router.get('/export/excel', async (req: Request, res: Response) => {
   const exps = db.operationalExpenses.filter((e) => e.date >= rStart && e.date <= rEnd);
 
   const totalBasic = atts.reduce((s, a) => s + calcBasicPayByStatus(a.status, a.dailyWageSnapshot), 0);
-  const totalOt = ots.reduce((s, o) => s + o.totalPay, 0);
+  const totalOt = ots.reduce((s, o) => s + (isDriverRole(o.employeeRole) ? 0 : o.totalPay), 0);
   const ownerExp = exps.filter((e) => e.personType === 'Owner').reduce((s, e) => s + e.amount, 0);
   const asisExp = exps.filter((e) => e.personType === 'Asisten').reduce((s, e) => s + e.amount, 0);
 
@@ -4154,7 +4208,7 @@ router.get('/export/excel', async (req: Request, res: Response) => {
     [],
     ['No', 'Komponen Biaya Operasional', 'Nominal (IDR)'],
     [1, 'Total Gaji Pokok Karyawan', totalBasic],
-    [2, 'Total Upah Lembur Disetujui', totalOt],
+    [2, 'Total Upah Lembur Disetujui (Driver = Rp0)', totalOt],
     [3, 'Total Biaya Operasional Owner', ownerExp],
     [4, 'Total Biaya Operasional Asisten', asisExp],
     ['', 'TOTAL OPERASIONAL', totalBasic + totalOt + ownerExp + asisExp],
@@ -4162,6 +4216,48 @@ router.get('/export/excel', async (req: Request, res: Response) => {
 
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan');
+
+  // Sheet 1B: Rekap Gaji Karyawan (Akrual Periode)
+  const eligibleEmps = db.employees.filter(
+    (emp) => emp.status === 'active' || atts.some((a) => a.employeeId === emp.id) || ots.some((o) => o.employeeId === emp.id)
+  );
+  const empRecapData = [
+    ['ID Karyawan', 'Nama Karyawan', 'Jabatan', 'Hari Penuh', 'Setengah Hari', 'Total Hari Kerja', 'Gaji Pokok (IDR)', 'Durasi Lembur (Jam)', 'Tarif Lembur/Jam (IDR)', 'Upah Lembur (IDR)', 'Total Gaji Kotor (IDR)'],
+    ...eligibleEmps.map((emp) => {
+      const rawEmpAtts = atts.filter((a) => a.employeeId === emp.id);
+      const attByDate = new Map<string, Attendance>();
+      for (const a of rawEmpAtts) {
+        if (!attByDate.has(a.date)) attByDate.set(a.date, a);
+      }
+      const empAtts = Array.from(attByDate.values());
+      const fullDays = empAtts.filter((a) => a.status === 'Hadir').length;
+      const halfDays = empAtts.filter((a) => a.status === 'Setengah Hari').length;
+      const totalDays = Number((fullDays + halfDays * 0.5).toFixed(2));
+      const fullSalary = empAtts.filter((a) => a.status === 'Hadir').reduce((s, a) => s + (a.dailyWageSnapshot || emp.dailyWage), 0);
+      const halfSalary = empAtts.filter((a) => a.status === 'Setengah Hari').reduce((s, a) => s + calcBasicPayByStatus('Setengah Hari', a.dailyWageSnapshot || emp.dailyWage), 0);
+      const basic = fullSalary + halfSalary;
+      const empOts = ots.filter((o) => o.employeeId === emp.id);
+      const otHours = Number(empOts.reduce((s, o) => s + o.hours, 0).toFixed(4));
+      const isDriver = isDriverRole(emp.role);
+      const otRate = isDriver ? 0 : emp.overtimeHourlyWage;
+      const otPay = isDriver ? 0 : empOts.reduce((s, o) => s + (isDriverRole(o.employeeRole) ? 0 : o.totalPay), 0);
+      return [
+        emp.id,
+        emp.name,
+        emp.role,
+        fullDays,
+        halfDays,
+        totalDays,
+        basic,
+        otHours,
+        otRate,
+        otPay,
+        basic + otPay,
+      ];
+    }),
+  ];
+  const wsEmpRecap = XLSX.utils.aoa_to_sheet(empRecapData);
+  XLSX.utils.book_append_sheet(wb, wsEmpRecap, 'Rekap Gaji Karyawan');
 
   // Sheet 2: Pengeluaran Operasional (Owner & Asisten)
   const expData = [
@@ -4192,8 +4288,8 @@ router.get('/export/excel', async (req: Request, res: Response) => {
       p.totalWorkDays,
       p.approvedOvertimeHours,
       p.totalBasicSalary,
-      p.totalOvertimePay,
-      p.grossSalary,
+      isDriverRole(p.employeeRole) ? 0 : p.totalOvertimePay,
+      isDriverRole(p.employeeRole) ? p.totalBasicSalary : p.grossSalary,
       p.kasbonDeduction,
       p.netSalary,
       p.status,

@@ -114,8 +114,14 @@ export const SlipGajiModal: React.FC<SlipGajiModalProps> = ({ payment, onClose }
                 </div>
               )}
               <div className="flex items-center justify-between text-[#344054]">
-                <span>Upah Lembur ({formatOvertimeDuration(payment.approvedOvertimeHours)} disetujui)</span>
-                <span className="font-medium text-[#262626] tabular-nums font-mono">{formatRupiah(payment.totalOvertimePay)}</span>
+                <span>
+                  {String(payment.employeeRole || '').toLowerCase() === 'driver'
+                    ? `Upah Lembur (${formatOvertimeDuration(payment.approvedOvertimeHours)} tercatat — Ketentuan Driver: Rp0)`
+                    : `Upah Lembur (${formatOvertimeDuration(payment.approvedOvertimeHours)} disetujui)`}
+                </span>
+                <span className="font-medium text-[#262626] tabular-nums font-mono">
+                  {formatRupiah(String(payment.employeeRole || '').toLowerCase() === 'driver' ? 0 : payment.totalOvertimePay)}
+                </span>
               </div>
               <div className="flex items-center justify-between font-semibold text-[#262626] pt-2 border-t border-[#EAECF0]">
                 <span>TOTAL UPAH KOTOR (PENDAPATAN)</span>

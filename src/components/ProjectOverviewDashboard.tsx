@@ -137,7 +137,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
       case 'Driver':
         return {
           daily: settings?.wageDriverDaily || 140000,
-          overtime: settings?.overtimeDriverHourly || 18000,
+          overtime: 0,
         };
       default:
         return {
@@ -152,6 +152,11 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
   const [isEditEmployeeModalOpen, setIsEditEmployeeModalOpen] = useState(false);
   const [isDetailEmployeeModalOpen, setIsDetailEmployeeModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<ProjectAssignment | null>(null);
+  const [assignmentActionModal, setAssignmentActionModal] = useState<{
+    mode: 'delete' | 'toggle';
+    assignment: ProjectAssignment;
+  } | null>(null);
+  const [processingAssignmentAction, setProcessingAssignmentAction] = useState(false);
 
   const [employeeForm, setEmployeeForm] = useState({
     name: '',
@@ -454,16 +459,22 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
   // Handle Edit Project Employee
   const handleOpenEditEmployee = (asg: ProjectAssignment) => {
     setSelectedEmployee(asg);
+    const currentRole = asg.roleInProject || asg.employeeRole || 'Tukang';
     setEditEmployeeForm({
       id: asg.id,
       employeeId: asg.employeeId,
       name: asg.employeeName || '',
       phone: asg.employeePhone || '',
       nik: asg.employeeNik || '',
-      role: asg.roleInProject || asg.employeeRole || 'Tukang',
+      role: currentRole,
       startDate: asg.employeeStartDate || asg.assignedDate || getTodayDateString(),
-      dailyWage: asg.dailyWage !== undefined ? asg.dailyWage : getDefaultWages(asg.roleInProject || 'Tukang').daily,
-      overtimeHourlyWage: asg.overtimeHourlyWage !== undefined ? asg.overtimeHourlyWage : getDefaultWages(asg.roleInProject || 'Tukang').overtime,
+      dailyWage: asg.dailyWage !== undefined ? asg.dailyWage : getDefaultWages(currentRole).daily,
+      overtimeHourlyWage:
+        currentRole === 'Driver'
+          ? 0
+          : asg.overtimeHourlyWage !== undefined
+          ? asg.overtimeHourlyWage
+          : getDefaultWages(currentRole).overtime,
       status: (asg.status === 'active' || asg.status === 'inactive') ? asg.status : 'active',
       notes: asg.notes || '',
     });
@@ -479,53 +490,61 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
     }
 
     try {
-      await api.updateProjectEmployee(project.id, editEmployeeForm.id, editEmployeeForm);
+      await api.updateProjectEmployee(project.id, editEmployeeForm.id, {
+        ...editEmployeeForm,
+        overtimeHourlyWage: editEmployeeForm.role === 'Driver' ? 0 : editEmployeeForm.overtimeHourlyWage,
+      });
       showToast('success', `Data karyawan ${editEmployeeForm.name} berhasil diperbarui.`);
       setIsEditEmployeeModalOpen(false);
       fetchStats();
       fetchModuleData('karyawan');
+      fetchMasterEmployees();
     } catch (err: any) {
       showToast('error', err.message || 'Gagal memperbarui data karyawan');
     }
   };
 
   // Safe Deactivation / Activation (Never deletes historical logs)
-  const handleToggleEmployeeStatus = async (asg: ProjectAssignment) => {
+  const handleToggleEmployeeStatus = (asg: ProjectAssignment) => {
     if (!isAdmin) return;
-    const nextStatus: 'active' | 'inactive' = asg.status === 'active' ? 'inactive' : 'active';
-    const actionText = nextStatus === 'active' ? 'mengaktifkan kembali' : 'menonaktifkan';
-
-    if (!window.confirm(`Yakin ingin ${actionText} karyawan "${asg.employeeName}"? Riwayat absensi, lembur, kasbon, dan penggajian sebelumnya tetap tersimpan aman.`)) {
-      return;
-    }
-
-    try {
-      await api.updateProjectEmployee(project.id, asg.id, {
-        status: nextStatus,
-      });
-      showToast(
-        'success',
-        `Status karyawan ${asg.employeeName} diubah menjadi ${nextStatus === 'active' ? 'Aktif' : 'Nonaktif'}. Riwayat data tetap aman.`
-      );
-      fetchStats();
-      fetchModuleData('karyawan');
-    } catch (err: any) {
-      showToast('error', err.message || 'Gagal mengubah status karyawan');
-    }
+    setAssignmentActionModal({ mode: 'toggle', assignment: asg });
   };
 
-  const handleDeleteProjectEmployee = async (asg: ProjectAssignment) => {
+  const handleDeleteProjectEmployee = (asg: ProjectAssignment) => {
     if (!isAdmin) return;
-    if (!window.confirm(`Hapus karyawan "${asg.employeeName}" dari proyek ini? Riwayat transaksi sebelumnya tetap aman.`)) {
-      return;
-    }
+    setAssignmentActionModal({ mode: 'delete', assignment: asg });
+  };
+
+  const handleConfirmAssignmentAction = async () => {
+    if (!assignmentActionModal || !isAdmin) return;
+    const { mode, assignment: asg } = assignmentActionModal;
+    setProcessingAssignmentAction(true);
+
     try {
-      await api.deleteProjectEmployee(project.id, asg.id);
-      showToast('success', `Karyawan ${asg.employeeName} berhasil dihapus dari proyek.`);
+      if (mode === 'toggle') {
+        const nextStatus: 'active' | 'inactive' = asg.status === 'active' ? 'inactive' : 'active';
+        await api.updateProjectEmployee(project.id, asg.id, {
+          status: nextStatus,
+        });
+        showToast(
+          'success',
+          `Status karyawan ${asg.employeeName} diubah menjadi ${nextStatus === 'active' ? 'Aktif' : 'Nonaktif'}. Riwayat data tetap aman.`
+        );
+      } else {
+        const res: any = await api.deleteProjectEmployee(project.id, asg.id);
+        showToast(
+          'success',
+          res?.message || `Karyawan ${asg.employeeName} berhasil dihapus dari proyek.`
+        );
+      }
+      setAssignmentActionModal(null);
       fetchStats();
       fetchModuleData('karyawan');
+      fetchMasterEmployees();
     } catch (err: any) {
-      showToast('error', err.message || 'Gagal menghapus penugasan');
+      showToast('error', err.message || 'Gagal memproses tindakan karyawan proyek');
+    } finally {
+      setProcessingAssignmentAction(false);
     }
   };
 
@@ -1719,7 +1738,11 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                               {formatRupiah(daily)}
                             </td>
                             <td className="py-3 px-4 text-right font-mono text-[#667085]">
-                              {formatRupiah(otRate)}/jam
+                              {currentRole === 'Driver' ? (
+                                <span className="text-[#0E9384] font-semibold">Rp0 (Driver)</span>
+                              ) : (
+                                `${formatRupiah(otRate)}/jam`
+                              )}
                             </td>
                             <td className="py-3 px-4 text-center">
                               <span
@@ -2736,14 +2759,25 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   </label>
                   <input
                     type="number"
-                    value={employeeForm.overtimeHourlyWage}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, overtimeHourlyWage: Number(e.target.value) })}
+                    value={employeeForm.role === 'Driver' ? 0 : employeeForm.overtimeHourlyWage}
+                    disabled={employeeForm.role === 'Driver'}
+                    onChange={(e) =>
+                      setEmployeeForm({
+                        ...employeeForm,
+                        overtimeHourlyWage: employeeForm.role === 'Driver' ? 0 : Number(e.target.value),
+                      })
+                    }
                     required
                     min="0"
                     step="1000"
                     placeholder="20000"
-                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-mono font-medium text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                    className="w-full px-3 py-2 bg-white disabled:bg-[#F2F4F7] border border-[#D0D5DD] rounded-lg text-xs font-mono font-medium text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
                   />
+                  {employeeForm.role === 'Driver' && (
+                    <p className="text-[10px] text-[#0E9384] font-medium mt-1">
+                      Ketentuan perusahaan: Driver tidak mendapat upah lembur (Rp0)
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -2882,7 +2916,17 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   </label>
                   <select
                     value={editEmployeeForm.role}
-                    onChange={(e) => setEditEmployeeForm({ ...editEmployeeForm, role: e.target.value })}
+                    onChange={(e) => {
+                      const nextRole = e.target.value;
+                      setEditEmployeeForm({
+                        ...editEmployeeForm,
+                        role: nextRole,
+                        overtimeHourlyWage:
+                          nextRole === 'Driver'
+                            ? 0
+                            : editEmployeeForm.overtimeHourlyWage || getDefaultWages(nextRole).overtime,
+                      });
+                    }}
                     required
                     className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
                   >
@@ -2927,13 +2971,24 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   </label>
                   <input
                     type="number"
-                    value={editEmployeeForm.overtimeHourlyWage}
-                    onChange={(e) => setEditEmployeeForm({ ...editEmployeeForm, overtimeHourlyWage: Number(e.target.value) })}
+                    value={editEmployeeForm.role === 'Driver' ? 0 : editEmployeeForm.overtimeHourlyWage}
+                    disabled={editEmployeeForm.role === 'Driver'}
+                    onChange={(e) =>
+                      setEditEmployeeForm({
+                        ...editEmployeeForm,
+                        overtimeHourlyWage: editEmployeeForm.role === 'Driver' ? 0 : Number(e.target.value),
+                      })
+                    }
                     required
                     min="0"
                     step="1000"
-                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-mono font-medium text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                    className="w-full px-3 py-2 bg-white disabled:bg-[#F2F4F7] border border-[#D0D5DD] rounded-lg text-xs font-mono font-medium text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
                   />
+                  {editEmployeeForm.role === 'Driver' && (
+                    <p className="text-[10px] text-[#0E9384] font-medium mt-1">
+                      Ketentuan perusahaan: Driver tidak mendapat upah lembur (Rp0)
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -3468,11 +3523,17 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
                 >
                   <option value="">-- Pilih Karyawan Proyek --</option>
-                  {assignments.map((asg) => (
-                    <option key={asg.id} value={asg.employeeId}>
-                      {asg.employeeName} ({asg.roleInProject || asg.employeeRole})
-                    </option>
-                  ))}
+                  {assignments
+                    .filter(
+                      (asg) =>
+                        (asg.status === 'active' && asg.employeeStatus !== 'inactive') ||
+                        (editingAttendance && asg.employeeId === editingAttendance.employeeId)
+                    )
+                    .map((asg) => (
+                      <option key={asg.id} value={asg.employeeId}>
+                        {asg.employeeName} ({asg.roleInProject || asg.employeeRole})
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -3559,6 +3620,18 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                       />
                     </div>
                   </div>
+                  {attendanceForm.employeeId && (() => {
+                    const selAsg = assignments.find((a) => a.employeeId === attendanceForm.employeeId);
+                    const selRole = selAsg?.roleInProject || selAsg?.employeeRole || 'Tukang';
+                    if (selRole === 'Driver') {
+                      return (
+                        <p className="text-[11px] text-[#0E9384] font-medium pt-1">
+                          Ketentuan Perusahaan: Durasi lembur Driver tetap dicatat untuk operasional, namun upah lembur Driver adalah Rp0.
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               )}
 
@@ -3846,11 +3919,13 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
                 >
                   <option value="">-- Pilih Karyawan --</option>
-                  {assignments.map((asg) => (
-                    <option key={asg.id} value={asg.employeeId}>
-                      {asg.employeeName} ({asg.roleInProject || asg.employeeRole})
-                    </option>
-                  ))}
+                  {assignments
+                    .filter((asg) => asg.status === 'active' && asg.employeeStatus !== 'inactive')
+                    .map((asg) => (
+                      <option key={asg.id} value={asg.employeeId}>
+                        {asg.employeeName} ({asg.roleInProject || asg.employeeRole})
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -3947,16 +4022,22 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 {overtimeForm.employeeId && (() => {
                   const selAsg = assignments.find((a) => a.employeeId === overtimeForm.employeeId);
                   const role = selAsg?.roleInProject || selAsg?.employeeRole || 'Tukang';
-                  const rate = selAsg?.overtimeHourlyWage ?? getDefaultWages(role).overtime;
-                  const estPay = calculateOvertimePayFromHoursMinutes(
-                    overtimeForm.durationHours,
-                    overtimeForm.durationMinutes,
-                    rate
-                  );
+                  const isDriver = role === 'Driver';
+                  const rate = isDriver ? 0 : (selAsg?.overtimeHourlyWage ?? getDefaultWages(role).overtime);
+                  const estPay = isDriver
+                    ? 0
+                    : calculateOvertimePayFromHoursMinutes(
+                        overtimeForm.durationHours,
+                        overtimeForm.durationMinutes,
+                        rate
+                      );
                   return (
                     <div className="pt-2 border-t border-[#EAECF0] flex items-center justify-between text-xs">
                       <span className="text-[#475467]">
-                        Tarif {role}: <span className="font-mono font-medium">{formatRupiah(rate)}/jam</span>
+                        Tarif {role}:{' '}
+                        <span className="font-mono font-medium">
+                          {isDriver ? 'Rp0/jam (Tanpa Upah Lembur)' : `${formatRupiah(rate)}/jam`}
+                        </span>
                       </span>
                       <span className="font-mono font-bold text-[#155EEF]">
                         Total: {formatRupiah(estPay)}
@@ -4948,6 +5029,124 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                     <span>Unduh Foto</span>
                   </a>
                 </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL KONFIRMASI HAPUS / NONAKTIFKAN KARYAWAN PROYEK */}
+      {assignmentActionModal && (() => {
+        const { mode, assignment: asg } = assignmentActionModal;
+        const isToggle = mode === 'toggle';
+        const nextStatus = asg.status === 'active' ? 'inactive' : 'active';
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-white rounded-2xl max-w-md w-full border border-[#EAECF0] shadow-2xl overflow-hidden">
+              <div
+                className={`p-5 border-b border-[#EAECF0] flex items-center justify-between ${
+                  isToggle ? 'bg-[#FFFAEB]' : 'bg-[#FEF3F2]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      isToggle
+                        ? 'bg-[#FEF0C7] text-[#DC6803]'
+                        : 'bg-[#FEE4E2] text-[#D92D20]'
+                    }`}
+                  >
+                    {isToggle ? <AlertCircle className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-[#1D2939]">
+                      {isToggle
+                        ? nextStatus === 'active'
+                          ? 'Aktifkan Kembali Karyawan Proyek?'
+                          : 'Nonaktifkan Karyawan Proyek?'
+                        : 'Hapus Karyawan dari Proyek?'}
+                    </h3>
+                    <p className="text-[11px] text-[#667085]">
+                      ID: <span className="font-mono font-semibold text-[#155EEF]">{asg.employeeId}</span> · Proyek: {project.name}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAssignmentActionModal(null)}
+                  disabled={processingAssignmentAction}
+                  className="p-1 text-[#667085] hover:text-[#1D2939] rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 text-xs">
+                <div className="p-3.5 bg-[#F8F9FA] rounded-xl border border-[#EAECF0] space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-[#667085]">Nama Karyawan:</span>
+                    <span className="font-semibold text-[#1D2939]">{asg.employeeName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#667085]">Jabatan di Proyek:</span>
+                    <span className="font-semibold text-[#1D2939]">
+                      {asg.roleInProject || asg.employeeRole}
+                    </span>
+                  </div>
+                </div>
+
+                {isToggle ? (
+                  <div className="p-3.5 bg-[#FFFAEB] border border-[#FEDF89] rounded-xl text-[#B54708] space-y-1.5">
+                    <p className="font-bold">Riwayat Transaksi Tetap Terlindungi</p>
+                    <p className="text-[11px] leading-relaxed">
+                      {nextStatus === 'active'
+                        ? 'Karyawan akan diaktifkan kembali pada proyek ini dan dapat dipilih pada pencatatan absensi baru.'
+                        : 'Karyawan yang dinonaktifkan tidak akan muncul pada daftar aktif atau form absensi baru, namun seluruh riwayat absensi, lembur, kasbon, dan gaji lama tetap tersimpan aman.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-[#FEF3F2] border border-[#FECDCA] rounded-xl text-[#B42318] space-y-1.5">
+                    <p className="font-bold">Ketentuan Penghapusan Karyawan</p>
+                    <ul className="list-disc pl-4 text-[11px] leading-relaxed space-y-1">
+                      <li>
+                        <strong>Jika belum memiliki transaksi (salah input):</strong> Data karyawan dan penugasan proyeknya akan <strong>dihapus permanen dari database PostgreSQL/Supabase</strong>.
+                      </li>
+                      <li>
+                        <strong>Jika sudah memiliki riwayat transaksi sah:</strong> Penugasan proyek dilepas dan karyawan dinonaktifkan agar riwayat absensi, kasbon, serta laporan keuangan lama tetap terjaga.
+                      </li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-5 py-3.5 bg-[#F9FAFB] border-t border-[#EAECF0] flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAssignmentActionModal(null)}
+                  disabled={processingAssignmentAction}
+                  className="px-3.5 py-2 bg-white hover:bg-[#F2F4F7] text-[#344054] border border-[#D0D5DD] rounded-xl text-xs font-semibold transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmAssignmentAction}
+                  disabled={processingAssignmentAction}
+                  className={`px-4 py-2 text-white rounded-xl text-xs font-semibold transition-colors inline-flex items-center gap-1.5 ${
+                    isToggle
+                      ? 'bg-[#F79009] hover:bg-[#DC6803]'
+                      : 'bg-[#D92D20] hover:bg-[#B42318]'
+                  }`}
+                >
+                  {processingAssignmentAction
+                    ? 'Memproses...'
+                    : isToggle
+                    ? nextStatus === 'active'
+                      ? 'Ya, Aktifkan'
+                      : 'Ya, Nonaktifkan'
+                    : 'Ya, Hapus Karyawan'}
+                </button>
               </div>
             </div>
           </div>
