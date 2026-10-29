@@ -348,8 +348,18 @@ router.post('/auth/login', async (req: Request, res: Response) => {
 
   // Turnstile check if token or ticket provided
   const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip;
-  if (turnstileTicket && !consumeTurnstileTicket(turnstileTicket)) {
-    return res.status(403).json({ error: 'Tiket verifikasi Turnstile sudah kedaluwarsa atau tidak valid.' });
+  if (turnstileTicket) {
+    const isTicketValid = consumeTurnstileTicket(turnstileTicket);
+    if (!isTicketValid) {
+      if (turnstileToken) {
+        const turnstileCheck = await verifyTurnstileToken(turnstileToken, clientIp);
+        if (!turnstileCheck.success) {
+          return res.status(403).json({ error: turnstileCheck.error || 'Verifikasi Cloudflare Turnstile gagal.' });
+        }
+      } else {
+        return res.status(403).json({ error: 'Sesi verifikasi Turnstile sudah kedaluwarsa. Silakan centang ulang.' });
+      }
+    }
   } else if (turnstileToken) {
     const turnstileCheck = await verifyTurnstileToken(turnstileToken, clientIp);
     if (!turnstileCheck.success) {
@@ -2329,7 +2339,8 @@ router.post('/kasbon', async (req: Request, res: Response) => {
 
   const eligibility = checkKasbonEligibility(emp.startDate, requestDate, db.settings.minTenureDaysForKasbon);
 
-  const kasbonNumber = `KB-${requestDate.replace(/-/g, '').slice(0, 6)}-${String(db.kasbon.length + 1).padStart(3, '0')}`;
+  const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
+  const kasbonNumber = `KB-${requestDate.replace(/-/g, '').slice(0, 6)}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
   const id = `KB-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
   const newKasbon: KasbonRecord = {
@@ -2666,7 +2677,8 @@ router.post('/payroll/process', async (req: Request, res: Response) => {
     const numOther = Math.max(0, Number(otherDeductions) || 0);
     const numNet = Math.max(0, numGross - numKasbonDeduction - numOther);
 
-    const paymentNumber = `PAY-${paymentDate.replace(/-/g, '').slice(0, 6)}-${String(database.salaryPayments.length + 1).padStart(3, '0')}`;
+    const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
+    const paymentNumber = `PAY-${paymentDate.replace(/-/g, '').slice(0, 6)}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
     const paymentId = `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
     // 2. Handle kasbon deduction strictly (prevent double deduction)
@@ -2994,7 +3006,8 @@ router.post('/expenses', async (req: Request, res: Response) => {
   }
 
   const db = dbManager.getDb();
-  const txNumber = `EXP-${date.replace(/-/g, '').slice(0, 6)}-${String(db.operationalExpenses.length + 1).padStart(3, '0')}`;
+  const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
+  const txNumber = `EXP-${date.replace(/-/g, '').slice(0, 6)}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
   const resolvedName = personName || (personType === 'Owner' ? db.settings.ownerName : db.settings.assistantName);
 
   const newExp: OperationalExpense = {

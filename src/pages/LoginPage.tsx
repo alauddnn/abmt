@@ -16,9 +16,9 @@ export const LoginPage: React.FC = () => {
   const { login, loading } = useAuth();
   const { settings } = useCompany();
 
-  // Form state - standard login credentials
-  const [usernameOrEmail, setUsernameOrEmail] = useState<string>('admin');
-  const [password, setPassword] = useState<string>('admin123');
+  // Form state - standard login credentials (empty by default, no auto-fill)
+  const [usernameOrEmail, setUsernameOrEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
   // Turnstile state
@@ -147,6 +147,7 @@ export const LoginPage: React.FC = () => {
                 <input
                   type="text"
                   required
+                  autoComplete="off"
                   value={usernameOrEmail}
                   onChange={(e) => setUsernameOrEmail(e.target.value)}
                   placeholder="Masukkan User ID..."
@@ -164,6 +165,7 @@ export const LoginPage: React.FC = () => {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Masukkan kata sandi..."
@@ -185,7 +187,13 @@ export const LoginPage: React.FC = () => {
               <CloudflareTurnstile
                 onVerify={handleTurnstileVerify}
                 onExpire={handleTurnstileExpire}
-                onError={(err) => setErrorMessage(`Turnstile Error: ${err}`)}
+                onError={(err) =>
+                  setErrorMessage(
+                    err
+                      ? `Verifikasi keamanan Turnstile mengalami kendala (${err}). Silakan muat ulang halaman.`
+                      : 'Gagal memuat verifikasi keamanan Cloudflare Turnstile.'
+                  )
+                }
               />
             </div>
 

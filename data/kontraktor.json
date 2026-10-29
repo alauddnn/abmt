@@ -355,6 +355,69 @@
   "operationalExpenseAttachments": [],
   "auditLogs": [
     {
+      "id": "LOG-1793005607921-ttxj",
+      "timestamp": "2026-10-26T09:06:47.921Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1793005566949-p2fb",
+      "timestamp": "2026-10-26T09:06:06.949Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1793005553496-sc73",
+      "timestamp": "2026-10-26T09:05:53.496Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1793005553424-04b7",
+      "timestamp": "2026-10-26T09:05:53.424Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1793005537397-5kfh",
+      "timestamp": "2026-10-26T09:05:37.397Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1793005178418-rhnj",
+      "timestamp": "2026-10-26T08:59:38.418Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1793004925599-g6ze",
+      "timestamp": "2026-10-26T08:55:25.599Z",
+      "userName": "Administrator (Tim IT)",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
       "id": "LOG-1792742007467-uhor",
       "timestamp": "2026-10-23T07:53:27.467Z",
       "userName": "Administrator (Tim IT)",

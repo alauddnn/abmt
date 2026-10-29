@@ -543,8 +543,8 @@ export const pgService = {
 
   async createProject(data: Partial<Project>, userName: string, userRole: string): Promise<Project> {
     const id = `PRJ-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-    const countRes = await query('SELECT COUNT(*) as count FROM projects');
-    const code = data.code?.trim() || `PRJ-${String(Number(countRes.rows[0].count) + 1).padStart(3, '0')}`;
+    const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
+    const code = data.code?.trim() || `PRJ-${Date.now().toString().slice(-4)}-${randomSuffix}`;
 
     const res = await query(
       `INSERT INTO projects (id, code, name, location, client, start_date, target_end_date, budget, status, description, created_at)
@@ -1513,9 +1513,9 @@ export const pgService = {
     const emp = mapEmployee(empRes.rows[0]);
 
     const settings = await this.getSettings();
-    const countRes = await query('SELECT COUNT(*) as count FROM kasbon_records');
-    const num = Number(countRes.rows[0].count) + 1;
-    const kasbonNumber = `KB-${new Date().toISOString().slice(0, 7).replace('-', '')}-${String(num).padStart(3, '0')}`;
+    const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
+    const datePrefix = (data.requestDate || new Date().toISOString()).slice(0, 7).replace('-', '');
+    const kasbonNumber = `KB-${datePrefix}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
     const id = `KB-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
     const reqDate = new Date(data.requestDate || new Date());
@@ -1807,9 +1807,9 @@ export const pgService = {
       if (!empRes.rows.length) throw new Error('Karyawan tidak ditemukan.');
       const emp = mapEmployee(empRes.rows[0]);
 
-      const countRes = await client.query('SELECT COUNT(*) as count FROM salary_payments');
-      const num = Number(countRes.rows[0].count) + 1;
-      const paymentNumber = `PAY-${data.paymentDate.replace(/-/g, '').slice(0, 6)}-${String(num).padStart(3, '0')}`;
+      const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
+      const paymentDatePrefix = (data.paymentDate || new Date().toISOString()).replace(/-/g, '').slice(0, 6);
+      const paymentNumber = `PAY-${paymentDatePrefix}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
       const paymentId = `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
       // 1. Resolve work days, basic salary, overtime, and gross
@@ -2147,9 +2147,9 @@ export const pgService = {
   ): Promise<OperationalExpense> {
     await this.ensureAttachmentsTable();
 
-    const countRes = await query('SELECT COUNT(*) as count FROM operational_expenses');
-    const num = Number(countRes.rows[0].count) + 1;
-    const transactionNumber = `EXP-${new Date().toISOString().slice(0, 7).replace('-', '')}-${String(num).padStart(3, '0')}`;
+    const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
+    const expDatePrefix = (data.date || new Date().toISOString()).slice(0, 7).replace('-', '');
+    const transactionNumber = `EXP-${expDatePrefix}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
     const id = `EXP-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
     const res = await query(

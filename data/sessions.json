@@ -138,5 +138,75 @@
     "role": "admin",
     "createdAt": "2026-10-23T07:53:27.467Z",
     "expiresAt": "2026-11-22T07:53:27.467Z"
+  },
+  {
+    "token": "886983436b3ebce926bf00a3cedf2cfd3767e60d9cd3c428e3bef9f725644983",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-26T08:55:25.599Z",
+    "expiresAt": "2026-11-25T08:55:25.599Z"
+  },
+  {
+    "token": "246084986413e0ee3df51241a54fb32edff5bf28d87f7590b35de8d39abf54e2",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-26T08:59:38.418Z",
+    "expiresAt": "2026-11-25T08:59:38.418Z"
+  },
+  {
+    "token": "16a76cbccb1caf5ba3c9ae5ba96359d0d554cf0f5c0e1c065501cc2f358f60ae",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-26T09:05:37.397Z",
+    "expiresAt": "2026-11-25T09:05:37.397Z"
+  },
+  {
+    "token": "2a6e43efa3b20f335f91e4b6472e82b050679027bf89373520cfe68a1bddbbb7",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-26T09:05:53.423Z",
+    "expiresAt": "2026-11-25T09:05:53.423Z"
+  },
+  {
+    "token": "3a505f1497c74eec455efd660e15a87152f2f7f3ac97d963611cf0c40b394ca1",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-26T09:05:53.496Z",
+    "expiresAt": "2026-11-25T09:05:53.496Z"
+  },
+  {
+    "token": "ff0c629159f90735c851b12fe569a757943eff91282669a514e974b4386d614c",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-26T09:06:06.949Z",
+    "expiresAt": "2026-11-25T09:06:06.949Z"
+  },
+  {
+    "token": "3f964e4b6d1d8508821859f30c8afbb9bfe19d2259eb7f62ec91a5e2035c6c15",
+    "userId": "USR-ADMIN-01",
+    "username": "admin",
+    "email": "admin@astabrata.com",
+    "name": "Administrator (Tim IT)",
+    "role": "admin",
+    "createdAt": "2026-10-26T09:06:47.920Z",
+    "expiresAt": "2026-11-25T09:06:47.920Z"
   }
 ]

@@ -46,16 +46,37 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     ...(options.headers || {}),
   };
 
-  const response = await fetch(`/api${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`/api${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (netErr: any) {
+    throw new Error(`Koneksi jaringan terputus atau server tidak merespons: ${netErr?.message || 'Network error'}`);
+  }
 
   if (!response.ok) {
-    let errorMsg = `Error: ${response.statusText}`;
+    let errorMsg = `Permintaan gagal (Status HTTP ${response.status}${response.statusText ? ` - ${response.statusText}` : ''})`;
     try {
-      const data = await response.json();
-      if (data.error) errorMsg = data.error;
+      const rawText = await response.text();
+      try {
+        const data = JSON.parse(rawText);
+        if (data && typeof data === 'object') {
+          if (data.error && typeof data.error === 'string') {
+            errorMsg = data.error;
+          } else if (data.message && typeof data.message === 'string') {
+            errorMsg = data.message;
+          } else if (data.msg && typeof data.msg === 'string') {
+            errorMsg = data.msg;
+          }
+        }
+      } catch {
+        const clean = rawText.trim();
+        if (clean && clean.length < 250 && !clean.includes('<!DOCTYPE') && !clean.includes('<html')) {
+          errorMsg = clean;
+        }
+      }
     } catch {}
     throw new Error(errorMsg);
   }
