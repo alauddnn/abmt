@@ -1709,32 +1709,86 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
         ).length;
         const inactiveCount = assignments.length - activeCount;
 
+        const avatarPalettes = [
+          'bg-[#DCE7F9] text-[#1E293B]',
+          'bg-[#F9E2D2] text-[#1E293B]',
+          'bg-[#EDE3DA] text-[#1E293B]',
+          'bg-[#D9EFE6] text-[#1E293B]',
+          'bg-[#E5EEDF] text-[#1E293B]',
+        ];
+
+        const getInitials = (name: string) => {
+          const cleaned = (name || 'Karyawan').trim();
+          const parts = cleaned.split(/\s+/);
+          if (parts.length >= 2) {
+            return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+          }
+          return cleaned.slice(0, 2).toUpperCase();
+        };
+
+        const formatJoinDateShort = (dateStr?: string) => {
+          if (!dateStr) return '-';
+          try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return formatDateID(dateStr);
+            return d.toLocaleDateString('id-ID', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            });
+          } catch {
+            return formatDateID(dateStr);
+          }
+        };
+
+        const formatTenureLabel = (dateStr?: string) => {
+          if (!dateStr) return 'Baru ditugaskan';
+          try {
+            const start = new Date(dateStr);
+            if (isNaN(start.getTime())) return formatDateID(dateStr);
+            const now = new Date();
+            const diffDays = Math.max(
+              0,
+              Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+            );
+            if (diffDays >= 365) {
+              return `${(diffDays / 365).toFixed(1)} thn (${formatDateID(dateStr)})`;
+            }
+            if (diffDays >= 30) {
+              return `${Math.floor(diffDays / 30)} bln (${formatDateID(dateStr)})`;
+            }
+            return `${diffDays} hr (${formatDateID(dateStr)})`;
+          } catch {
+            return formatDateID(dateStr);
+          }
+        };
+
         return (
-          <div className="space-y-4">
-            <div className="bg-white rounded-2xl border border-[#EAECF0] shadow-xs overflow-hidden">
+          <div className="space-y-4 kms-fade-in">
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] overflow-hidden">
               {/* Header */}
-              <div className="p-4 sm:p-5 border-b border-[#EAECF0] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-[#1D2939]">Data Karyawan Proyek</h3>
+                  <div className="flex items-center gap-2.5">
+                    <h3 className="text-base font-bold text-slate-900">Data Karyawan Proyek</h3>
                     <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#EFF5FF] text-[#155EEF] border border-[#D0E2FF]">
                       {assignments.length} Karyawan
                     </span>
                   </div>
-                  <p className="text-xs text-[#667085] mt-1">
-                    Kelola tenaga kerja langsung pada proyek <span className="font-semibold text-[#344054]">{project.name}</span>. Data tersinkronisasi otomatis dengan master perusahaan.
+                  <p className="text-xs text-slate-500 mt-1">
+                    Kelola tenaga kerja langsung pada proyek <span className="font-semibold text-slate-700">{project.name}</span>. Data tersinkronisasi otomatis dengan master perusahaan.
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <div className="flex items-center gap-1.5 text-xs">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] font-medium text-[11px]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#12B76A]"></span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#E1F3EA] text-[#166534] font-medium text-[11px]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#15803D]"></span>
                       {activeCount} Aktif
                     </span>
                     {inactiveCount > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#F2F4F7] text-[#667085] border border-[#D0D5DD] font-medium text-[11px]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#98A2B3]"></span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#EFEFEF] text-[#4B5563] font-medium text-[11px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#9CA3AF]"></span>
                         {inactiveCount} Nonaktif
                       </span>
                     )}
@@ -1743,7 +1797,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   {isAdmin && (
                     <button
                       onClick={() => setIsAddEmployeeModalOpen(true)}
-                      className="bg-[#4693FD] hover:bg-[#1849A9] text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs ml-auto sm:ml-0"
+                      className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs ml-auto sm:ml-0 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>+ Tambah Karyawan</span>
@@ -1753,20 +1807,20 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
               </div>
 
               {/* Search & Filter Toolbar */}
-              <div className="p-4 bg-[#F8F9FA] border-b border-[#EAECF0] flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="w-4 h-4 text-[#98A2B3] absolute left-3 top-1/2 -translate-y-1/2" />
+              <div className="px-5 py-3.5 bg-slate-50/60 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md group">
+                  <Search className="w-4 h-4 text-slate-400 group-focus-within:text-[#2563EB] transition-colors absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={searchEmployee}
                     onChange={(e) => setSearchEmployee(e.target.value)}
                     placeholder="Cari nama, ID, NIK, peran, telepon..."
-                    className="w-full pl-9 pr-8 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] placeholder-[#98A2B3] focus:outline-none focus:border-[#4693FD]"
+                    className="w-full pl-10 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/12"
                   />
                   {searchEmployee && (
                     <button
                       onClick={() => setSearchEmployee('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#98A2B3] hover:text-[#344054]"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -1775,12 +1829,12 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
 
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-1.5">
-                    <Filter className="w-3.5 h-3.5 text-[#667085]" />
-                    <span className="text-xs text-[#667085]">Jabatan:</span>
+                    <Filter className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="text-xs text-slate-500">Jabatan:</span>
                     <select
                       value={filterRole}
                       onChange={(e) => setFilterRole(e.target.value)}
-                      className="px-2.5 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                      className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#2563EB]"
                     >
                       <option value="all">Semua Jabatan</option>
                       <option value="Mandor">Mandor</option>
@@ -1791,11 +1845,11 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-[#667085]">Status:</span>
+                    <span className="text-xs text-slate-500">Status:</span>
                     <select
                       value={filterStatus}
                       onChange={(e) => setFilterStatus(e.target.value)}
-                      className="px-2.5 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                      className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#2563EB]"
                     >
                       <option value="all">Semua Status</option>
                       <option value="active">Aktif di Proyek</option>
@@ -1810,7 +1864,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                         setFilterRole('all');
                         setFilterStatus('all');
                       }}
-                      className="text-xs text-[#4693FD] hover:underline px-1.5 py-1"
+                      className="text-xs text-[#2563EB] hover:underline px-1.5 py-1 cursor-pointer"
                     >
                       Reset Filter
                     </button>
@@ -1818,40 +1872,40 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 </div>
               </div>
 
-              {/* Table */}
+              {/* Directory List Table (Reference Style) */}
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="bg-[#F9FAFB] text-[#475467] font-medium border-b border-[#EAECF0]">
-                      <th className="py-3 px-4">ID Karyawan</th>
-                      <th className="py-3 px-4">Nama Lengkap & NIK</th>
-                      <th className="py-3 px-4">Jabatan</th>
-                      <th className="py-3 px-4">No. Telepon</th>
-                      <th className="py-3 px-4">Tgl Mulai</th>
-                      <th className="py-3 px-4 text-right">Upah Harian</th>
-                      <th className="py-3 px-4 text-right">Tarif Lembur</th>
-                      <th className="py-3 px-4 text-center">Status</th>
-                      <th className="py-3 px-4 text-center">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+                <table className="w-full text-left text-xs border-collapse">
+                  <tbody className="divide-y divide-slate-200/75 text-slate-700">
                     {loadingModuleData ? (
-                      <tr>
-                        <td colSpan={9} className="py-12 text-center text-[#667085]">
-                          <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-[#4693FD] border-t-transparent mb-2"></div>
-                          <p>Memuat data karyawan proyek...</p>
-                        </td>
-                      </tr>
+                      Array.from({ length: 5 }).map((_, idx) => (
+                        <tr key={`emp-skel-${idx}`}>
+                          <td className="py-4 px-6">
+                            <div className="flex items-center gap-3.5">
+                              <div className="w-10 h-10 rounded-full kms-skeleton shrink-0" />
+                              <div className="space-y-1.5">
+                                <div className="h-4 w-32 rounded kms-skeleton" />
+                                <div className="h-3 w-24 rounded kms-skeleton" />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4"><div className="h-6 w-28 rounded-lg kms-skeleton" /></td>
+                          <td className="py-4 px-4"><div className="h-4 w-28 rounded kms-skeleton" /></td>
+                          <td className="py-4 px-4"><div className="h-4 w-28 rounded kms-skeleton" /></td>
+                          <td className="py-4 px-4"><div className="h-8 w-24 rounded kms-skeleton" /></td>
+                          <td className="py-4 px-4"><div className="h-6 w-20 rounded-full kms-skeleton" /></td>
+                          <td className="py-4 px-6 text-right"><div className="h-7 w-24 rounded-lg kms-skeleton ml-auto" /></td>
+                        </tr>
+                      ))
                     ) : filteredAssignments.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-12 text-center text-[#667085]">
-                          <Users className="w-8 h-8 text-[#D0D5DD] mx-auto mb-2" />
-                          <p className="font-semibold text-[#1D2939]">
+                        <td colSpan={7} className="py-14 text-center text-slate-500">
+                          <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                          <p className="font-semibold text-slate-800">
                             {assignments.length === 0
                               ? 'Belum ada karyawan yang ditambahkan ke proyek ini.'
                               : 'Tidak ada karyawan yang sesuai dengan kriteria pencarian.'}
                           </p>
-                          <p className="text-xs text-[#667085] mt-1">
+                          <p className="text-xs text-slate-500 mt-1">
                             {assignments.length === 0
                               ? 'Tambahkan karyawan proyek langsung menggunakan tombol di atas.'
                               : 'Coba ubah kata kunci atau reset filter status/jabatan.'}
@@ -1859,7 +1913,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                           {isAdmin && assignments.length === 0 && (
                             <button
                               onClick={() => setIsAddEmployeeModalOpen(true)}
-                              className="mt-3 inline-flex items-center gap-1.5 bg-[#4693FD] hover:bg-[#1849A9] text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                              className="mt-3 inline-flex items-center gap-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-4 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                             >
                               <Plus className="w-3.5 h-3.5" />
                               <span>Tambah Karyawan Pertama</span>
@@ -1868,7 +1922,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                         </td>
                       </tr>
                     ) : (
-                      filteredAssignments.map((asg) => {
+                      filteredAssignments.map((asg, index) => {
                         const isEmployeeActive =
                           asg.status === 'active' && asg.employeeStatus !== 'inactive';
                         const currentRole = asg.roleInProject || asg.employeeRole || 'Tukang';
@@ -1881,91 +1935,130 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                             ? asg.overtimeHourlyWage
                             : getDefaultWages(currentRole).overtime;
 
+                        const avatarClass = avatarPalettes[index % avatarPalettes.length];
+                        const startDateRaw = asg.employeeStartDate || asg.assignedDate;
+
+                        const rolePillStyle =
+                          currentRole === 'Mandor'
+                            ? 'bg-[#EDE6DF] text-[#44403C]'
+                            : currentRole === 'Tukang'
+                            ? 'bg-[#E1EBF9] text-[#284B80]'
+                            : currentRole === 'Driver'
+                            ? 'bg-[#E3EEDF] text-[#335426]'
+                            : 'bg-[#DCEFE9] text-[#1D5647]';
+
+                        const locationDotColor =
+                          currentRole === 'Mandor' || currentRole === 'Driver'
+                            ? 'bg-[#CA8A04]'
+                            : 'bg-[#D97706]';
+
                         return (
                           <tr
                             key={asg.id}
-                            className={`hover:bg-[#F9FAFB] transition-colors ${
-                              !isEmployeeActive ? 'bg-[#F9FAFB]/50 text-[#98A2B3]' : ''
+                            className={`hover:bg-slate-50/90 transition-colors ${
+                              !isEmployeeActive ? 'opacity-65 bg-slate-50/40' : ''
                             }`}
                           >
-                            <td className="py-3 px-4 font-mono font-medium text-[#4693FD]">
-                              <span className="px-2 py-0.5 rounded bg-[#EFF5FF] border border-[#D0E2FF] text-[#155EEF]">
-                                {asg.employeeId}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="font-semibold text-[#1D2939]">{asg.employeeName}</div>
-                              {asg.employeeNik ? (
-                                <div className="text-[11px] font-mono text-[#667085]">
-                                  NIK: {asg.employeeNik}
+                            {/* Col 1: Soft Circular Initials Avatar + Full Name & Subtitle (Role · ID · NIK) */}
+                            <td className="py-4 px-6 whitespace-nowrap">
+                              <div className="flex items-center gap-3.5">
+                                <div
+                                  className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold tracking-tight shrink-0 ${avatarClass}`}
+                                >
+                                  {getInitials(asg.employeeName || '')}
                                 </div>
-                              ) : (
-                                <div className="text-[10px] text-[#98A2B3] italic">NIK belum diisi</div>
-                              )}
+                                <div className="min-w-0">
+                                  <div className="text-[13.5px] font-semibold text-slate-900 leading-snug">
+                                    {asg.employeeName}
+                                  </div>
+                                  <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+                                    <span>{currentRole}</span>
+                                    <span className="text-slate-300">·</span>
+                                    <span className="font-mono text-[11px] text-slate-500">{asg.employeeId}</span>
+                                    {asg.employeeNik ? (
+                                      <>
+                                        <span className="text-slate-300">·</span>
+                                        <span className="font-mono text-[11px] text-slate-400">
+                                          NIK: {asg.employeeNik}
+                                        </span>
+                                      </>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
                             </td>
-                            <td className="py-3 px-4">
+
+                            {/* Col 2: Department / Jabatan Pill with Icon */}
+                            <td className="py-4 px-4 whitespace-nowrap">
                               <span
-                                className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${
-                                  currentRole === 'Mandor'
-                                    ? 'bg-[#FEF6EE] text-[#B54708] border border-[#F9DBAF]'
-                                    : currentRole === 'Tukang'
-                                    ? 'bg-[#EFF5FF] text-[#155EEF] border border-[#D0E2FF]'
-                                    : currentRole === 'Driver'
-                                    ? 'bg-[#F0F9FF] text-[#026AA2] border border-[#B9E6FE]'
-                                    : 'bg-[#F4F3FF] text-[#5925DC] border border-[#D9D6FE]'
-                                }`}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium ${rolePillStyle}`}
                               >
-                                {currentRole}
+                                {currentRole === 'Driver' ? (
+                                  <Truck className="w-3.5 h-3.5 opacity-80" />
+                                ) : (
+                                  <HardHat className="w-3.5 h-3.5 opacity-80" />
+                                )}
+                                <span>{currentRole}</span>
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-[#667085] font-mono">
-                              {asg.employeePhone ? (
-                                <span className="flex items-center gap-1">
-                                  <Phone className="w-3 h-3 text-[#98A2B3]" />
-                                  {asg.employeePhone}
+
+                            {/* Col 3: Location Dot + Location & Phone */}
+                            <td className="py-4 px-4 whitespace-nowrap">
+                              <div className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${locationDotColor}`} />
+                                <span>{project.location || project.name}</span>
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono pl-4 mt-0.5">
+                                {asg.employeePhone ? asg.employeePhone : 'Telp belum diisi'}
+                              </div>
+                            </td>
+
+                            {/* Col 4: Daily Wage & Overtime Rate (Clean Typography) */}
+                            <td className="py-4 px-4 whitespace-nowrap">
+                              <div className="text-xs font-medium text-slate-700 font-mono tabular-nums">
+                                {formatRupiah(daily)} / hari
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono tabular-nums mt-0.5">
+                                {currentRole === 'Driver'
+                                  ? 'Lembur: Rp0 (Driver)'
+                                  : `Lembur: ${formatRupiah(otRate)}/jam`}
+                              </div>
+                            </td>
+
+                            {/* Col 5: Start Date & Tenure Stack (17 Jun 2021 / 5.4 yrs style) */}
+                            <td className="py-4 px-4 whitespace-nowrap">
+                              <div className="text-xs font-medium text-slate-700 tabular-nums">
+                                {formatJoinDateShort(startDateRaw)}
+                              </div>
+                              <div className="text-[11px] text-slate-400 tabular-nums mt-0.5">
+                                {formatTenureLabel(startDateRaw)}
+                              </div>
+                            </td>
+
+                            {/* Col 6: Status Pill (Active / Off today style) */}
+                            <td className="py-4 px-4 whitespace-nowrap">
+                              {isEmployeeActive ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#E1F3EA] text-[#166534]">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#15803D]" />
+                                  <span>Aktif</span>
                                 </span>
                               ) : (
-                                '-'
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#EFEFEF] text-[#374151]">
+                                  <span>Nonaktif</span>
+                                </span>
                               )}
                             </td>
-                            <td className="py-3 px-4 text-[#667085]">
-                              {formatDateID(asg.employeeStartDate || asg.assignedDate)}
-                            </td>
-                            <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
-                              {formatRupiah(daily)}
-                            </td>
-                            <td className="py-3 px-4 text-right font-mono text-[#667085]">
-                              {currentRole === 'Driver' ? (
-                                <span className="text-[#0E9384] font-semibold">Rp0 (Driver)</span>
-                              ) : (
-                                `${formatRupiah(otRate)}/jam`
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <span
-                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${
-                                  isEmployeeActive
-                                    ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5]'
-                                    : 'bg-[#F2F4F7] text-[#667085] border-[#D0D5DD]'
-                                }`}
-                              >
-                                <span
-                                  className={`w-1.5 h-1.5 rounded-full ${
-                                    isEmployeeActive ? 'bg-[#12B76A]' : 'bg-[#98A2B3]'
-                                  }`}
-                                ></span>
-                                {isEmployeeActive ? 'Aktif di Proyek' : 'Nonaktif'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <div className="flex items-center justify-center gap-1">
+
+                            {/* Col 7: Actions */}
+                            <td className="py-4 px-6 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center justify-end gap-1">
                                 {/* Detail Button */}
                                 <button
                                   onClick={() => {
                                     setSelectedEmployee(asg);
                                     setIsDetailEmployeeModalOpen(true);
                                   }}
-                                  className="p-1.5 text-[#667085] hover:text-[#4693FD] hover:bg-[#EFF5FF] rounded-lg transition-colors"
+                                  className="p-1.5 text-slate-400 hover:text-[#2563EB] hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                                   title="Lihat Rincian Karyawan"
                                 >
                                   <Eye className="w-4 h-4" />
@@ -1976,7 +2069,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                                     {/* Edit Button */}
                                     <button
                                       onClick={() => handleOpenEditEmployee(asg)}
-                                      className="p-1.5 text-[#667085] hover:text-[#155EEF] hover:bg-[#EFF5FF] rounded-lg transition-colors"
+                                      className="p-1.5 text-slate-400 hover:text-[#2563EB] hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                                       title="Ubah Data Karyawan"
                                     >
                                       <Edit2 className="w-4 h-4" />
@@ -1985,10 +2078,10 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                                     {/* Toggle Active / Inactive Status */}
                                     <button
                                       onClick={() => handleToggleEmployeeStatus(asg)}
-                                      className={`p-1.5 rounded-lg transition-colors ${
+                                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                                         isEmployeeActive
-                                          ? 'text-[#F79009] hover:text-[#B54708] hover:bg-[#FEF6EE]'
-                                          : 'text-[#12B76A] hover:text-[#027A48] hover:bg-[#ECFDF3]'
+                                          ? 'text-amber-500 hover:text-amber-700 hover:bg-amber-50'
+                                          : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
                                       }`}
                                       title={
                                         isEmployeeActive
@@ -2006,7 +2099,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                                     {/* Delete Assignment from Project */}
                                     <button
                                       onClick={() => handleDeleteProjectEmployee(asg)}
-                                      className="p-1.5 text-[#667085] hover:text-[#D64545] hover:bg-[#FEF3F2] rounded-lg transition-colors"
+                                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                                       title="Hapus Karyawan dari Proyek Ini"
                                     >
                                       <Trash2 className="w-4 h-4" />
