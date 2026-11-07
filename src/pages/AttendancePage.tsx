@@ -241,30 +241,10 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
 
   const handleSaveSingle = async (e: React.FormEvent) => {
     e.preventDefault();
-    const numKasbonAmount = Number(singleForm.kasbonAmount || 0);
-    if (singleForm.hasKasbon) {
-      if (!numKasbonAmount || numKasbonAmount <= 0 || isNaN(numKasbonAmount)) {
-        showToast('error', 'Nominal kasbon wajib diisi dan harus lebih besar dari Rp0.');
-        return;
-      }
-    }
-
     const isWorking = singleForm.status === 'Hadir' || singleForm.status === 'Setengah Hari';
     const dHours = isWorking ? Math.max(0, Math.floor(Number(singleForm.durationHours) || 0)) : 0;
     const dMins = isWorking ? Math.max(0, Math.min(59, Math.round(Number(singleForm.durationMinutes) || 0))) : 0;
     const decHours = Number(((dHours * 60 + dMins) / 60).toFixed(4));
-
-    const kasbonAttachments =
-      singleForm.hasKasbon && selectedKasbonPhoto
-        ? [
-            {
-              fileName: selectedKasbonPhoto.fileName,
-              dataBase64: selectedKasbonPhoto.dataBase64,
-              fileSize: selectedKasbonPhoto.fileSize,
-              mimeType: selectedKasbonPhoto.mimeType,
-            },
-          ]
-        : [];
 
     setSavingSingle(true);
     try {
@@ -278,30 +258,14 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
         durationHours: dHours,
         durationMinutes: dMins,
         notes: singleForm.notes,
-        hasKasbon: singleForm.hasKasbon,
-        kasbonId: singleForm.kasbonId || undefined,
-        kasbonAmount: singleForm.hasKasbon ? numKasbonAmount : 0,
-        kasbonNotes: singleForm.hasKasbon ? singleForm.kasbonNotes : '',
-        kasbonAttachments,
-        removeKasbonPhoto: singleForm.removeKasbonPhoto,
       };
 
       if (editingAtt) {
         await api.updateAttendance(editingAtt.id, payload);
-        showToast(
-          'success',
-          singleForm.hasKasbon
-            ? `Perubahan absensi dan kasbon (${formatRupiah(numKasbonAmount)}) berhasil disimpan.`
-            : 'Catatan absensi & upah berhasil diperbarui.'
-        );
+        showToast('success', 'Catatan absensi & upah berhasil diperbarui.');
       } else {
-        await api.createAttendance(payload);
-        showToast(
-          'success',
-          singleForm.hasKasbon
-            ? `Absensi dan pengajuan kasbon (${formatRupiah(numKasbonAmount)}) berhasil dicatat.`
-            : 'Absensi berhasil dicatat.'
-        );
+        await api.recordAttendance(payload);
+        showToast('success', 'Absensi berhasil dicatat.');
       }
       setIsSingleModalOpen(false);
       setEditingAtt(null);
@@ -621,7 +585,6 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
                 <th className="py-3 px-4">Upah Kehadiran</th>
                 <th className="py-3 px-4">Upah Lembur</th>
                 <th className="py-3 px-4">Total Harian</th>
-                <th className="py-3 px-4">Kasbon</th>
                 <th className="py-3 px-4">Catatan</th>
                 <th className="py-3 px-4 text-center">Aksi</th>
               </tr>
@@ -629,13 +592,13 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
             <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
               {loading ? (
                 <tr>
-                  <td colSpan={13} className="py-10 text-center text-[#667085]">
+                  <td colSpan={12} className="py-10 text-center text-[#667085]">
                     Memuat catatan absensi...
                   </td>
                 </tr>
               ) : filteredAttendance.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-10 text-center">
+                  <td colSpan={12} className="py-10 text-center">
                     <AlertTriangle className="w-6 h-6 text-[#D99A23] mx-auto mb-1.5" />
                     <p className="font-medium text-[#262626]">Belum Ada Data Absensi</p>
                     <p className="text-xs text-[#667085] mt-0.5">
@@ -713,15 +676,6 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
                       </td>
                       <td className="py-3 px-4 font-mono font-semibold text-[#262626] whitespace-nowrap tabular-nums">
                         {formatRupiah(a.totalDailyPay)}
-                      </td>
-                      <td className="py-3 px-4 font-mono whitespace-nowrap tabular-nums">
-                        {a.kasbonAmount && a.kasbonAmount > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#F9F5FF] text-[#6941C6] border border-[#E9D7FE] text-[11px] font-semibold">
-                            {formatRupiah(a.kasbonAmount)}
-                          </span>
-                        ) : (
-                          <span className="text-[#98A2B3]">-</span>
-                        )}
                       </td>
                       <td className="py-3 px-4 max-w-xs truncate text-[#667085]">
                         {a.notes || '-'}
@@ -948,190 +902,6 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
                   placeholder="Catatan pengerjaan atau alasan izin..."
                   className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                 />
-              </div>
-
-              {/* Bagian Pengajuan Kasbon Terintegrasi */}
-              <div className="pt-3 border-t border-[#EAECF0] space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-xs font-bold text-[#1D2939] flex items-center gap-1.5">
-                      <Wallet className="w-3.5 h-3.5 text-[#6941C6]" />
-                      <span>Pengajuan Kasbon</span>
-                    </h4>
-                    <p className="text-[11px] text-[#667085]">
-                      Karyawan penerima kasbon otomatis mengikuti karyawan pada form absensi
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-1 bg-[#F2F4F7] p-1 rounded-lg border border-[#D0D5DD]">
-                    <button
-                      type="button"
-                      onClick={() => setSingleForm({ ...singleForm, hasKasbon: false })}
-                      className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
-                        !singleForm.hasKasbon
-                          ? 'bg-white text-[#1D2939] shadow-2xs'
-                          : 'text-[#667085] hover:text-[#1D2939]'
-                      }`}
-                    >
-                      Tidak
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSingleForm({ ...singleForm, hasKasbon: true })}
-                      className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
-                        singleForm.hasKasbon
-                          ? 'bg-[#6941C6] text-white shadow-2xs'
-                          : 'text-[#667085] hover:text-[#1D2939]'
-                      }`}
-                    >
-                      Ya
-                    </button>
-                  </div>
-                </div>
-
-                {singleForm.hasKasbon && (
-                  <div className="p-3.5 bg-[#F9F5FF]/60 rounded-xl border border-[#E9D7FE] space-y-3">
-                    <div>
-                      <label className="text-xs font-semibold text-[#344054] block mb-1">
-                        Nominal Kasbon (Rp) <span className="text-[#D92D20]">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        step="any"
-                        placeholder="Masukkan nominal kasbon (contoh: 300000)"
-                        value={singleForm.kasbonAmount}
-                        onChange={(e) => setSingleForm({ ...singleForm, kasbonAmount: e.target.value })}
-                        required={singleForm.hasKasbon}
-                        className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-mono font-bold text-[#1D2939] focus:outline-none focus:border-[#6941C6]"
-                      />
-                      {Number(singleForm.kasbonAmount) > 0 && (
-                        <span className="text-[11px] font-mono font-semibold text-[#6941C6] mt-1 block">
-                          {formatRupiah(Number(singleForm.kasbonAmount))}
-                        </span>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-semibold text-[#344054] block mb-1">
-                        Keterangan Kasbon
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Contoh: Kebutuhan keluarga mendesak..."
-                        value={singleForm.kasbonNotes}
-                        onChange={(e) => setSingleForm({ ...singleForm, kasbonNotes: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#6941C6]"
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-xs font-semibold text-[#344054]">
-                          Upload Bukti Kasbon <span className="text-[#667085] font-normal">(Opsional)</span>
-                        </label>
-                        <span className="text-[10px] text-[#667085]">Maks. 5 MB · JPG, PNG, WebP</span>
-                      </div>
-
-                      <input
-                        type="file"
-                        ref={kasbonFileInputRef}
-                        accept="image/*"
-                        onChange={handleKasbonPhotoChange}
-                        className="hidden"
-                      />
-
-                      {selectedKasbonPhoto ? (
-                        <div className="p-2.5 bg-white rounded-xl border border-[#D0D5DD] space-y-2">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={selectedKasbonPhoto.dataBase64}
-                              alt="Pratinjau Bukti Kasbon"
-                              className="w-16 h-16 object-cover rounded-lg border border-[#EAECF0] shrink-0"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-[#1D2939] truncate">
-                                {selectedKasbonPhoto.fileName}
-                              </p>
-                              <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-[#ECFDF3] text-[#027A48] text-[10px] font-medium">
-                                ✓ Pratinjau foto baru
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-[#F2F4F7]">
-                            <button
-                              type="button"
-                              onClick={() => kasbonFileInputRef.current?.click()}
-                              className="px-2.5 py-1 bg-[#F8F9FA] hover:bg-[#EEF2F6] text-[#344054] border border-[#D0D5DD] rounded-lg text-[11px] font-semibold transition-colors"
-                            >
-                              Ganti Foto
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleRemoveKasbonPhoto}
-                              className="px-2.5 py-1 bg-[#FEF3F2] hover:bg-[#FEE4E2] text-[#D92D20] border border-[#FECDCA] rounded-lg text-[11px] font-semibold transition-colors"
-                            >
-                              Hapus Foto
-                            </button>
-                          </div>
-                        </div>
-                      ) : singleForm.existingKasbonAttachmentId && !singleForm.removeKasbonPhoto ? (
-                        <div className="p-2.5 bg-white rounded-xl border border-[#D0D5DD] space-y-2">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={getKasbonPhotoViewUrl(singleForm.existingKasbonAttachmentId)}
-                              alt="Bukti Kasbon Tersimpan"
-                              className="w-16 h-16 object-cover rounded-lg border border-[#EAECF0] shrink-0"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-[#1D2939] truncate">
-                                {singleForm.existingKasbonAttachmentFileName || 'Bukti Kasbon Tersimpan'}
-                              </p>
-                              <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-[#EFF5FF] text-[#155EEF] text-[10px] font-medium">
-                                Tersimpan di Supabase Storage
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-[#F2F4F7]">
-                            <button
-                              type="button"
-                              onClick={() => kasbonFileInputRef.current?.click()}
-                              className="px-2.5 py-1 bg-[#F8F9FA] hover:bg-[#EEF2F6] text-[#344054] border border-[#D0D5DD] rounded-lg text-[11px] font-semibold transition-colors"
-                            >
-                              Ganti Foto
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleRemoveKasbonPhoto}
-                              className="px-2.5 py-1 bg-[#FEF3F2] hover:bg-[#FEE4E2] text-[#D92D20] border border-[#FECDCA] rounded-lg text-[11px] font-semibold transition-colors"
-                            >
-                              Hapus Foto
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => kasbonFileInputRef.current?.click()}
-                          className="w-full py-3.5 border-2 border-dashed border-[#D0D5DD] hover:border-[#6941C6] bg-white hover:bg-[#F9F5FF] rounded-xl flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer"
-                        >
-                          <Upload className="w-4 h-4 text-[#6941C6]" />
-                          <span className="text-xs font-semibold text-[#344054]">
-                            Upload Foto Bukti Transfer / Pembayaran Kasbon
-                          </span>
-                          <span className="text-[10px] text-[#667085]">Klik untuk memilih foto bukti</span>
-                        </button>
-                      )}
-
-                      {kasbonPhotoError && (
-                        <div className="mt-1.5 p-2 bg-[#FEF3F2] border border-[#FECDCA] text-[#B42318] rounded-lg text-[11px] flex items-center gap-1.5">
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                          <span>{kasbonPhotoError}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="pt-3 border-t border-[#EAECF0] flex items-center justify-end gap-2.5">

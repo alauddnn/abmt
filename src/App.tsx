@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext.js';
-import { CompanyProvider, useCompany } from './context/CompanyContext.js';
+import { CompanyProvider } from './context/CompanyContext.js';
 import { Sidebar } from './components/Sidebar.js';
 import { Header } from './components/Header.js';
 import { MobileNav } from './components/MobileNav.js';
@@ -27,9 +28,6 @@ function MainLayout() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
-  const { settings } = useCompany();
-  const { user } = useAuth();
-
   const showToast = (type: 'success' | 'error' | 'info', message: string) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     setToasts((prev) => [...prev, { id, type, message }]);
@@ -51,13 +49,13 @@ function MainLayout() {
     projects: 'Manajemen Proyek',
     reports: 'Laporan & Rekap Keuangan (A-M)',
     payroll: 'Gaji 2 Mingguan',
-    expenses: 'Biaya Owner & Asisten',
+    expenses: 'Biaya Operasional',
     settings: 'Pengaturan Perusahaan',
     'audit-logs': 'Pengguna & Keamanan',
     employees: 'Manajemen Data Karyawan',
     attendance: 'Absensi & Gaji Harian',
     overtime: 'Pencatatan & Persetujuan Lembur',
-    kasbon: 'Sistem Kasbon Karyawan',
+    kasbon: 'Kasbon Karyawan',
   };
 
   const pageCategories: Record<string, string> = {
@@ -75,7 +73,7 @@ function MainLayout() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F3F5F7] font-sans text-[#344054]">
+    <div className="flex min-h-screen bg-[#F8FAFC] font-sans text-[#1E293B] antialiased">
       {/* Desktop Sidebar */}
       <Sidebar
         currentTab={currentTab}
@@ -91,69 +89,79 @@ function MainLayout() {
           category={pageCategories[currentTab] || 'Operasional'}
         />
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          {currentTab === 'dashboard' && (
-            <DashboardPage
-              onNavigate={setCurrentTab}
-              onOpenTestCases={() => setIsTestModalOpen(true)}
-              refreshTrigger={refreshTrigger}
-            />
-          )}
+        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8 max-w-[1440px] w-full mx-auto">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={currentTab}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {currentTab === 'dashboard' && (
+                <DashboardPage
+                  onNavigate={setCurrentTab}
+                  onOpenTestCases={() => setIsTestModalOpen(true)}
+                  refreshTrigger={refreshTrigger}
+                />
+              )}
 
-          {currentTab === 'projects' && (
-            <ProjectsPage showToast={showToast} />
-          )}
+              {currentTab === 'projects' && (
+                <ProjectsPage showToast={showToast} />
+              )}
 
-          {currentTab === 'employees' && (
-            <EmployeesPage showToast={showToast} />
-          )}
+              {currentTab === 'employees' && (
+                <EmployeesPage showToast={showToast} />
+              )}
 
-          {currentTab === 'attendance' && (
-            <AttendancePage
-              showToast={showToast}
-              onDataChanged={handleDataChanged}
-            />
-          )}
+              {currentTab === 'attendance' && (
+                <AttendancePage
+                  showToast={showToast}
+                  onDataChanged={handleDataChanged}
+                />
+              )}
 
-          {currentTab === 'overtime' && (
-            <OvertimePage
-              showToast={showToast}
-              onDataChanged={handleDataChanged}
-            />
-          )}
+              {currentTab === 'overtime' && (
+                <OvertimePage
+                  showToast={showToast}
+                  onDataChanged={handleDataChanged}
+                />
+              )}
 
-          {currentTab === 'kasbon' && (
-            <KasbonPage
-              showToast={showToast}
-              onDataChanged={handleDataChanged}
-            />
-          )}
+              {currentTab === 'kasbon' && (
+                <KasbonPage
+                  showToast={showToast}
+                  onDataChanged={handleDataChanged}
+                />
+              )}
 
-          {currentTab === 'payroll' && (
-            <PayrollPage
-              showToast={showToast}
-              onDataChanged={handleDataChanged}
-            />
-          )}
+              {currentTab === 'payroll' && (
+                <PayrollPage
+                  showToast={showToast}
+                  onDataChanged={handleDataChanged}
+                />
+              )}
 
-          {currentTab === 'expenses' && (
-            <ExpensesPage
-              showToast={showToast}
-              onDataChanged={handleDataChanged}
-            />
-          )}
+              {currentTab === 'expenses' && (
+                <ExpensesPage
+                  showToast={showToast}
+                  onDataChanged={handleDataChanged}
+                />
+              )}
 
-          {currentTab === 'reports' && (
-            <ReportsPage showToast={showToast} />
-          )}
+              {currentTab === 'reports' && (
+                <ReportsPage showToast={showToast} />
+              )}
 
-          {currentTab === 'settings' && (
-            <SettingsPage showToast={showToast} onNavigate={setCurrentTab} />
-          )}
+              {currentTab === 'settings' && (
+                <SettingsPage showToast={showToast} onNavigate={setCurrentTab} />
+              )}
 
-          {currentTab === 'audit-logs' && (
-            <AuditLogPage showToast={showToast} />
-          )}
+              {currentTab === 'audit-logs' && (
+                <AuditLogPage showToast={showToast} />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 

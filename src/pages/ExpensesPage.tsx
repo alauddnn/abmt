@@ -32,9 +32,10 @@ import {
   Loader2,
   RefreshCw,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { OperationalExpense, OperationalExpenseAttachment } from '../types.js';
 import { api } from '../lib/api.js';
-import { formatRupiah, formatDateID, getTodayDateString } from '../lib/utils.js';
+import { formatRupiah, formatDateID, getTodayDateString, useAnimatedNumber } from '../lib/utils.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useCompany } from '../context/CompanyContext.js';
 
@@ -102,6 +103,8 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
   const [isZoomed, setIsZoomed] = useState(false);
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photoError, setPhotoError] = useState(false);
+  const [expenseToDelete, setExpenseToDelete] = useState<{ id: string; num: string } | null>(null);
+  const [deletingExpense, setDeletingExpense] = useState(false);
 
   // Reset photo states whenever lightbox opens or active photo changes
   useEffect(() => {
@@ -327,21 +330,27 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
   };
 
   // Delete Transaction
-  const handleDelete = async (id: string, num: string) => {
+  const handleDelete = (id: string, num: string) => {
     if (!isAdmin) {
       showToast('error', 'Hanya Administrator yang berhak menghapus data pengeluaran.');
       return;
     }
+    setExpenseToDelete({ id, num });
+  };
 
-    if (window.confirm(`Yakin ingin menghapus transaksi ${num}? Seluruh data dan foto bukti terkait akan dihapus secara permanen.`)) {
-      try {
-        await api.deleteExpense(id);
-        showToast('info', `Transaksi ${num} berhasil dihapus.`);
-        fetchExpenses();
-        onDataChanged();
-      } catch (err: any) {
-        showToast('error', err.message || 'Gagal menghapus data pengeluaran');
-      }
+  const confirmDeleteExpense = async () => {
+    if (!expenseToDelete) return;
+    setDeletingExpense(true);
+    try {
+      await api.deleteExpense(expenseToDelete.id);
+      showToast('info', `Transaksi ${expenseToDelete.num} berhasil dihapus.`);
+      setExpenseToDelete(null);
+      fetchExpenses();
+      onDataChanged();
+    } catch (err: any) {
+      showToast('error', err.message || 'Gagal menghapus data pengeluaran');
+    } finally {
+      setDeletingExpense(false);
     }
   };
 
@@ -399,6 +408,18 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
   const asistenMakan = asistenExpenses.filter((e) => e.category === 'Makan').reduce((s, e) => s + e.amount, 0);
   const totalAsisten = asistenBensin + asistenRokok + asistenEToll + asistenMakan;
 
+  const animTotalOwner = useAnimatedNumber(totalOwner);
+  const animOwnerBensin = useAnimatedNumber(ownerBensin);
+  const animOwnerRokok = useAnimatedNumber(ownerRokok);
+  const animOwnerEToll = useAnimatedNumber(ownerEToll);
+  const animOwnerMakan = useAnimatedNumber(ownerMakan);
+
+  const animTotalAsisten = useAnimatedNumber(totalAsisten);
+  const animAsistenBensin = useAnimatedNumber(asistenBensin);
+  const animAsistenRokok = useAnimatedNumber(asistenRokok);
+  const animAsistenEToll = useAnimatedNumber(asistenEToll);
+  const animAsistenMakan = useAnimatedNumber(asistenMakan);
+
   // Currently viewing photo in lightbox
   const currentViewingPhoto =
     viewingProofExpense?.attachments && viewingProofExpense.attachments.length > 0
@@ -406,28 +427,28 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
       : null;
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-20 kms-fade-in">
       {/* Top Header */}
-      <div className="bg-white rounded-xl border border-[#EAECF0] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-7 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[#2563EB] text-xs font-semibold tracking-tight">
               PT. Asta Brata Matahari Terbit
             </span>
-            <span className="text-[#D0D5DD]">·</span>
-            <span className="text-xs text-[#667085] font-medium font-mono">
+            <span className="text-slate-300">·</span>
+            <span className="text-xs text-slate-500 font-medium font-mono">
               Bensin, Rokok, E-Toll, Makan
             </span>
-            <span className="text-[#D0D5DD]">·</span>
-            <span className="text-[10px] bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+            <span className="text-slate-300">·</span>
+            <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
               <ShieldCheck className="w-3 h-3" /> Supabase Storage Private
             </span>
           </div>
-          <h1 className="text-2xl font-semibold text-[#262626] tracking-tight mt-1">
-            Biaya Operasional Owner & Asisten
+          <h1 className="text-2xl sm:text-[26px] font-semibold text-slate-900 tracking-tight mt-1">
+            Biaya Operasional
           </h1>
-          <p className="text-xs text-[#667085] mt-1">
-            Pencatatan pengeluaran harian lengkap dengan unggah foto struk bensin, tiket e-toll, kuitansi, dan bukti pembayaran yang tersimpan aman di Supabase.
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
+            Pencatatan pengeluaran operasional (Owner & Asisten) lengkap dengan unggah foto nota, struk bensin, tiket e-toll, kuitansi, dan bukti pengeluaran yang tersimpan aman di Supabase.
           </p>
         </div>
 
@@ -436,16 +457,16 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <button
               onClick={() => openCreateModal('Owner')}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-semibold rounded-xl shadow-xs hover:shadow-md transition-all cursor-pointer"
             >
               <User className="w-4 h-4" />
               <span>+ Biaya Owner</span>
             </button>
             <button
               onClick={() => openCreateModal('Asisten')}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-[#F9FAFB] text-[#344054] text-xs font-semibold rounded-lg border border-[#D0D5DD] shadow-xs transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-2xs transition-all cursor-pointer"
             >
-              <UserCheck className="w-4 h-4 text-[#4693FD]" />
+              <UserCheck className="w-4 h-4 text-[#2563EB]" />
               <span>+ Biaya Asisten</span>
             </button>
           </div>
@@ -456,169 +477,181 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* REKAP OWNER */}
         <div
-          className={`p-6 rounded-xl border transition-all ${
+          onClick={() => setActiveTab('owner')}
+          className={`kms-card-hover p-6 rounded-2xl border transition-all cursor-pointer ${
             activeTab === 'owner'
-              ? 'bg-white border-2 border-[#4693FD] shadow-xs'
-              : 'bg-white border-[#EAECF0] shadow-xs'
+              ? 'bg-white border-2 border-[#2563EB] shadow-[0_4px_16px_-4px_rgba(37,99,235,0.12)]'
+              : 'bg-white border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)]'
           }`}
         >
-          <div className="flex items-center justify-between pb-4 border-b border-[#EAECF0]">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#EFF5FF] text-[#4693FD] flex items-center justify-center font-semibold">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#2563EB] flex items-center justify-center font-semibold">
                 <User className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-semibold text-[#262626] text-xs uppercase tracking-wider">REKAP PENGELUARAN OWNER</h3>
-                <p className="text-xs text-[#667085]">{settings?.ownerName || 'Bpk. Bambang'}</p>
+                <h3 className="font-semibold text-slate-900 text-xs uppercase tracking-wider">REKAP PENGELUARAN OWNER</h3>
+                <p className="text-xs text-slate-500">{settings?.ownerName || 'Bpk. Bambang'}</p>
               </div>
             </div>
             <div className="text-right">
-              <span className="text-[11px] text-[#667085] uppercase">Total Pengeluaran</span>
-              <p className="text-xl font-semibold text-[#262626] tabular-nums">{formatRupiah(totalOwner)}</p>
+              <span className="text-[11px] text-slate-400 uppercase font-medium">Total Pengeluaran</span>
+              <p className="text-xl font-semibold text-slate-900 font-mono tabular-nums">{formatRupiah(animTotalOwner)}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-            <div className="p-3 bg-[#F9FAFB] rounded-lg border border-[#EAECF0]">
-              <span className="text-[11px] font-medium text-[#667085] flex items-center gap-1">
+            <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70">
+              <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
                 <Fuel className="w-3.5 h-3.5 text-[#D99A23]" /> Bensin
               </span>
-              <p className="text-sm font-semibold text-[#262626] mt-1 tabular-nums">{formatRupiah(ownerBensin)}</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1 font-mono tabular-nums">{formatRupiah(animOwnerBensin)}</p>
             </div>
-            <div className="p-3 bg-[#F9FAFB] rounded-lg border border-[#EAECF0]">
-              <span className="text-[11px] font-medium text-[#667085] flex items-center gap-1">
+            <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70">
+              <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
                 <Cigarette className="w-3.5 h-3.5 text-[#D64545]" /> Rokok
               </span>
-              <p className="text-sm font-semibold text-[#262626] mt-1 tabular-nums">{formatRupiah(ownerRokok)}</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1 font-mono tabular-nums">{formatRupiah(animOwnerRokok)}</p>
             </div>
-            <div className="p-3 bg-[#F9FAFB] rounded-lg border border-[#EAECF0]">
-              <span className="text-[11px] font-medium text-[#667085] flex items-center gap-1">
-                <Navigation className="w-3.5 h-3.5 text-[#4693FD]" /> E-Toll
+            <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70">
+              <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                <Navigation className="w-3.5 h-3.5 text-[#2563EB]" /> E-Toll
               </span>
-              <p className="text-sm font-semibold text-[#262626] mt-1 tabular-nums">{formatRupiah(ownerEToll)}</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1 font-mono tabular-nums">{formatRupiah(animOwnerEToll)}</p>
             </div>
-            <div className="p-3 bg-[#F9FAFB] rounded-lg border border-[#EAECF0]">
-              <span className="text-[11px] font-medium text-[#667085] flex items-center gap-1">
+            <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70">
+              <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
                 <Utensils className="w-3.5 h-3.5 text-[#16A36A]" /> Makan
               </span>
-              <p className="text-sm font-semibold text-[#262626] mt-1 tabular-nums">{formatRupiah(ownerMakan)}</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1 font-mono tabular-nums">{formatRupiah(animOwnerMakan)}</p>
             </div>
           </div>
         </div>
 
         {/* REKAP ASISTEN */}
         <div
-          className={`p-6 rounded-xl border transition-all ${
+          onClick={() => setActiveTab('asisten')}
+          className={`kms-card-hover p-6 rounded-2xl border transition-all cursor-pointer ${
             activeTab === 'asisten'
-              ? 'bg-white border-2 border-[#4693FD] shadow-xs'
-              : 'bg-white border-[#EAECF0] shadow-xs'
+              ? 'bg-white border-2 border-[#2563EB] shadow-[0_4px_16px_-4px_rgba(37,99,235,0.12)]'
+              : 'bg-white border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)]'
           }`}
         >
-          <div className="flex items-center justify-between pb-4 border-b border-[#EAECF0]">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#EFF5FF] text-[#4693FD] flex items-center justify-center font-semibold">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#2563EB] flex items-center justify-center font-semibold">
                 <UserCheck className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-semibold text-[#262626] text-xs uppercase tracking-wider">REKAP PENGELUARAN ASISTEN</h3>
-                <p className="text-xs text-[#667085]">{settings?.assistantName || 'Ahmad Fauzi'}</p>
+                <h3 className="font-semibold text-slate-900 text-xs uppercase tracking-wider">REKAP PENGELUARAN ASISTEN</h3>
+                <p className="text-xs text-slate-500">{settings?.assistantName || 'Ahmad Fauzi'}</p>
               </div>
             </div>
             <div className="text-right">
-              <span className="text-[11px] text-[#667085] uppercase">Total Pengeluaran</span>
-              <p className="text-xl font-semibold text-[#262626] tabular-nums">{formatRupiah(totalAsisten)}</p>
+              <span className="text-[11px] text-slate-400 uppercase font-medium">Total Pengeluaran</span>
+              <p className="text-xl font-semibold text-slate-900 font-mono tabular-nums">{formatRupiah(animTotalAsisten)}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-            <div className="p-3 bg-[#F9FAFB] rounded-lg border border-[#EAECF0]">
-              <span className="text-[11px] font-medium text-[#667085] flex items-center gap-1">
+            <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70">
+              <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
                 <Fuel className="w-3.5 h-3.5 text-[#D99A23]" /> Bensin
               </span>
-              <p className="text-sm font-semibold text-[#262626] mt-1 tabular-nums">{formatRupiah(asistenBensin)}</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1 font-mono tabular-nums">{formatRupiah(animAsistenBensin)}</p>
             </div>
-            <div className="p-3 bg-[#F9FAFB] rounded-lg border border-[#EAECF0]">
-              <span className="text-[11px] font-medium text-[#667085] flex items-center gap-1">
+            <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70">
+              <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
                 <Cigarette className="w-3.5 h-3.5 text-[#D64545]" /> Rokok
               </span>
-              <p className="text-sm font-semibold text-[#262626] mt-1 tabular-nums">{formatRupiah(asistenRokok)}</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1 font-mono tabular-nums">{formatRupiah(animAsistenRokok)}</p>
             </div>
-            <div className="p-3 bg-[#F9FAFB] rounded-lg border border-[#EAECF0]">
-              <span className="text-[11px] font-medium text-[#667085] flex items-center gap-1">
-                <Navigation className="w-3.5 h-3.5 text-[#4693FD]" /> E-Toll
+            <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70">
+              <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                <Navigation className="w-3.5 h-3.5 text-[#2563EB]" /> E-Toll
               </span>
-              <p className="text-sm font-semibold text-[#262626] mt-1 tabular-nums">{formatRupiah(asistenEToll)}</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1 font-mono tabular-nums">{formatRupiah(animAsistenEToll)}</p>
             </div>
-            <div className="p-3 bg-[#F9FAFB] rounded-lg border border-[#EAECF0]">
-              <span className="text-[11px] font-medium text-[#667085] flex items-center gap-1">
+            <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70">
+              <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
                 <Utensils className="w-3.5 h-3.5 text-[#16A36A]" /> Makan
               </span>
-              <p className="text-sm font-semibold text-[#262626] mt-1 tabular-nums">{formatRupiah(asistenMakan)}</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1 font-mono tabular-nums">{formatRupiah(animAsistenMakan)}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Tab Selector & Filter Toolbar */}
-      <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#EAECF0]">
-          {/* Tabs */}
-          <div className="flex items-center bg-[#F2F4F7] p-0.5 rounded-lg text-xs border border-[#EAECF0]">
-            <button
-              onClick={() => setActiveTab('owner')}
-              className={`px-3 py-1 font-medium rounded-md transition-colors ${
-                activeTab === 'owner' ? 'bg-white text-[#262626] shadow-xs' : 'text-[#667085] hover:text-[#262626]'
-              }`}
-            >
-              Pengeluaran Owner ({ownerExpenses.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('asisten')}
-              className={`px-3 py-1 font-medium rounded-md transition-colors ${
-                activeTab === 'asisten' ? 'bg-white text-[#262626] shadow-xs' : 'text-[#667085] hover:text-[#262626]'
-              }`}
-            >
-              Pengeluaran Asisten ({asistenExpenses.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('all')}
-              className={`px-3 py-1 font-medium rounded-md transition-colors ${
-                activeTab === 'all' ? 'bg-white text-[#262626] shadow-xs' : 'text-[#667085] hover:text-[#262626]'
-              }`}
-            >
-              Semua Pengeluaran ({expenses.length})
-            </button>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-t-0 border-b border-slate-100">
+          {/* Animated Tabs */}
+          <div className="inline-flex items-center bg-slate-100/90 p-1 rounded-xl text-xs">
+            {[
+              { id: 'owner' as const, label: `Pengeluaran Owner (${ownerExpenses.length})` },
+              { id: 'asisten' as const, label: `Pengeluaran Asisten (${asistenExpenses.length})` },
+              { id: 'all' as const, label: `Semua Pengeluaran (${expenses.length})` },
+            ].map((t) => {
+              const isSelected = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`relative px-3.5 py-1.5 font-medium rounded-lg transition-colors cursor-pointer ${
+                    isSelected ? 'text-slate-900' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {isSelected && (
+                    <motion.span
+                      layoutId="expenses-tab-pill"
+                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                      className="absolute inset-0 bg-white rounded-lg shadow-xs"
+                    />
+                  )}
+                  <span className="relative z-10">{t.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Quick Date Range */}
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-[#667085] font-medium">Rentang:</span>
+            <span className="text-slate-500 font-medium">Rentang:</span>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="bg-white border border-[#D0D5DD] rounded-lg px-2.5 py-1 text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+              className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
             />
-            <span className="text-[#667085]">-</span>
+            <span className="text-slate-400">–</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="bg-white border border-[#D0D5DD] rounded-lg px-2.5 py-1 text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+              className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
             />
           </div>
         </div>
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
-          <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 text-[#98A2B3] absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="relative w-full md:w-80 group">
+            <Search className="w-4 h-4 text-slate-400 group-focus-within:text-[#2563EB] transition-colors absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Cari transaksi atau keterangan..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3.5 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+              className="w-full pl-10 pr-8 py-2 bg-slate-50/70 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-3 focus:ring-[#2563EB]/12 transition-all"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
@@ -626,10 +659,10 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
               <button
                 key={cat}
                 onClick={() => setCategoryFilter(cat)}
-                className={`px-2.5 py-1 rounded-md font-medium text-xs border transition-colors ${
+                className={`px-3 py-1.5 rounded-xl font-medium text-xs border transition-all cursor-pointer ${
                   categoryFilter === cat
-                    ? 'bg-[#EFF5FF] text-[#4693FD] border-[#4693FD]'
-                    : 'bg-white text-[#667085] border-[#D0D5DD] hover:bg-[#F9FAFB]'
+                    ? 'bg-[#EFF5FF] text-[#2563EB] border-blue-200 shadow-2xs'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                 }`}
               >
                 {cat === 'all' ? 'Semua Kategori' : cat}
@@ -640,33 +673,42 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
       </div>
 
       {/* Expenses Table */}
-      <div className="bg-white rounded-xl border border-[#EAECF0] shadow-xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-[#F9FAFB] text-[#475467] font-semibold border-b border-[#EAECF0]">
-                <th className="py-3 px-4">No. Transaksi</th>
-                <th className="py-3 px-4">Tanggal</th>
-                <th className="py-3 px-4">Personil</th>
-                <th className="py-3 px-4">Nama Lengkap</th>
-                <th className="py-3 px-4">Kategori Biaya</th>
-                <th className="py-3 px-4">Keterangan</th>
-                <th className="py-3 px-4 font-mono">Nominal</th>
-                <th className="py-3 px-4">Metode Bayar</th>
-                <th className="py-3 px-4 text-center">Foto Bukti</th>
-                <th className="py-3 px-4 text-center">Aksi</th>
+              <tr className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200/80">
+                <th className="py-3.5 px-4">No. Transaksi</th>
+                <th className="py-3.5 px-4">Tanggal</th>
+                <th className="py-3.5 px-4">Personil</th>
+                <th className="py-3.5 px-4">Nama Lengkap</th>
+                <th className="py-3.5 px-4">Kategori Biaya</th>
+                <th className="py-3.5 px-4">Keterangan</th>
+                <th className="py-3.5 px-4 font-mono">Nominal</th>
+                <th className="py-3.5 px-4">Metode Bayar</th>
+                <th className="py-3.5 px-4 text-center">Foto Bukti</th>
+                <th className="py-3.5 px-4 text-center">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+            <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading ? (
-                <tr>
-                  <td colSpan={10} className="py-10 text-center text-[#667085]">
-                    Memuat data pengeluaran operasional...
-                  </td>
-                </tr>
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={`exp-skel-${idx}`}>
+                    <td className="py-3.5 px-4"><div className="h-4 w-20 rounded kms-skeleton" /></td>
+                    <td className="py-3.5 px-4"><div className="h-4 w-20 rounded kms-skeleton" /></td>
+                    <td className="py-3.5 px-4"><div className="h-5 w-16 rounded kms-skeleton" /></td>
+                    <td className="py-3.5 px-4"><div className="h-4 w-28 rounded kms-skeleton" /></td>
+                    <td className="py-3.5 px-4"><div className="h-4 w-16 rounded kms-skeleton" /></td>
+                    <td className="py-3.5 px-4"><div className="h-4 w-44 rounded kms-skeleton" /></td>
+                    <td className="py-3.5 px-4"><div className="h-4 w-24 rounded kms-skeleton" /></td>
+                    <td className="py-3.5 px-4"><div className="h-4 w-16 rounded kms-skeleton" /></td>
+                    <td className="py-3.5 px-4"><div className="h-6 w-24 rounded-lg kms-skeleton mx-auto" /></td>
+                    <td className="py-3.5 px-4"><div className="h-6 w-16 rounded-lg kms-skeleton mx-auto" /></td>
+                  </tr>
+                ))
               ) : finalFiltered.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-10 text-center text-[#667085]">
+                  <td colSpan={10} className="py-12 text-center text-slate-500">
                     Belum ada catatan pengeluaran operasional sesuai filter.
                   </td>
                 </tr>
@@ -676,7 +718,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
                   const photoCount = exp.attachments ? exp.attachments.length : 0;
 
                   return (
-                    <tr key={exp.id} className="h-11 hover:bg-[#F9FAFB] transition-colors">
+                    <tr key={exp.id} className="h-11 hover:bg-blue-50/35 transition-colors">
                       <td className="py-3 px-4 font-mono font-medium text-[#262626] whitespace-nowrap">
                         {exp.transactionNumber}
                       </td>
@@ -772,8 +814,8 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
 
       {/* Create / Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-[2px]">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full border border-[#EAECF0] overflow-hidden animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col">
+        <div className="kms-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-[2px]">
+          <div className="kms-modal-content bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col">
             <div className="px-6 py-4 bg-white text-[#262626] border-b border-[#EAECF0] flex items-center justify-between shrink-0">
               <div>
                 <h3 className="font-semibold text-sm">
@@ -1081,8 +1123,8 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
 
       {/* Proof Lightbox Viewer Modal */}
       {viewingProofExpense && viewingProofExpense.attachments && viewingProofExpense.attachments.length > 0 && currentViewingPhoto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/70 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full border border-[#EAECF0] overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="kms-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/70 backdrop-blur-sm">
+          <div className="kms-modal-content bg-white rounded-2xl shadow-2xl max-w-3xl w-full border border-[#EAECF0] overflow-hidden flex flex-col max-h-[92vh]">
             {/* Modal Header */}
             <div className="px-6 py-3.5 bg-white border-b border-[#EAECF0] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
@@ -1261,6 +1303,55 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
                   <Download className="w-3.5 h-3.5" />
                   <span>Unduh Foto</span>
                 </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Hapus Transaksi Pengeluaran */}
+      {expenseToDelete && (
+        <div className="kms-modal-overlay fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="kms-modal-content bg-white rounded-2xl max-w-md w-full border border-[#EAECF0] shadow-xl overflow-hidden">
+            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between bg-[#FEF3F2]">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#FEE4E2] text-[#D92D20] flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-[#912018]">Hapus Transaksi Pengeluaran?</h3>
+                  <p className="text-[11px] text-[#B42318]">Konfirmasi penghapusan catatan pengeluaran</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setExpenseToDelete(null)}
+                className="p-1 text-[#98A2B3] hover:text-[#262626] rounded-md"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3 text-xs text-[#344054]">
+              <p>
+                Yakin ingin menghapus transaksi{' '}
+                <strong className="font-mono text-[#101828]">{expenseToDelete.num}</strong>? Seluruh data dan foto bukti terkait akan dihapus secara permanen.
+              </p>
+              <div className="pt-3 border-t border-[#EAECF0] flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={deletingExpense}
+                  onClick={() => setExpenseToDelete(null)}
+                  className="px-4 py-2 border border-[#D0D5DD] rounded-lg text-xs font-medium text-[#344054] hover:bg-[#F9FAFB]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingExpense}
+                  onClick={confirmDeleteExpense}
+                  className="px-4 py-2 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-lg text-xs font-medium shadow-xs disabled:opacity-50"
+                >
+                  {deletingExpense ? 'Menghapus...' : 'Ya, Hapus Transaksi'}
+                </button>
               </div>
             </div>
           </div>

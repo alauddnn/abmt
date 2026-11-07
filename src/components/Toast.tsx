@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export interface ToastMessage {
   id: string;
@@ -13,43 +14,64 @@ interface ToastProps {
 }
 
 export const ToastContainer: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
-  if (toasts.length === 0) return null;
-
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full px-4 sm:px-0 pointer-events-none">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className="pointer-events-auto flex items-start gap-3 p-3.5 bg-white rounded-xl shadow-lg border border-[#EAECF0] text-xs transition-all duration-200 animate-in slide-in-from-bottom-2"
-        >
-          {toast.type === 'success' && (
-            <div className="w-6 h-6 rounded-md bg-[#ECFDF3] text-[#16A36A] flex items-center justify-center shrink-0 mt-0.5">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          )}
-          {toast.type === 'error' && (
-            <div className="w-6 h-6 rounded-md bg-[#FEF3F2] text-[#D64545] flex items-center justify-center shrink-0 mt-0.5">
-              <AlertCircle className="w-4 h-4" />
-            </div>
-          )}
-          {toast.type === 'info' && (
-            <div className="w-6 h-6 rounded-md bg-[#EFF5FF] text-[#4693FD] flex items-center justify-center shrink-0 mt-0.5">
-              <Info className="w-4 h-4" />
-            </div>
-          )}
-
-          <div className="flex-1 font-medium text-[#262626] leading-relaxed pt-0.5">
-            {toast.message}
-          </div>
-
-          <button
-            onClick={() => onDismiss(toast.id)}
-            className="text-[#98A2B3] hover:text-[#262626] transition-colors p-1 rounded-md hover:bg-[#F2F4F7]"
+    <div className="fixed bottom-16 lg:bottom-6 right-4 sm:right-6 z-50 flex flex-col gap-2.5 max-w-sm w-full px-4 sm:px-0 pointer-events-none">
+      <AnimatePresence mode="popLayout">
+        {toasts.map((toast) => (
+          <motion.div
+            key={toast.id}
+            layout
+            initial={{ opacity: 0, y: 18, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 28, scale: 0.95 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="pointer-events-auto relative overflow-hidden flex items-start gap-3 p-4 bg-white/95 backdrop-blur-md rounded-2xl shadow-[0_12px_32px_-8px_rgba(15,23,42,0.14)] border border-slate-200/90 text-xs"
           >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      ))}
+            {toast.type === 'success' && (
+              <div className="w-7 h-7 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/70 flex items-center justify-center shrink-0 mt-0.5">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+            )}
+            {toast.type === 'error' && (
+              <div className="w-7 h-7 rounded-xl bg-rose-50 text-rose-600 border border-rose-200/70 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertCircle className="w-4 h-4" />
+              </div>
+            )}
+            {toast.type === 'info' && (
+              <div className="w-7 h-7 rounded-xl bg-blue-50 text-[#2563EB] border border-blue-200/70 flex items-center justify-center shrink-0 mt-0.5">
+                <Info className="w-4 h-4" />
+              </div>
+            )}
+
+            <div className="flex-1 font-medium text-slate-800 leading-relaxed pt-0.5">
+              {toast.message}
+            </div>
+
+            <button
+              onClick={() => onDismiss(toast.id)}
+              className="text-slate-400 hover:text-slate-800 transition-colors p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
+              aria-label="Tutup notifikasi"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Subtle auto-dismiss progress indicator */}
+            <motion.div
+              initial={{ scaleX: 1 }}
+              animate={{ scaleX: 0 }}
+              transition={{ duration: 4.5, ease: 'linear' }}
+              style={{ transformOrigin: 'left' }}
+              className={`absolute bottom-0 left-0 right-0 h-0.5 ${
+                toast.type === 'success'
+                  ? 'bg-emerald-500/70'
+                  : toast.type === 'error'
+                  ? 'bg-rose-500/70'
+                  : 'bg-[#2563EB]/70'
+              }`}
+            />
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 };

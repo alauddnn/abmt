@@ -59,6 +59,7 @@ import {
   splitHoursMinutes,
   isDriverRole,
   terbilangRupiah,
+  useAnimatedNumber,
 } from '../lib/utils.js';
 import {
   exportProjectReportPDF,
@@ -279,6 +280,25 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
   // Kasbon Deletion Confirmation Modal State
   const [kasbonToDelete, setKasbonToDelete] = useState<KasbonRecord | null>(null);
   const [deletingKasbon, setDeletingKasbon] = useState(false);
+
+  // Kasbon Filters, View Mode, Manual Payment & Detail History State
+  const [kasbonViewMode, setKasbonViewMode] = useState<'transactions' | 'employees'>('transactions');
+  const [kasbonSearchQuery, setKasbonSearchQuery] = useState('');
+  const [kasbonFilterEmployee, setKasbonFilterEmployee] = useState('ALL');
+  const [kasbonFilterStatus, setKasbonFilterStatus] = useState('ALL');
+  const [kasbonFilterStartDate, setKasbonFilterStartDate] = useState('');
+  const [kasbonFilterEndDate, setKasbonFilterEndDate] = useState('');
+  const [selectedEmployeeKasbonHistory, setSelectedEmployeeKasbonHistory] = useState<string | null>(null);
+
+  const [kasbonToPay, setKasbonToPay] = useState<KasbonRecord | null>(null);
+  const [kasbonPaymentForm, setKasbonPaymentForm] = useState({
+    amount: '',
+    paymentDate: getTodayDateString(),
+    paymentMethod: 'Tunai',
+    notes: '',
+  });
+  const [submittingKasbonPayment, setSubmittingKasbonPayment] = useState(false);
+  const [kasbonDetailModal, setKasbonDetailModal] = useState<KasbonRecord | null>(null);
 
   const getKasbonPhotoViewUrl = (attachmentId: string, download: boolean = false) => {
     const params = new URLSearchParams();
@@ -819,7 +839,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
   const handleConfirmDeleteKasbon = async () => {
     if (!isAdmin || !kasbonToDelete) return;
     if (kasbonToDelete.deductedAmount > 0 || kasbonToDelete.status === 'Lunas' || kasbonToDelete.status === 'Dipotong sebagian') {
-      showToast('error', 'Kasbon ini sudah memiliki riwayat pemotongan gaji dan tidak dapat dihapus langsung.');
+      showToast('error', 'Kasbon ini sudah memiliki riwayat pembayaran dan tidak dapat dihapus langsung.');
       return;
     }
 
@@ -834,6 +854,78 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
       showToast('error', err.message || 'Gagal menghapus kasbon');
     } finally {
       setDeletingKasbon(false);
+    }
+  };
+
+  const handleOpenPayKasbonModal = (kb: KasbonRecord) => {
+    if (!isAdmin) return;
+    setKasbonToPay(kb);
+    setKasbonPaymentForm({
+      amount: String(kb.remainingAmount || 0),
+      paymentDate: getTodayDateString(),
+      paymentMethod: 'Tunai',
+      notes: '',
+    });
+  };
+
+  const handlePayKasbonSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin || !kasbonToPay) return;
+    const payAmount = Math.round(Number(kasbonPaymentForm.amount || 0));
+    if (!payAmount || payAmount <= 0) {
+      showToast('error', 'Nominal pembayaran harus lebih besar dari Rp0.');
+      return;
+    }
+    if (payAmount > kasbonToPay.remainingAmount) {
+      showToast('error', `Nominal pembayaran melebihi sisa kasbon (${formatRupiah(kasbonToPay.remainingAmount)}).`);
+      return;
+    }
+
+    setSubmittingKasbonPayment(true);
+    try {
+      const updated = await api.payProjectKasbon(project.id, kasbonToPay.id, {
+        amount: payAmount,
+        paymentDate: kasbonPaymentForm.paymentDate || getTodayDateString(),
+        paymentMethod: kasbonPaymentForm.paymentMethod || 'Tunai',
+        notes: kasbonPaymentForm.notes,
+      });
+      showToast(
+        'success',
+        `Pembayaran kasbon ${kasbonToPay.employeeName} sebesar ${formatRupiah(payAmount)} berhasil dicatat. Sisa: ${formatRupiah(updated.remainingAmount)}`
+      );
+      setKasbonToPay(null);
+      if (kasbonDetailModal && kasbonDetailModal.id === updated.id) {
+        setKasbonDetailModal(updated);
+      }
+      fetchStats();
+      fetchModuleData('kasbon');
+    } catch (err: any) {
+      showToast('error', err.message || 'Gagal mencatat pembayaran kasbon');
+    } finally {
+      setSubmittingKasbonPayment(false);
+    }
+  };
+
+  const handleUpdateProjectKasbonStatus = async (kb: KasbonRecord, action: 'approve' | 'reject') => {
+    if (!isAdmin) return;
+    try {
+      const updated = await api.updateProjectKasbonStatus(
+        project.id,
+        kb.id,
+        action,
+        action === 'reject' ? 'Ditolak oleh Administrator' : undefined
+      );
+      showToast(
+        'success',
+        `Status kasbon ${kb.kasbonNumber} berhasil diubah menjadi ${updated.status}.`
+      );
+      if (kasbonDetailModal && kasbonDetailModal.id === updated.id) {
+        setKasbonDetailModal(updated);
+      }
+      fetchStats();
+      fetchModuleData('kasbon');
+    } catch (err: any) {
+      showToast('error', err.message || 'Gagal mengubah status kasbon');
     }
   };
 
@@ -974,30 +1066,10 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
       return;
     }
 
-    const numKasbonAmount = Number(attendanceForm.kasbonAmount || 0);
-    if (attendanceForm.hasKasbon) {
-      if (!numKasbonAmount || numKasbonAmount <= 0 || isNaN(numKasbonAmount)) {
-        showToast('error', 'Nominal kasbon wajib diisi dan harus lebih besar dari Rp0.');
-        return;
-      }
-    }
-
     const isWorking = attendanceForm.status === 'Hadir' || attendanceForm.status === 'Setengah Hari';
     const dHours = isWorking ? Math.max(0, Math.floor(Number(attendanceForm.durationHours || 0))) : 0;
     const dMins = isWorking ? Math.max(0, Math.min(59, Math.round(Number(attendanceForm.durationMinutes || 0)))) : 0;
     const decHours = Number((dHours + dMins / 60).toFixed(4));
-
-    const kasbonAttachments =
-      attendanceForm.hasKasbon && selectedAttKasbonPhoto
-        ? [
-            {
-              fileName: selectedAttKasbonPhoto.fileName,
-              dataBase64: selectedAttKasbonPhoto.dataBase64,
-              fileSize: selectedAttKasbonPhoto.fileSize,
-              mimeType: selectedAttKasbonPhoto.mimeType,
-            },
-          ]
-        : [];
 
     setSavingAttendance(true);
     try {
@@ -1016,30 +1088,14 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
         durationHours: dHours,
         durationMinutes: dMins,
         notes: attendanceForm.notes,
-        hasKasbon: attendanceForm.hasKasbon,
-        kasbonId: attendanceForm.kasbonId || undefined,
-        kasbonAmount: attendanceForm.hasKasbon ? numKasbonAmount : 0,
-        kasbonNotes: attendanceForm.hasKasbon ? attendanceForm.kasbonNotes : '',
-        kasbonAttachments,
-        removeKasbonPhoto: attendanceForm.removeKasbonPhoto,
       };
 
       if (editingAttendance) {
         await api.updateAttendance(editingAttendance.id, payload);
-        showToast(
-          'success',
-          attendanceForm.hasKasbon
-            ? `Perubahan kehadiran dan kasbon (${formatRupiah(numKasbonAmount)}) berhasil disimpan.`
-            : 'Perubahan kehadiran proyek berhasil disimpan.'
-        );
+        showToast('success', 'Perubahan kehadiran proyek berhasil disimpan.');
       } else {
         await api.recordAttendance(payload);
-        showToast(
-          'success',
-          attendanceForm.hasKasbon
-            ? `Kehadiran dan pengajuan kasbon (${formatRupiah(numKasbonAmount)}) berhasil disimpan.`
-            : 'Kehadiran proyek berhasil dicatat.'
-        );
+        showToast('success', 'Kehadiran proyek berhasil dicatat.');
       }
 
       setIsAttendanceModalOpen(false);
@@ -1126,65 +1182,70 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
     Persiapan: 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]',
   };
 
+  const animBudget = useAnimatedNumber(project.budget);
+  const animAssigned = useAnimatedNumber(stats.totalAssignedEmployees);
+  const animPresent = useAnimatedNumber(stats.presentToday);
+  const animAbsent = useAnimatedNumber(stats.absentToday);
+  const animOvertime = useAnimatedNumber(stats.overtimeCount);
+  const animKasbon = useAnimatedNumber(stats.totalKasbon);
+  const animTransport = useAnimatedNumber(stats.totalTransportationCost);
+  const animOperational = useAnimatedNumber(stats.totalOperationalCost);
+
   return (
-    <div className="space-y-6 pb-20 bg-[#F8F9FA] min-h-screen">
+    <div className="space-y-7 pb-20 kms-fade-in">
       {/* 3. TOP INFO DASHBOARD */}
-      <div className="bg-white rounded-2xl border border-[#EAECF0] p-6 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-2">
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-7 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2.5">
             <button
               onClick={onBack}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#4693FD] hover:text-[#1849A9] transition-colors mb-1"
+              className="group inline-flex items-center gap-1.5 text-xs font-semibold text-[#2563EB] hover:text-[#1D4ED8] transition-colors cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
               <span>Kembali ke Daftar Proyek</span>
             </button>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs font-semibold px-2.5 py-0.5 rounded-md bg-[#F2F4F7] text-[#344054] border border-[#D0D5DD]">
+            <div className="flex flex-wrap items-baseline gap-3">
+              <h1 className="text-2xl sm:text-[26px] font-bold text-slate-900 tracking-tight">{project.name}</h1>
+              <span className="font-mono text-xs font-semibold text-slate-500">
                 {project.code}
               </span>
-              <h1 className="text-2xl font-bold text-[#1D2939] tracking-tight">{project.name}</h1>
-              <span
-                className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                  statusColors[project.status] || 'bg-gray-100 text-gray-700'
-                }`}
-              >
+              <span className="text-slate-300" aria-hidden="true">·</span>
+              <span className="text-xs font-semibold text-[#2563EB]">
                 {project.status}
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-[#475467] pt-1">
-              <div className="flex items-center gap-1.5">
-                <Building className="w-3.5 h-3.5 text-[#98A2B3]" />
-                <span className="text-[#667085]">Klien:</span>
-                <span className="font-semibold text-[#1D2939]">{project.client}</span>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600 pt-0.5">
+              <div>
+                <span className="text-slate-400">Klien: </span>
+                <span className="font-medium text-slate-800">{project.client || '-'}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-[#98A2B3]" />
-                <span className="text-[#667085]">Lokasi:</span>
-                <span className="font-medium text-[#1D2939]">{project.location}</span>
+              <span className="text-slate-300" aria-hidden="true">·</span>
+              <div>
+                <span className="text-slate-400">Lokasi: </span>
+                <span className="font-medium text-slate-800">{project.location}</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#98A2B3]" />
-                <span className="text-[#667085]">Periode:</span>
-                <span className="font-medium text-[#1D2939]">
+              <span className="text-slate-300" aria-hidden="true">·</span>
+              <div>
+                <span className="text-slate-400">Periode: </span>
+                <span className="font-mono text-slate-800 tabular-nums">
                   {formatDateID(project.startDate)}
-                  {project.targetEndDate ? ` s/d ${formatDateID(project.targetEndDate)}` : ''}
+                  {project.targetEndDate ? ` s/d ${formatDateID(project.targetEndDate)}` : ' (Target Terbuka)'}
                 </span>
               </div>
             </div>
           </div>
 
           {/* Budget Widget */}
-          <div className="bg-[#F8F9FA] border border-[#EAECF0] rounded-xl p-4 min-w-[240px] text-right">
-            <span className="text-xs text-[#667085] font-medium block">Nilai Anggaran Proyek</span>
-            <span className="text-xl font-bold text-[#1D2939] font-mono block mt-0.5">
-              {formatRupiah(project.budget)}
+          <div className="kms-card-hover bg-slate-50/90 border border-slate-200/80 rounded-2xl p-5 min-w-[260px] lg:text-right">
+            <span className="text-xs text-slate-500 font-medium block">Nilai Anggaran Kontrak</span>
+            <span className="text-2xl font-bold text-slate-900 font-mono tabular-nums block mt-1">
+              {formatRupiah(animBudget)}
             </span>
-            <div className="mt-2 flex items-center justify-end gap-2 text-[11px] text-[#475467]">
-              <span>Realisasi Biaya:</span>
-              <span className="font-semibold text-[#4693FD] font-mono">
+            <div className="mt-3 pt-2.5 border-t border-slate-200/70 flex items-center lg:justify-end justify-between gap-3 text-xs text-slate-600">
+              <span>Realisasi Anggaran:</span>
+              <span className="font-semibold text-[#2563EB] font-mono tabular-nums">
                 {stats.realizationPercentage}%
               </span>
             </div>
@@ -1193,111 +1254,118 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
       </div>
 
       {/* 4. SEVEN PROJECT SUMMARY STATS CARDS (Strictly calculated from real database) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3.5">
         {/* Card 1: Total Karyawan Ditugaskan */}
-        <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs">
-          <div className="flex items-center justify-between text-[#667085]">
-            <span className="text-[11px] font-medium">Ditugaskan</span>
-            <Users className="w-4 h-4 text-[#4693FD]" />
-          </div>
-          <p className="text-2xl font-bold text-[#1D2939] mt-2 font-mono">
-            {loadingStats ? '...' : stats.totalAssignedEmployees}
-          </p>
-          <p className="text-[10px] text-[#667085] mt-1">Tenaga kerja aktif</p>
+        <div className="kms-card-hover bg-white p-4 rounded-2xl border border-slate-200/90 hover:border-blue-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+          <span className="text-xs font-medium text-slate-500">Ditugaskan</span>
+          {loadingStats ? (
+            <div className="h-7 w-12 rounded kms-skeleton mt-2" />
+          ) : (
+            <p className="text-2xl font-bold text-slate-900 mt-2 font-mono tabular-nums">
+              {animAssigned}
+            </p>
+          )}
+          <p className="text-[11px] text-slate-400 mt-1.5">Tenaga kerja aktif</p>
         </div>
 
         {/* Card 2: Hadir Hari Ini */}
-        <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs">
-          <div className="flex items-center justify-between text-[#667085]">
-            <span className="text-[11px] font-medium">Hadir Hari Ini</span>
-            <CheckCircle2 className="w-4 h-4 text-[#12B76A]" />
-          </div>
-          <p className="text-2xl font-bold text-[#12B76A] mt-2 font-mono">
-            {loadingStats ? '...' : stats.presentToday}
-          </p>
-          <p className="text-[10px] text-[#667085] mt-1">Presensi hadir</p>
+        <div className="kms-card-hover bg-white p-4 rounded-2xl border border-slate-200/90 hover:border-emerald-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+          <span className="text-xs font-medium text-slate-500">Hadir Hari Ini</span>
+          {loadingStats ? (
+            <div className="h-7 w-12 rounded kms-skeleton mt-2" />
+          ) : (
+            <p className="text-2xl font-bold text-emerald-600 mt-2 font-mono tabular-nums">
+              {animPresent}
+            </p>
+          )}
+          <p className="text-[11px] text-slate-400 mt-1.5">Presensi hadir</p>
         </div>
 
         {/* Card 3: Tidak Hadir Hari Ini */}
-        <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs">
-          <div className="flex items-center justify-between text-[#667085]">
-            <span className="text-[11px] font-medium">Tidak Hadir</span>
-            <XCircle className="w-4 h-4 text-[#F04438]" />
-          </div>
-          <p className="text-2xl font-bold text-[#F04438] mt-2 font-mono">
-            {loadingStats ? '...' : stats.absentToday}
-          </p>
-          <p className="text-[10px] text-[#667085] mt-1">Izin/Sakit/Alpa/Belum</p>
+        <div className="kms-card-hover bg-white p-4 rounded-2xl border border-slate-200/90 hover:border-rose-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+          <span className="text-xs font-medium text-slate-500">Tidak Hadir</span>
+          {loadingStats ? (
+            <div className="h-7 w-12 rounded kms-skeleton mt-2" />
+          ) : (
+            <p className="text-2xl font-bold text-rose-600 mt-2 font-mono tabular-nums">
+              {animAbsent}
+            </p>
+          )}
+          <p className="text-[11px] text-slate-400 mt-1.5">Izin/Sakit/Alpa</p>
         </div>
 
         {/* Card 4: Lembur */}
-        <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs">
-          <div className="flex items-center justify-between text-[#667085]">
-            <span className="text-[11px] font-medium">Lembur</span>
-            <Clock className="w-4 h-4 text-[#F79009]" />
-          </div>
-          <p className="text-2xl font-bold text-[#F79009] mt-2 font-mono">
-            {loadingStats ? '...' : stats.overtimeCount}
-          </p>
-          <p className="text-[10px] text-[#667085] mt-1">Orang disetujui</p>
+        <div className="kms-card-hover bg-white p-4 rounded-2xl border border-slate-200/90 hover:border-amber-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+          <span className="text-xs font-medium text-slate-500">Lembur</span>
+          {loadingStats ? (
+            <div className="h-7 w-12 rounded kms-skeleton mt-2" />
+          ) : (
+            <p className="text-2xl font-bold text-amber-600 mt-2 font-mono tabular-nums">
+              {animOvertime}
+            </p>
+          )}
+          <p className="text-[11px] text-slate-400 mt-1.5">Orang disetujui</p>
         </div>
 
         {/* Card 5: Kasbon Terkait */}
-        <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs">
-          <div className="flex items-center justify-between text-[#667085]">
-            <span className="text-[11px] font-medium">Kasbon Terkait</span>
-            <Wallet className="w-4 h-4 text-[#7A5AF8]" />
-          </div>
-          <p className="text-sm font-bold text-[#7A5AF8] mt-2 font-mono truncate">
-            {loadingStats ? '...' : formatRupiah(stats.totalKasbon)}
-          </p>
-          <p className="text-[10px] text-[#667085] mt-1">Sisa pinjaman aktif</p>
+        <div className="kms-card-hover bg-white p-4 rounded-2xl border border-slate-200/90 hover:border-violet-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+          <span className="text-xs font-medium text-slate-500">Sisa Kasbon</span>
+          {loadingStats ? (
+            <div className="h-6 w-24 rounded kms-skeleton mt-2" />
+          ) : (
+            <p className="text-sm font-bold text-violet-700 mt-2 font-mono tabular-nums truncate">
+              {formatRupiah(animKasbon)}
+            </p>
+          )}
+          <p className="text-[11px] text-slate-400 mt-1.5">Pinjaman aktif</p>
         </div>
 
         {/* Card 6: Biaya Transportasi */}
-        <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs">
-          <div className="flex items-center justify-between text-[#667085]">
-            <span className="text-[11px] font-medium">Transportasi</span>
-            <Truck className="w-4 h-4 text-[#0BA5EC]" />
-          </div>
-          <p className="text-sm font-bold text-[#0BA5EC] mt-2 font-mono truncate">
-            {loadingStats ? '...' : formatRupiah(stats.totalTransportationCost)}
-          </p>
-          <p className="text-[10px] text-[#667085] mt-1">Bensin, tol, parkir</p>
+        <div className="kms-card-hover bg-white p-4 rounded-2xl border border-slate-200/90 hover:border-sky-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+          <span className="text-xs font-medium text-slate-500">Transportasi</span>
+          {loadingStats ? (
+            <div className="h-6 w-24 rounded kms-skeleton mt-2" />
+          ) : (
+            <p className="text-sm font-bold text-sky-700 mt-2 font-mono tabular-nums truncate">
+              {formatRupiah(animTransport)}
+            </p>
+          )}
+          <p className="text-[11px] text-slate-400 mt-1.5">Bensin, tol, parkir</p>
         </div>
 
         {/* Card 7: Pengeluaran Operasional */}
-        <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs">
-          <div className="flex items-center justify-between text-[#667085]">
-            <span className="text-[11px] font-medium">Operasional</span>
-            <Receipt className="w-4 h-4 text-[#EE46BC]" />
-          </div>
-          <p className="text-sm font-bold text-[#EE46BC] mt-2 font-mono truncate">
-            {loadingStats ? '...' : formatRupiah(stats.totalOperationalCost)}
-          </p>
-          <p className="text-[10px] text-[#667085] mt-1">Belanja lapangan</p>
+        <div className="kms-card-hover bg-white p-4 rounded-2xl border border-slate-200/90 hover:border-blue-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col justify-between col-span-2 sm:col-span-1">
+          <span className="text-xs font-medium text-slate-500">Operasional</span>
+          {loadingStats ? (
+            <div className="h-6 w-24 rounded kms-skeleton mt-2" />
+          ) : (
+            <p className="text-sm font-bold text-slate-900 mt-2 font-mono tabular-nums truncate">
+              {formatRupiah(animOperational)}
+            </p>
+          )}
+          <p className="text-[11px] text-slate-400 mt-1.5">Belanja lapangan</p>
         </div>
       </div>
 
       {/* NAVIGATION TABS OR SUB-MODULE HEADER */}
       {activeModule !== 'overview' && (
-        <div className="bg-white border border-[#EAECF0] rounded-xl p-3 flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-2 text-xs">
+        <div className="kms-fade-in bg-white border border-slate-200/90 rounded-2xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
+          <div className="flex items-center gap-2.5 text-xs">
             <button
               onClick={() => setActiveModule('overview')}
-              className="text-[#4693FD] font-semibold hover:underline flex items-center gap-1"
+              className="group text-[#2563EB] font-semibold hover:underline inline-flex items-center gap-1.5 cursor-pointer"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Menu Proyek</span>
+              <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
+              <span>Pusat Proyek</span>
             </button>
-            <span className="text-[#D0D5DD]">/</span>
-            <span className="font-semibold text-[#1D2939] uppercase tracking-wide">
-              {activeModule === 'karyawan' && 'A. Data Penugasan Karyawan'}
+            <span className="text-slate-300">/</span>
+            <span className="font-semibold text-slate-900">
+              {activeModule === 'karyawan' && 'A. Data Karyawan Proyek'}
               {activeModule === 'absensi' && 'B. Absensi Karyawan Proyek'}
               {activeModule === 'lembur' && 'C. Sistem Lembur Proyek'}
-              {activeModule === 'kasbon' && 'D. Kasbon Karyawan Terkait'}
+              {activeModule === 'kasbon' && 'D. Kasbon Karyawan'}
               {activeModule === 'transport' && 'E. Biaya Transportasi Proyek'}
-              {activeModule === 'operasional' && 'F. Pengeluaran Operasional Proyek'}
+              {activeModule === 'operasional' && 'F. Pengeluaran Operasional Lapangan'}
               {activeModule === 'laporan' && 'H. Laporan & Rekapitulasi Komprehensif Proyek'}
             </span>
           </div>
@@ -1306,17 +1374,17 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
             {isAdmin && activeModule === 'karyawan' && (
               <button
                 onClick={() => setIsAddEmployeeModalOpen(true)}
-                className="bg-[#4693FD] hover:bg-[#1849A9] text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-3.5 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>+ Tambah Karyawan</span>
+                <span>Tambah Karyawan</span>
               </button>
             )}
 
             {isAdmin && activeModule === 'absensi' && (
               <button
                 onClick={openCreateAttendanceModal}
-                className="bg-[#4693FD] hover:bg-[#1849A9] text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shadow-xs"
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-3.5 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Catat Presensi Proyek</span>
@@ -1326,10 +1394,33 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
             {isAdmin && activeModule === 'lembur' && (
               <button
                 onClick={() => setIsOvertimeModalOpen(true)}
-                className="bg-[#4693FD] hover:bg-[#1849A9] text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shadow-xs"
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-3.5 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Catat Lembur</span>
+              </button>
+            )}
+
+            {isAdmin && activeModule === 'kasbon' && (
+              <button
+                onClick={() => {
+                  const defaultEmpId = assignments.find((a) => a.status === 'active' && a.employeeStatus !== 'inactive')?.employeeId || '';
+                  setKasbonForm({
+                    employeeId: defaultEmpId,
+                    requestDate: getTodayDateString(),
+                    amount: '',
+                    reason: '',
+                    adminNotes: '',
+                    targetPaymentPeriod: '',
+                  });
+                  setSelectedKasbonPhoto(null);
+                  setKasbonPhotoError(null);
+                  setIsAddKasbonModalOpen(true);
+                }}
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-3.5 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Ajukan Kasbon</span>
               </button>
             )}
 
@@ -1354,7 +1445,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   });
                   setIsExpenseModalOpen(true);
                 }}
-                className="bg-[#4693FD] hover:bg-[#1849A9] text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shadow-xs"
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-3.5 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>{activeModule === 'transport' ? 'Catat Biaya Transport' : 'Catat Pengeluaran Lapangan'}</span>
@@ -1366,130 +1457,154 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
 
       {/* 5. MENU UTAMA BERBENTUK KOTAK-KOTAK (GRID CARDS) */}
       {activeModule === 'overview' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-[#1D2939]">Pusat Operasional Proyek</h2>
-            <span className="text-xs text-[#667085]">Pilih modul untuk mengelola atau melihat rincian operasional</span>
+        <div className="space-y-4 kms-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <h2 className="text-base font-semibold text-slate-900">Pusat Operasional Proyek</h2>
+            <span className="text-xs text-slate-500">Pilih modul di bawah untuk mengelola atau memantau rincian proyek</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {/* A. Data Karyawan */}
             <div
               onClick={() => setActiveModule('karyawan')}
-              className="bg-white p-5 rounded-2xl border border-[#EAECF0] hover:border-[#4693FD] shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+              className="kms-module-card bg-white p-6 rounded-2xl border border-slate-200/90 hover:border-[#2563EB] shadow-[0_1px_3px_rgba(15,23,42,0.03)] cursor-pointer group flex flex-col justify-between"
             >
               <div>
-                <div className="w-10 h-10 rounded-xl bg-[#EFF5FF] text-[#155EEF] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#2563EB] group-hover:scale-105 transition-transform flex items-center justify-center mb-4">
                   <Users className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm font-bold text-[#1D2939] group-hover:text-[#4693FD] transition-colors">
+                <h3 className="text-sm font-semibold text-slate-900 group-hover:text-[#2563EB] transition-colors">
                   A. Data Karyawan Proyek
                 </h3>
-                <p className="text-xs text-[#667085] mt-1.5 leading-relaxed">
+                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
                   Kelola penugasan tenaga kerja dari master data ke proyek, peran kerja, kontak, dan riwayat penempatan.
                 </p>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#F2F4F7] flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#155EEF]">
-                  {stats.totalAssignedEmployees} Karyawan Ditugaskan
+              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="font-semibold text-[#2563EB] font-mono tabular-nums">
+                  {animAssigned} Karyawan Ditugaskan
                 </span>
-                <ChevronRight className="w-4 h-4 text-[#98A2B3] group-hover:translate-x-1 transition-transform" />
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#2563EB] group-hover:translate-x-1 transition-all" />
               </div>
             </div>
 
             {/* B. Absensi Karyawan */}
             <div
               onClick={() => setActiveModule('absensi')}
-              className="bg-white p-5 rounded-2xl border border-[#EAECF0] hover:border-[#4693FD] shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+              className="kms-module-card bg-white p-6 rounded-2xl border border-slate-200/90 hover:border-[#2563EB] shadow-[0_1px_3px_rgba(15,23,42,0.03)] cursor-pointer group flex flex-col justify-between"
             >
               <div>
-                <div className="w-10 h-10 rounded-xl bg-[#ECFDF3] text-[#027A48] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 group-hover:scale-105 transition-transform flex items-center justify-center mb-4">
                   <CalendarCheck className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm font-bold text-[#1D2939] group-hover:text-[#4693FD] transition-colors">
+                <h3 className="text-sm font-semibold text-slate-900 group-hover:text-[#2563EB] transition-colors">
                   B. Absensi Karyawan Proyek
                 </h3>
-                <p className="text-xs text-[#667085] mt-1.5 leading-relaxed">
-                  Pencatatan dan edit kehadiran harian (penuh/setengah hari), jam lembur aktual, serta pengajuan kasbon terintegrasi.
+                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                  Pencatatan dan koreksi kehadiran harian (penuh/setengah hari), jam masuk-pulang, serta jam lembur di lokasi proyek.
                 </p>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#F2F4F7] flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#027A48]">
-                  {stats.presentToday} Hadir Hari Ini
+              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="font-semibold text-emerald-700 font-mono tabular-nums">
+                  {animPresent} Hadir Hari Ini
                 </span>
-                <ChevronRight className="w-4 h-4 text-[#98A2B3] group-hover:translate-x-1 transition-transform" />
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#2563EB] group-hover:translate-x-1 transition-all" />
               </div>
             </div>
 
             {/* C. Sistem Lembur */}
             <div
               onClick={() => setActiveModule('lembur')}
-              className="bg-white p-5 rounded-2xl border border-[#EAECF0] hover:border-[#4693FD] shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+              className="kms-module-card bg-white p-6 rounded-2xl border border-slate-200/90 hover:border-[#2563EB] shadow-[0_1px_3px_rgba(15,23,42,0.03)] cursor-pointer group flex flex-col justify-between"
             >
               <div>
-                <div className="w-10 h-10 rounded-xl bg-[#FEF6EE] text-[#B54708] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 group-hover:scale-105 transition-transform flex items-center justify-center mb-4">
                   <Clock className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm font-bold text-[#1D2939] group-hover:text-[#4693FD] transition-colors">
+                <h3 className="text-sm font-semibold text-slate-900 group-hover:text-[#2563EB] transition-colors">
                   C. Sistem Lembur Proyek
                 </h3>
-                <p className="text-xs text-[#667085] mt-1.5 leading-relaxed">
-                  Catatan lembur, tarif upah lembur resmi perusahaan, total biaya, dan status persetujuan administrator.
+                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                  Catatan lembur harian, tarif upah lembur resmi perusahaan, total biaya, dan status persetujuan administrator.
                 </p>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#F2F4F7] flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#B54708]">
-                  {stats.overtimeCount} Karyawan Lembur
+              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="font-semibold text-amber-700 font-mono tabular-nums">
+                  {animOvertime} Karyawan Lembur
                 </span>
-                <ChevronRight className="w-4 h-4 text-[#98A2B3] group-hover:translate-x-1 transition-transform" />
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#2563EB] group-hover:translate-x-1 transition-all" />
+              </div>
+            </div>
+
+            {/* D. Kasbon Karyawan */}
+            <div
+              onClick={() => setActiveModule('kasbon')}
+              className="kms-module-card bg-white p-6 rounded-2xl border border-slate-200/90 hover:border-[#2563EB] shadow-[0_1px_3px_rgba(15,23,42,0.03)] cursor-pointer group flex flex-col justify-between"
+            >
+              <div>
+                <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 group-hover:scale-105 transition-transform flex items-center justify-center mb-4">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <h3 className="text-sm font-semibold text-slate-900 group-hover:text-[#2563EB] transition-colors">
+                  D. Kasbon Karyawan
+                </h3>
+                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                  Pengajuan kasbon karyawan proyek, bukti pendukung, pencatatan pelunasan manual, dan riwayat per karyawan.
+                </p>
+              </div>
+              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="font-semibold text-violet-700 font-mono tabular-nums">
+                  {formatRupiah(animKasbon)} Sisa Kasbon
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#2563EB] group-hover:translate-x-1 transition-all" />
               </div>
             </div>
 
             {/* E. Biaya Transportasi */}
             <div
               onClick={() => setActiveModule('transport')}
-              className="bg-white p-5 rounded-2xl border border-[#EAECF0] hover:border-[#4693FD] shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+              className="kms-module-card bg-white p-6 rounded-2xl border border-slate-200/90 hover:border-[#2563EB] shadow-[0_1px_3px_rgba(15,23,42,0.03)] cursor-pointer group flex flex-col justify-between"
             >
               <div>
-                <div className="w-10 h-10 rounded-xl bg-[#F0F9FF] text-[#026AA2] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 group-hover:scale-105 transition-transform flex items-center justify-center mb-4">
                   <Truck className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm font-bold text-[#1D2939] group-hover:text-[#4693FD] transition-colors">
+                <h3 className="text-sm font-semibold text-slate-900 group-hover:text-[#2563EB] transition-colors">
                   E. Biaya Transportasi Proyek
                 </h3>
-                <p className="text-xs text-[#667085] mt-1.5 leading-relaxed">
+                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
                   Pencatatan bensin, e-toll, parkir, armada kendaraan dinas, PIC penanggung jawab, serta lampiran foto bukti.
                 </p>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#F2F4F7] flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#026AA2]">
-                  {formatRupiah(stats.totalTransportationCost)} Total
+              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="font-semibold text-sky-700 font-mono tabular-nums">
+                  {formatRupiah(animTransport)} Total
                 </span>
-                <ChevronRight className="w-4 h-4 text-[#98A2B3] group-hover:translate-x-1 transition-transform" />
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#2563EB] group-hover:translate-x-1 transition-all" />
               </div>
             </div>
 
             {/* F. Pengeluaran Operasional Proyek */}
             <div
               onClick={() => setActiveModule('operasional')}
-              className="bg-white p-5 rounded-2xl border border-[#EAECF0] hover:border-[#4693FD] shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+              className="kms-module-card bg-white p-6 rounded-2xl border border-slate-200/90 hover:border-[#2563EB] shadow-[0_1px_3px_rgba(15,23,42,0.03)] cursor-pointer group flex flex-col justify-between"
             >
               <div>
-                <div className="w-10 h-10 rounded-xl bg-[#FDF2FA] text-[#C11574] flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 group-hover:scale-105 transition-transform flex items-center justify-center mb-4">
                   <Receipt className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm font-bold text-[#1D2939] group-hover:text-[#4693FD] transition-colors">
+                <h3 className="text-sm font-semibold text-slate-900 group-hover:text-[#2563EB] transition-colors">
                   F. Pengeluaran Operasional Lapangan
                 </h3>
-                <p className="text-xs text-[#667085] mt-1.5 leading-relaxed">
+                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
                   Pencatatan pengeluaran riil lapangan, alat bantu darurat, konsumsi, dan biaya operasional langsung proyek.
                 </p>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#F2F4F7] flex items-center justify-between text-xs">
-                <span className="font-semibold text-[#C11574]">
-                  {formatRupiah(stats.totalOperationalCost)} Total
+              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                <span className="font-semibold text-rose-700 font-mono tabular-nums">
+                  {formatRupiah(animOperational)} Total
                 </span>
-                <ChevronRight className="w-4 h-4 text-[#98A2B3] group-hover:translate-x-1 transition-transform" />
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-[#2563EB] group-hover:translate-x-1 transition-all" />
               </div>
             </div>
 
@@ -1499,32 +1614,32 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 setActiveReportSubmenu('h1');
                 setActiveModule('laporan');
               }}
-              className="bg-white p-5 rounded-2xl border border-[#EAECF0] hover:border-[#4693FD] shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between md:col-span-2 lg:col-span-3"
+              className="kms-module-card bg-white p-6 rounded-2xl border border-slate-200/90 hover:border-[#2563EB] shadow-[0_1px_3px_rgba(15,23,42,0.03)] cursor-pointer group flex flex-col justify-between md:col-span-2 lg:col-span-3"
             >
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#EFF5FF] text-[#155EEF] flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <FileSpreadsheet className="w-5 h-5 text-[#4693FD]" />
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#2563EB] group-hover:scale-105 transition-transform flex items-center justify-center">
+                    <FileSpreadsheet className="w-5 h-5" />
                   </div>
-                  <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#EFF5FF] text-[#155EEF] border border-[#D0E2FF]">
-                    Pusat Rekap Gaji, Slip Gaji, Cetak PDF, Print & Ekspor Excel Proyek
+                  <span className="text-xs font-medium text-slate-500">
+                    Pusat Rekap Gaji · Slip Gaji · Cetak PDF · Ekspor Excel Proyek
                   </span>
                 </div>
-                <h3 className="text-base font-bold text-[#1D2939] group-hover:text-[#4693FD] transition-colors">
+                <h3 className="text-base font-semibold text-slate-900 group-hover:text-[#2563EB] transition-colors">
                   H. Laporan & Rekapitulasi Komprehensif Proyek
                 </h3>
-                <p className="text-xs text-[#667085] mt-1.5 leading-relaxed">
+                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed max-w-3xl">
                   Pusat rekap keuangan resmi proyek {project.name} ({project.code}): rekap gaji per karyawan, rekap total gaji seluruh karyawan, biaya transportasi, pengeluaran operasional lapangan, dan realisasi seluruh anggaran proyek.
                 </p>
 
                 {/* 5 Submenu Quick-Launch Buttons (H1 - H5) */}
                 <div
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mt-4"
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-5"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {[
                     { id: 'h1', code: 'H1', label: 'Rekap Gaji Per Karyawan', desc: 'Detail harian, lembur, kasbon & slip gaji' },
-                    { id: 'h2', code: 'H2', label: 'Rekap Total Gaji Seluruh Karyawan', desc: 'Tabel rekap kolektif & grand total upah' },
+                    { id: 'h2', code: 'H2', label: 'Rekap Total Gaji Karyawan', desc: 'Tabel rekap kolektif & grand total upah' },
                     { id: 'h3', code: 'H3', label: 'Rekap Biaya Transportasi', desc: 'Rincian BBM, tol, parkir & bukti foto' },
                     { id: 'h4', code: 'H4', label: 'Rekap Operasional Lapangan', desc: 'Rincian belanja lapangan & struk' },
                     { id: 'h5', code: 'H5', label: 'Rekap Seluruh Pengeluaran', desc: 'Realisasi anggaran vs total biaya proyek' },
@@ -1536,16 +1651,16 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                         setActiveReportSubmenu(sub.id as any);
                         setActiveModule('laporan');
                       }}
-                      className="text-left p-2.5 rounded-xl border border-[#EAECF0] bg-[#F9FAFB] hover:bg-[#EFF5FF] hover:border-[#4693FD] transition-all group/sub"
+                      className="kms-card-hover text-left p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-blue-50/50 hover:border-[#2563EB] transition-all group/sub cursor-pointer"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-[#155EEF] bg-white px-1.5 py-0.5 rounded border border-[#D0E2FF]">
+                        <span className="text-xs font-mono font-bold text-[#2563EB]">
                           {sub.code}
                         </span>
-                        <ChevronRight className="w-3.5 h-3.5 text-[#98A2B3] group-hover/sub:text-[#155EEF] group-hover/sub:translate-x-0.5 transition-all" />
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover/sub:text-[#2563EB] group-hover/sub:translate-x-0.5 transition-all" />
                       </div>
-                      <p className="text-xs font-bold text-[#1D2939] mt-1.5 line-clamp-1">{sub.label}</p>
-                      <p className="text-[10px] text-[#667085] mt-0.5 line-clamp-1">{sub.desc}</p>
+                      <p className="text-xs font-semibold text-slate-900 mt-1.5 line-clamp-1">{sub.label}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{sub.desc}</p>
                     </button>
                   ))}
                 </div>
@@ -1920,7 +2035,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
               <div>
                 <h3 className="text-sm font-bold text-[#1D2939]">Presensi & Absensi Karyawan Proyek</h3>
                 <p className="text-xs text-[#667085]">
-                  Catatan kehadiran harian, durasi lembur, dan kasbon terintegrasi di lokasi proyek {project.name}
+                  Catatan kehadiran harian dan durasi lembur di lokasi proyek {project.name}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1964,7 +2079,6 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                     <th className="py-3 px-4 text-center">Status Kehadiran</th>
                     <th className="py-3 px-4 text-center">Jam Lembur</th>
                     <th className="py-3 px-4 text-right">Upah Harian</th>
-                    <th className="py-3 px-4 text-right">Kasbon</th>
                     <th className="py-3 px-4">Keterangan</th>
                     {isAdmin && <th className="py-3 px-4 text-center">Aksi</th>}
                   </tr>
@@ -1972,140 +2086,84 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
                   {loadingModuleData ? (
                     <tr>
-                      <td colSpan={isAdmin ? 10 : 9} className="py-8 text-center text-[#667085]">
+                      <td colSpan={isAdmin ? 9 : 8} className="py-8 text-center text-[#667085]">
                         Memuat data absensi...
                       </td>
                     </tr>
                   ) : attendanceList.filter((a) => !attendanceDate || a.date === attendanceDate).length === 0 ? (
                     <tr>
-                      <td colSpan={isAdmin ? 10 : 9} className="py-8 text-center text-[#667085]">
+                      <td colSpan={isAdmin ? 9 : 8} className="py-8 text-center text-[#667085]">
                         Belum ada catatan presensi{attendanceDate ? ` pada tanggal ${formatDateID(attendanceDate)}` : ''}.
                       </td>
                     </tr>
                   ) : (
                     attendanceList
                       .filter((a) => !attendanceDate || a.date === attendanceDate)
-                      .map((att) => {
-                        const hasKasbonData = Boolean(att.kasbonAmount && att.kasbonAmount > 0);
-                        const hasKasbonPhoto = Boolean(
-                          (att.kasbonAttachments && att.kasbonAttachments.length > 0) ||
-                            att.kasbonAttachmentFilePath
-                        );
-
-                        return (
-                          <tr key={att.id} className="hover:bg-[#F9FAFB] transition-colors">
-                            <td className="py-3 px-4 text-[#667085] whitespace-nowrap">{formatDateID(att.date)}</td>
-                            <td className="py-3 px-4 font-semibold text-[#1D2939]">{att.employeeName}</td>
-                            <td className="py-3 px-4 text-[#475467]">{att.employeeRole}</td>
-                            <td className="py-3 px-4 text-[#475467] font-mono">
-                              {att.status === 'Hadir' || att.status === 'Setengah Hari'
-                                ? `${att.checkIn} - ${att.checkOut}`
-                                : '-'}
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <span
-                                className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${
-                                  att.status === 'Hadir'
-                                    ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5]'
-                                    : att.status === 'Setengah Hari'
-                                    ? 'bg-[#F0F9FF] text-[#026AA2] border-[#B9E6FE]'
-                                    : att.status === 'Sakit'
-                                    ? 'bg-[#EFF8FF] text-[#175CD3] border-[#B2DDFF]'
-                                    : att.status === 'Izin'
-                                    ? 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]'
-                                    : 'bg-[#FEF3F2] text-[#B42318] border-[#FECDCA]'
-                                }`}
-                              >
-                                {att.status === 'Setengah Hari' ? 'Setengah Hari (½)' : att.status}
+                      .map((att) => (
+                        <tr key={att.id} className="hover:bg-[#F9FAFB] transition-colors">
+                          <td className="py-3 px-4 text-[#667085] whitespace-nowrap">{formatDateID(att.date)}</td>
+                          <td className="py-3 px-4 font-semibold text-[#1D2939]">{att.employeeName}</td>
+                          <td className="py-3 px-4 text-[#475467]">{att.employeeRole}</td>
+                          <td className="py-3 px-4 text-[#475467] font-mono">
+                            {att.status === 'Hadir' || att.status === 'Setengah Hari'
+                              ? `${att.checkIn} - ${att.checkOut}`
+                              : '-'}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span
+                              className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${
+                                att.status === 'Hadir'
+                                  ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5]'
+                                  : att.status === 'Setengah Hari'
+                                  ? 'bg-[#F0F9FF] text-[#026AA2] border-[#B9E6FE]'
+                                  : att.status === 'Sakit'
+                                  ? 'bg-[#EFF8FF] text-[#175CD3] border-[#B2DDFF]'
+                                  : att.status === 'Izin'
+                                  ? 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]'
+                                  : 'bg-[#FEF3F2] text-[#B42318] border-[#FECDCA]'
+                              }`}
+                            >
+                              {att.status === 'Setengah Hari' ? 'Setengah Hari (½)' : att.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center font-mono">
+                            {att.overtimeHours ? formatOvertimeDuration(att.overtimeHours) : '-'}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
+                            <div>{formatRupiah(calculateBasicPayByStatus(att.status, att.dailyWageSnapshot))}</div>
+                            {att.status === 'Setengah Hari' && (
+                              <span className="text-[10px] text-[#026AA2]">
+                                50% dari {formatRupiah(att.dailyWageSnapshot)}
                               </span>
-                            </td>
-                            <td className="py-3 px-4 text-center font-mono">
-                              {att.overtimeHours ? formatOvertimeDuration(att.overtimeHours) : '-'}
-                            </td>
-                            <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
-                              <div>{formatRupiah(calculateBasicPayByStatus(att.status, att.dailyWageSnapshot))}</div>
-                              {att.status === 'Setengah Hari' && (
-                                <span className="text-[10px] text-[#026AA2]">
-                                  50% dari {formatRupiah(att.dailyWageSnapshot)}
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              {hasKasbonData ? (
-                                <div className="space-y-1">
-                                  <div className="font-mono font-semibold text-[#6941C6]">
-                                    {formatRupiah(att.kasbonAmount || 0)}
-                                  </div>
-                                  {att.kasbonNotes && (
-                                    <div className="text-[10px] text-[#667085] max-w-[140px] truncate ml-auto">
-                                      {att.kasbonNotes}
-                                    </div>
-                                  )}
-                                  {hasKasbonPhoto && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setViewingProofKasbon({
-                                          id: att.kasbonId || att.id,
-                                          kasbonNumber: att.kasbonNumber || 'KB-ABSENSI',
-                                          employeeId: att.employeeId,
-                                          employeeName: att.employeeName,
-                                          employeeRole: att.employeeRole,
-                                          employeeStartDate: att.date,
-                                          requestDate: att.date,
-                                          eligibilityDate: att.date,
-                                          isEligible: true,
-                                          eligibilityReason: 'Kasbon Absensi',
-                                          amount: att.kasbonAmount || 0,
-                                          reason: att.kasbonNotes || 'Kasbon Absensi',
-                                          status: (att.kasbonStatus as any) || 'Disetujui',
-                                          deductedAmount: 0,
-                                          remainingAmount: att.kasbonAmount || 0,
-                                          adminNotes: att.kasbonNotes || '',
-                                          attachmentFilePath: att.kasbonAttachmentFilePath,
-                                          attachments: att.kasbonAttachments,
-                                          auditTrail: [],
-                                        })
-                                      }
-                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#F9F5FF] hover:bg-[#F4EBFF] text-[#6941C6] border border-[#E9D7FE] text-[10px] font-medium transition-colors"
-                                    >
-                                      <ImageIcon className="w-3 h-3" />
-                                      <span>Lihat Bukti</span>
-                                    </button>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-[#98A2B3]">-</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-[#667085]">{att.notes || '-'}</td>
-                            {isAdmin && (
-                              <td className="py-3 px-4 text-center whitespace-nowrap">
-                                <div className="inline-flex items-center justify-center gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditAttendanceModal(att)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#EFF5FF] text-[#344054] hover:text-[#155EEF] border border-[#D0D5DD] hover:border-[#4693FD] rounded-lg text-xs font-semibold transition-colors shadow-2xs"
-                                    title="Edit Kehadiran & Kasbon"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                    <span>Edit</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => openDeleteAttendanceModal(att)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#FEF3F2] text-[#D92D20] hover:text-[#B42318] border border-[#FECDCA] hover:border-[#F04438] rounded-lg text-xs font-semibold transition-colors shadow-2xs"
-                                    title="Hapus Data Absensi"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    <span>Hapus</span>
-                                  </button>
-                                </div>
-                              </td>
                             )}
-                          </tr>
-                        );
-                      })
+                          </td>
+                          <td className="py-3 px-4 text-[#667085]">{att.notes || '-'}</td>
+                          {isAdmin && (
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <div className="inline-flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditAttendanceModal(att)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#EFF5FF] text-[#344054] hover:text-[#155EEF] border border-[#D0D5DD] hover:border-[#4693FD] rounded-lg text-xs font-semibold transition-colors shadow-2xs"
+                                  title="Edit Kehadiran"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openDeleteAttendanceModal(att)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#FEF3F2] text-[#D92D20] hover:text-[#B42318] border border-[#FECDCA] hover:border-[#F04438] rounded-lg text-xs font-semibold transition-colors shadow-2xs"
+                                  title="Hapus Data Absensi"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Hapus</span>
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))
                   )}
                 </tbody>
               </table>
@@ -2194,174 +2252,592 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
       )}
 
       {/* SUB-MODULE VIEW D: KASBON KARYAWAN */}
-      {activeModule === 'kasbon' && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-[#EAECF0] shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-[#EAECF0] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-[#1D2939]">Kasbon Karyawan Penugasan Proyek</h3>
-                <p className="text-xs text-[#667085]">
-                  Daftar pinjaman kasbon yang terkait dengan tenaga kerja proyek {project.name}
+      {activeModule === 'kasbon' && (() => {
+        const validKasbons = kasbonList.filter((k) => k.status !== 'Ditolak');
+        const totalKasbonAmount = validKasbons.reduce((sum, k) => sum + Number(k.amount || 0), 0);
+        const totalPaidAmount = validKasbons.reduce((sum, k) => sum + Number(k.deductedAmount || 0), 0);
+        const totalRemainingAmount = validKasbons.reduce((sum, k) => sum + Number(k.remainingAmount || 0), 0);
+
+        const filteredKasbons = kasbonList.filter((kb) => {
+          const q = kasbonSearchQuery.trim().toLowerCase();
+          if (q) {
+            const matchName = kb.employeeName.toLowerCase().includes(q);
+            const matchNum = kb.kasbonNumber.toLowerCase().includes(q);
+            const matchReason = (kb.reason || '').toLowerCase().includes(q);
+            const matchId = kb.employeeId.toLowerCase().includes(q);
+            if (!matchName && !matchNum && !matchReason && !matchId) return false;
+          }
+          if (kasbonFilterEmployee !== 'ALL' && kb.employeeId !== kasbonFilterEmployee) {
+            return false;
+          }
+          if (kasbonFilterStatus !== 'ALL') {
+            if (kasbonFilterStatus === 'BELUM_LUNAS') {
+              if (kb.status !== 'Disetujui' && kb.status !== 'Dipotong sebagian') return false;
+            } else if (kb.status !== kasbonFilterStatus) {
+              return false;
+            }
+          }
+          if (kasbonFilterStartDate && kb.requestDate < kasbonFilterStartDate) {
+            return false;
+          }
+          if (kasbonFilterEndDate && kb.requestDate > kasbonFilterEndDate) {
+            return false;
+          }
+          return true;
+        });
+
+        // Group per employee for Riwayat Kasbon Masing-Masing Karyawan
+        const employeeKasbonMap = new Map<
+          string,
+          {
+            employeeId: string;
+            employeeName: string;
+            employeeRole: string;
+            totalKasbon: number;
+            totalPaid: number;
+            totalRemaining: number;
+            count: number;
+            records: KasbonRecord[];
+          }
+        >();
+
+        kasbonList.forEach((kb) => {
+          if (kasbonFilterEmployee !== 'ALL' && kb.employeeId !== kasbonFilterEmployee) return;
+          const q = kasbonSearchQuery.trim().toLowerCase();
+          if (q && !kb.employeeName.toLowerCase().includes(q) && !kb.employeeId.toLowerCase().includes(q)) return;
+
+          const existing = employeeKasbonMap.get(kb.employeeId) || {
+            employeeId: kb.employeeId,
+            employeeName: kb.employeeName,
+            employeeRole: kb.employeeRole,
+            totalKasbon: 0,
+            totalPaid: 0,
+            totalRemaining: 0,
+            count: 0,
+            records: [],
+          };
+          if (kb.status !== 'Ditolak') {
+            existing.totalKasbon += Number(kb.amount || 0);
+            existing.totalPaid += Number(kb.deductedAmount || 0);
+            existing.totalRemaining += Number(kb.remainingAmount || 0);
+          }
+          existing.count += 1;
+          existing.records.push(kb);
+          employeeKasbonMap.set(kb.employeeId, existing);
+        });
+
+        const employeeSummaries = Array.from(employeeKasbonMap.values()).sort(
+          (a, b) => b.totalRemaining - a.totalRemaining || b.totalKasbon - a.totalKasbon
+        );
+
+        return (
+          <div className="space-y-4">
+            {/* 3 RINGKASAN UTAMA KASBON PROYEK */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white p-4 rounded-2xl border border-[#EAECF0] shadow-xs">
+                <div className="flex items-center justify-between text-xs text-[#667085]">
+                  <span className="font-semibold">Total Kasbon Proyek</span>
+                  <Wallet className="w-4 h-4 text-[#4693FD]" />
+                </div>
+                <p className="text-xl font-bold font-mono text-[#1D2939] mt-2">
+                  {formatRupiah(totalKasbonAmount)}
+                </p>
+                <p className="text-[11px] text-[#667085] mt-1">
+                  {validKasbons.length} transaksi kasbon aktif & lunas
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[#F9F5FF] text-[#6941C6] border border-[#E9D7FE]">
-                  Total Sisa: {formatRupiah(stats.totalKasbon)}
-                </span>
-                {isAdmin && (
-                  <button
-                    onClick={() => {
-                      const defaultEmpId = assignments.find((a) => a.status === 'active' && a.employeeStatus !== 'inactive')?.employeeId || '';
-                      setKasbonForm({
-                        employeeId: defaultEmpId,
-                        requestDate: getTodayDateString(),
-                        amount: '',
-                        reason: '',
-                        adminNotes: '',
-                        targetPaymentPeriod: '',
-                      });
-                      setSelectedKasbonPhoto(null);
-                      setKasbonPhotoError(null);
-                      setIsAddKasbonModalOpen(true);
-                    }}
-                    className="bg-[#4693FD] hover:bg-[#1849A9] text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>+ Tambah Kasbon</span>
-                  </button>
-                )}
+
+              <div className="bg-white p-4 rounded-2xl border border-[#EAECF0] shadow-xs">
+                <div className="flex items-center justify-between text-xs text-[#667085]">
+                  <span className="font-semibold">Total Pembayaran / Pelunasan</span>
+                  <CheckCircle2 className="w-4 h-4 text-[#12B76A]" />
+                </div>
+                <p className="text-xl font-bold font-mono text-[#027A48] mt-2">
+                  {formatRupiah(totalPaidAmount)}
+                </p>
+                <p className="text-[11px] text-[#667085] mt-1">
+                  Akumulasi pelunasan kasbon karyawan
+                </p>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-[#EAECF0] shadow-xs">
+                <div className="flex items-center justify-between text-xs text-[#667085]">
+                  <span className="font-semibold">Sisa Kasbon Belum Lunas</span>
+                  <AlertCircle className="w-4 h-4 text-[#F04438]" />
+                </div>
+                <p className="text-xl font-bold font-mono text-[#B42318] mt-2">
+                  {formatRupiah(totalRemainingAmount)}
+                </p>
+                <p className="text-[11px] text-[#667085] mt-1">
+                  Tagihan kasbon aktif di proyek {project.name}
+                </p>
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="bg-[#F9FAFB] text-[#475467] font-medium border-b border-[#EAECF0]">
-                    <th className="py-3 px-4">No. Kasbon</th>
-                    <th className="py-3 px-4">Nama & ID Karyawan</th>
-                    <th className="py-3 px-4">Tanggal Pengajuan</th>
-                    <th className="py-3 px-4 text-right">Nominal Awal</th>
-                    <th className="py-3 px-4 text-right">Sudah Dipotong</th>
-                    <th className="py-3 px-4 text-right">Sisa Kasbon</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-center">Foto Bukti</th>
-                    <th className="py-3 px-4">Alasan</th>
-                    {isAdmin && <th className="py-3 px-4 text-center">Aksi</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
-                  {loadingModuleData ? (
-                    <tr>
-                      <td colSpan={isAdmin ? 10 : 9} className="py-8 text-center text-[#667085]">
-                        Memuat data kasbon...
-                      </td>
-                    </tr>
-                  ) : kasbonList.length === 0 ? (
-                    <tr>
-                      <td colSpan={isAdmin ? 10 : 9} className="py-8 text-center text-[#667085]">
-                        <div className="max-w-xs mx-auto text-center space-y-2">
-                          <p>Tidak ada kasbon aktif untuk tenaga kerja proyek ini.</p>
-                          {isAdmin && (
-                            <button
-                              onClick={() => {
-                                const defaultEmpId = assignments.find((a) => a.status === 'active' && a.employeeStatus !== 'inactive')?.employeeId || '';
-                                setKasbonForm({
-                                  employeeId: defaultEmpId,
-                                  requestDate: getTodayDateString(),
-                                  amount: '',
-                                  reason: '',
-                                  adminNotes: '',
-                                  targetPaymentPeriod: '',
-                                });
-                                setSelectedKasbonPhoto(null);
-                                setKasbonPhotoError(null);
-                                setIsAddKasbonModalOpen(true);
-                              }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EFF5FF] text-[#155EEF] hover:bg-[#D0E2FF] rounded-lg font-semibold transition-colors text-xs"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>Catat Kasbon Pertama</span>
-                            </button>
+            <div className="bg-white rounded-2xl border border-[#EAECF0] shadow-xs overflow-hidden">
+              {/* Header & Mode Switch */}
+              <div className="p-4 border-b border-[#EAECF0] flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-[#1D2939]">
+                    Manajemen Kasbon Karyawan — Proyek {project.name} ({project.code})
+                  </h3>
+                  <p className="text-xs text-[#667085]">
+                    Pencatatan pengajuan kasbon, bukti pendukung, pembayaran manual, dan riwayat masing-masing karyawan
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex bg-[#F2F4F7] p-1 rounded-xl border border-[#EAECF0]">
+                    <button
+                      type="button"
+                      onClick={() => setKasbonViewMode('transactions')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        kasbonViewMode === 'transactions'
+                          ? 'bg-white text-[#155EEF] shadow-2xs'
+                          : 'text-[#667085] hover:text-[#1D2939]'
+                      }`}
+                    >
+                      Daftar Transaksi ({filteredKasbons.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKasbonViewMode('employees')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        kasbonViewMode === 'employees'
+                          ? 'bg-white text-[#155EEF] shadow-2xs'
+                          : 'text-[#667085] hover:text-[#1D2939]'
+                      }`}
+                    >
+                      Riwayat Per Karyawan ({employeeSummaries.length})
+                    </button>
+                  </div>
+
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        const defaultEmpId =
+                          assignments.find((a) => a.status === 'active' && a.employeeStatus !== 'inactive')
+                            ?.employeeId || '';
+                        setKasbonForm({
+                          employeeId: defaultEmpId,
+                          requestDate: getTodayDateString(),
+                          amount: '',
+                          reason: '',
+                          adminNotes: '',
+                          targetPaymentPeriod: '',
+                        });
+                        setSelectedKasbonPhoto(null);
+                        setKasbonPhotoError(null);
+                        setIsAddKasbonModalOpen(true);
+                      }}
+                      className="bg-[#4693FD] hover:bg-[#1849A9] text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Ajukan Kasbon</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filter & Pencarian Bar */}
+              <div className="p-4 bg-[#F9FAFB] border-b border-[#EAECF0] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 text-xs">
+                <div>
+                  <label className="block text-[11px] font-medium text-[#667085] mb-1">Cari Nama / No. Kasbon</label>
+                  <input
+                    type="text"
+                    value={kasbonSearchQuery}
+                    onChange={(e) => setKasbonSearchQuery(e.target.value)}
+                    placeholder="Ketik nama atau alasan..."
+                    className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-[#667085] mb-1">Filter Karyawan</label>
+                  <select
+                    value={kasbonFilterEmployee}
+                    onChange={(e) => setKasbonFilterEmployee(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                  >
+                    <option value="ALL">Semua Karyawan Proyek</option>
+                    {assignments.map((asg) => (
+                      <option key={asg.employeeId} value={asg.employeeId}>
+                        {asg.employeeName} ({asg.roleInProject || asg.employeeRole})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-[#667085] mb-1">Dari Tanggal</label>
+                  <input
+                    type="date"
+                    value={kasbonFilterStartDate}
+                    onChange={(e) => setKasbonFilterStartDate(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-[#667085] mb-1">Sampai Tanggal</label>
+                  <input
+                    type="date"
+                    value={kasbonFilterEndDate}
+                    onChange={(e) => setKasbonFilterEndDate(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-[#667085] mb-1">Status Kasbon</label>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={kasbonFilterStatus}
+                      onChange={(e) => setKasbonFilterStatus(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                    >
+                      <option value="ALL">Semua Status</option>
+                      <option value="BELUM_LUNAS">Belum Lunas (Aktif)</option>
+                      <option value="Disetujui">Disetujui (Belum Dibayar)</option>
+                      <option value="Dipotong sebagian">Dibayar Sebagian</option>
+                      <option value="Lunas">Lunas</option>
+                      <option value="Menunggu persetujuan">Menunggu Persetujuan</option>
+                      <option value="Ditolak">Ditolak</option>
+                    </select>
+                    {(kasbonSearchQuery ||
+                      kasbonFilterEmployee !== 'ALL' ||
+                      kasbonFilterStatus !== 'ALL' ||
+                      kasbonFilterStartDate ||
+                      kasbonFilterEndDate) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setKasbonSearchQuery('');
+                          setKasbonFilterEmployee('ALL');
+                          setKasbonFilterStatus('ALL');
+                          setKasbonFilterStartDate('');
+                          setKasbonFilterEndDate('');
+                        }}
+                        className="px-2.5 py-1.5 bg-white hover:bg-[#F2F4F7] text-[#475467] border border-[#D0D5DD] rounded-lg text-[11px] font-semibold shrink-0"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {kasbonViewMode === 'transactions' ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-[#F9FAFB] text-[#475467] font-medium border-b border-[#EAECF0]">
+                        <th className="py-3 px-4">No. Kasbon</th>
+                        <th className="py-3 px-4">Nama & Jabatan Karyawan</th>
+                        <th className="py-3 px-4">Tanggal</th>
+                        <th className="py-3 px-4 text-right">Total Kasbon</th>
+                        <th className="py-3 px-4 text-right">Total Pembayaran</th>
+                        <th className="py-3 px-4 text-right">Sisa Kasbon</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-center">Bukti</th>
+                        <th className="py-3 px-4">Alasan</th>
+                        <th className="py-3 px-4 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+                      {loadingModuleData ? (
+                        <tr>
+                          <td colSpan={10} className="py-8 text-center text-[#667085]">
+                            Memuat data kasbon...
+                          </td>
+                        </tr>
+                      ) : filteredKasbons.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="py-8 text-center text-[#667085]">
+                            <div className="max-w-xs mx-auto text-center space-y-2">
+                              <p>Tidak ada data kasbon yang sesuai filter.</p>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => {
+                                    const defaultEmpId =
+                                      assignments.find(
+                                        (a) => a.status === 'active' && a.employeeStatus !== 'inactive'
+                                      )?.employeeId || '';
+                                    setKasbonForm({
+                                      employeeId: defaultEmpId,
+                                      requestDate: getTodayDateString(),
+                                      amount: '',
+                                      reason: '',
+                                      adminNotes: '',
+                                      targetPaymentPeriod: '',
+                                    });
+                                    setSelectedKasbonPhoto(null);
+                                    setKasbonPhotoError(null);
+                                    setIsAddKasbonModalOpen(true);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EFF5FF] text-[#155EEF] hover:bg-[#D0E2FF] rounded-lg font-semibold transition-colors text-xs"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Ajukan Kasbon Baru</span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredKasbons.map((kb) => (
+                          <tr key={kb.id} className="hover:bg-[#F9FAFB] transition-colors">
+                            <td className="py-3 px-4 font-mono font-medium text-[#4693FD] whitespace-nowrap">
+                              {kb.kasbonNumber}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-semibold text-[#1D2939] block">{kb.employeeName}</span>
+                              <span className="text-[11px] text-[#667085] font-mono">
+                                {kb.employeeId} · {kb.employeeRole}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-[#667085] whitespace-nowrap">
+                              {formatDateID(kb.requestDate)}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
+                              {formatRupiah(kb.amount)}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono text-[#027A48] font-medium">
+                              {formatRupiah(kb.deductedAmount || 0)}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-bold text-[#B42318]">
+                              {formatRupiah(kb.remainingAmount)}
+                            </td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <span
+                                className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${
+                                  kb.status === 'Disetujui'
+                                    ? 'bg-[#EFF8FF] text-[#175CD3] border-[#B2DDFF]'
+                                    : kb.status === 'Lunas'
+                                    ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5]'
+                                    : kb.status === 'Dipotong sebagian'
+                                    ? 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]'
+                                    : kb.status === 'Ditolak'
+                                    ? 'bg-[#FEF3F2] text-[#B42318] border-[#FECDCA]'
+                                    : 'bg-gray-100 text-gray-700 border-gray-200'
+                                }`}
+                              >
+                                {kb.status === 'Dipotong sebagian' ? 'Dibayar Sebagian' : kb.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              {(kb.attachments && kb.attachments.length > 0) || kb.attachmentFilePath ? (
+                                <button
+                                  onClick={() => setViewingProofKasbon(kb)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EFF5FF] text-[#155EEF] hover:bg-[#D0E2FF] border border-[#D0E2FF] text-xs font-semibold transition-colors shadow-2xs"
+                                  title="Buka Foto Bukti Kasbon"
+                                >
+                                  <ImageIcon className="w-3.5 h-3.5" />
+                                  <span>Lihat Bukti</span>
+                                </button>
+                              ) : (
+                                <span className="text-[#98A2B3] text-[11px]">Tanpa Bukti</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-[#667085] max-w-[180px] truncate" title={kb.reason}>
+                              {kb.reason}
+                            </td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <div className="inline-flex items-center justify-center gap-1.5">
+                                {isAdmin && kb.status === 'Menunggu persetujuan' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateProjectKasbonStatus(kb, 'approve')}
+                                      className="px-2 py-1 bg-[#ECFDF3] hover:bg-[#D1FADF] text-[#027A48] border border-[#A6F4C5] rounded-lg text-[11px] font-semibold transition-colors"
+                                    >
+                                      Setujui
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateProjectKasbonStatus(kb, 'reject')}
+                                      className="px-2 py-1 bg-[#FEF3F2] hover:bg-[#FEE4E2] text-[#B42318] border border-[#FECDCA] rounded-lg text-[11px] font-semibold transition-colors"
+                                    >
+                                      Tolak
+                                    </button>
+                                  </>
+                                )}
+
+                                {isAdmin && kb.remainingAmount > 0 && kb.status !== 'Ditolak' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenPayKasbonModal(kb)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#ECFDF3] hover:bg-[#D1FADF] text-[#027A48] border border-[#A6F4C5] rounded-lg text-[11px] font-semibold transition-colors shadow-2xs"
+                                    title="Catat Pembayaran / Pelunasan Manual"
+                                  >
+                                    <Wallet className="w-3.5 h-3.5" />
+                                    <span>Bayar</span>
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => setKasbonDetailModal(kb)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#F9FAFB] text-[#344054] border border-[#D0D5DD] rounded-lg text-[11px] font-semibold transition-colors"
+                                  title="Lihat Riwayat & Detail Kasbon"
+                                >
+                                  <span>Riwayat</span>
+                                </button>
+
+                                {isAdmin && kb.deductedAmount === 0 && (
+                                  <button
+                                    onClick={() => setKasbonToDelete(kb)}
+                                    className="p-1 text-[#667085] hover:text-[#D64545] hover:bg-[#FEF3F2] rounded transition-colors"
+                                    title="Hapus Kasbon"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                /* VIEW 2: RIWAYAT KASBON MASING-MASING KARYAWAN */
+                <div className="p-4 space-y-3">
+                  {employeeSummaries.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-[#667085]">
+                      Belum ada riwayat kasbon karyawan pada proyek ini.
+                    </div>
+                  ) : (
+                    employeeSummaries.map((empSum) => {
+                      const isExpanded = selectedEmployeeKasbonHistory === empSum.employeeId;
+                      return (
+                        <div
+                          key={empSum.employeeId}
+                          className="border border-[#EAECF0] rounded-xl overflow-hidden bg-white"
+                        >
+                          <div
+                            onClick={() =>
+                              setSelectedEmployeeKasbonHistory(isExpanded ? null : empSum.employeeId)
+                            }
+                            className="p-4 bg-[#F9FAFB] hover:bg-[#F2F4F7] transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          >
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm text-[#1D2939]">{empSum.employeeName}</span>
+                                <span className="text-[11px] font-mono px-2 py-0.5 bg-white border border-[#D0D5DD] rounded text-[#475467]">
+                                  {empSum.employeeId} · {empSum.employeeRole}
+                                </span>
+                                <span className="text-[11px] text-[#667085]">
+                                  ({empSum.count} pengajuan)
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-4 text-xs">
+                              <div>
+                                <span className="text-[#667085] block text-[10px]">Total Kasbon</span>
+                                <span className="font-mono font-semibold text-[#1D2939]">
+                                  {formatRupiah(empSum.totalKasbon)}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[#667085] block text-[10px]">Total Pembayaran</span>
+                                <span className="font-mono font-semibold text-[#027A48]">
+                                  {formatRupiah(empSum.totalPaid)}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[#667085] block text-[10px]">Sisa Kasbon</span>
+                                <span className="font-mono font-bold text-[#B42318]">
+                                  {formatRupiah(empSum.totalRemaining)}
+                                </span>
+                              </div>
+                              <ChevronRight
+                                className={`w-4 h-4 text-[#667085] transition-transform ${
+                                  isExpanded ? 'rotate-90' : ''
+                                }`}
+                              />
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="p-4 border-t border-[#EAECF0] space-y-3 bg-white">
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                  <thead>
+                                    <tr className="bg-[#F9FAFB] text-[#475467] border-b border-[#EAECF0]">
+                                      <th className="py-2 px-3">No. Kasbon</th>
+                                      <th className="py-2 px-3">Tanggal</th>
+                                      <th className="py-2 px-3">Alasan</th>
+                                      <th className="py-2 px-3 text-right">Nominal</th>
+                                      <th className="py-2 px-3 text-right">Terbayar</th>
+                                      <th className="py-2 px-3 text-right">Sisa</th>
+                                      <th className="py-2 px-3 text-center">Status</th>
+                                      <th className="py-2 px-3 text-center">Aksi</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-[#EAECF0]">
+                                    {empSum.records.map((kb) => (
+                                      <tr key={kb.id} className="hover:bg-[#F9FAFB]">
+                                        <td className="py-2.5 px-3 font-mono font-medium text-[#4693FD]">
+                                          {kb.kasbonNumber}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-[#667085]">
+                                          {formatDateID(kb.requestDate)}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-[#344054]">{kb.reason}</td>
+                                        <td className="py-2.5 px-3 text-right font-mono">
+                                          {formatRupiah(kb.amount)}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-right font-mono text-[#027A48]">
+                                          {formatRupiah(kb.deductedAmount || 0)}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-right font-mono font-bold text-[#B42318]">
+                                          {formatRupiah(kb.remainingAmount)}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-center">
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F2F4F7] text-[#344054]">
+                                            {kb.status === 'Dipotong sebagian' ? 'Dibayar Sebagian' : kb.status}
+                                          </span>
+                                        </td>
+                                        <td className="py-2.5 px-3 text-center">
+                                          <div className="inline-flex items-center gap-1.5">
+                                            {isAdmin && kb.remainingAmount > 0 && kb.status !== 'Ditolak' && (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenPayKasbonModal(kb)}
+                                                className="px-2 py-1 bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] rounded text-[11px] font-semibold"
+                                              >
+                                                Bayar
+                                              </button>
+                                            )}
+                                            <button
+                                              type="button"
+                                              onClick={() => setKasbonDetailModal(kb)}
+                                              className="px-2 py-1 bg-white text-[#344054] border border-[#D0D5DD] rounded text-[11px] font-semibold"
+                                            >
+                                              Detail & Riwayat Bayar
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    kasbonList.map((kb) => (
-                      <tr key={kb.id} className="hover:bg-[#F9FAFB] transition-colors">
-                        <td className="py-3 px-4 font-mono font-medium text-[#4693FD]">
-                          {kb.kasbonNumber}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="font-semibold text-[#1D2939] block">{kb.employeeName}</span>
-                          <span className="text-[11px] text-[#667085] font-mono">
-                            {kb.employeeId} · {kb.employeeRole}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-[#667085]">{formatDateID(kb.requestDate)}</td>
-                        <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939]">
-                          {formatRupiah(kb.amount)}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono text-[#027A48]">
-                          {formatRupiah(kb.deductedAmount || 0)}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-[#B42318]">
-                          {formatRupiah(kb.remainingAmount)}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${
-                              kb.status === 'Disetujui'
-                                ? 'bg-[#EFF8FF] text-[#175CD3] border-[#B2DDFF]'
-                                : kb.status === 'Lunas'
-                                ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5]'
-                                : kb.status === 'Dipotong sebagian'
-                                ? 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]'
-                                : kb.status === 'Ditolak'
-                                ? 'bg-[#FEF3F2] text-[#B42318] border-[#FECDCA]'
-                                : 'bg-gray-100 text-gray-700 border-gray-200'
-                            }`}
-                          >
-                            {kb.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          {(kb.attachments && kb.attachments.length > 0) || kb.attachmentFilePath ? (
-                            <button
-                              onClick={() => setViewingProofKasbon(kb)}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#EFF5FF] text-[#155EEF] hover:bg-[#D0E2FF] border border-[#D0E2FF] text-xs font-semibold transition-colors shadow-2xs"
-                              title="Buka Foto Bukti Kasbon"
-                            >
-                              <ImageIcon className="w-3.5 h-3.5" />
-                              <span>{kb.attachments?.length || 1} Foto</span>
-                            </button>
-                          ) : (
-                            <span className="text-[#98A2B3] text-[11px]">Tanpa Foto</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-[#667085] max-w-[200px] truncate" title={kb.reason}>
-                          {kb.reason}
-                        </td>
-                        {isAdmin && (
-                          <td className="py-3 px-4 text-center">
-                            <button
-                              onClick={() => setKasbonToDelete(kb)}
-                              className="p-1 text-[#667085] hover:text-[#D64545] hover:bg-[#FEF3F2] rounded transition-colors"
-                              title="Hapus Kasbon"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))
+                      );
+                    })
                   )}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* SUB-MODULE VIEW E: BIAYA TRANSPORTASI PROYEK */}
       {activeModule === 'transport' && (
@@ -5416,217 +5892,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 />
               </div>
 
-              {/* 5. Bagian Pengajuan Kasbon */}
-              <div className="pt-3 border-t border-[#EAECF0] space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-xs font-bold text-[#1D2939] flex items-center gap-1.5">
-                      <Wallet className="w-3.5 h-3.5 text-[#6941C6]" />
-                      <span>Pengajuan Kasbon</span>
-                    </h4>
-                    <p className="text-[11px] text-[#667085]">
-                      Karyawan penerima kasbon otomatis mengikuti karyawan pada form absensi ini
-                    </p>
-                  </div>
-
-                  {/* Pilihan "Ajukan Kasbon?" dengan opsi Tidak atau Ya */}
-                  <div className="flex items-center gap-1 bg-[#F2F4F7] p-1 rounded-lg border border-[#D0D5DD]">
-                    <button
-                      type="button"
-                      onClick={() => setAttendanceForm({ ...attendanceForm, hasKasbon: false })}
-                      className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
-                        !attendanceForm.hasKasbon
-                          ? 'bg-white text-[#1D2939] shadow-2xs'
-                          : 'text-[#667085] hover:text-[#1D2939]'
-                      }`}
-                    >
-                      Tidak
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAttendanceForm({ ...attendanceForm, hasKasbon: true })}
-                      className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
-                        attendanceForm.hasKasbon
-                          ? 'bg-[#6941C6] text-white shadow-2xs'
-                          : 'text-[#667085] hover:text-[#1D2939]'
-                      }`}
-                    >
-                      Ya
-                    </button>
-                  </div>
-                </div>
-
-                {attendanceForm.hasKasbon && (
-                  <div className="p-3.5 bg-[#F9F5FF]/60 rounded-xl border border-[#E9D7FE] space-y-3">
-                    {/* 6. Nominal Kasbon */}
-                    <div>
-                      <label className="text-xs font-semibold text-[#344054] block mb-1">
-                        Nominal Kasbon (Rp) <span className="text-[#D92D20]">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        step="any"
-                        placeholder="Masukkan nominal kasbon (contoh: 300000)"
-                        value={attendanceForm.kasbonAmount}
-                        onChange={(e) => setAttendanceForm({ ...attendanceForm, kasbonAmount: e.target.value })}
-                        required={attendanceForm.hasKasbon}
-                        className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-mono font-bold text-[#1D2939] focus:outline-none focus:border-[#6941C6]"
-                      />
-                      {Number(attendanceForm.kasbonAmount) > 0 && (
-                        <span className="text-[11px] font-mono font-semibold text-[#6941C6] mt-1 block">
-                          {formatRupiah(Number(attendanceForm.kasbonAmount))}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* 7. Keterangan Kasbon */}
-                    <div>
-                      <label className="text-xs font-semibold text-[#344054] block mb-1">
-                        Keterangan Kasbon
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Contoh: Kebutuhan keluarga / Biaya berobat / Pinjaman harian..."
-                        value={attendanceForm.kasbonNotes}
-                        onChange={(e) => setAttendanceForm({ ...attendanceForm, kasbonNotes: e.target.value })}
-                        className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#6941C6]"
-                      />
-                      <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                        {[
-                          'Kebutuhan keluarga mendesak',
-                          'Biaya berobat / beli obat',
-                          'Keperluan anak sekolah',
-                          'Ongkos transportasi darurat',
-                        ].map((sug) => (
-                          <button
-                            key={sug}
-                            type="button"
-                            onClick={() => setAttendanceForm({ ...attendanceForm, kasbonNotes: sug })}
-                            className="px-2 py-0.5 rounded bg-white hover:bg-[#F4EBFF] text-[#6941C6] border border-[#E9D7FE] text-[10px] font-medium transition-colors"
-                          >
-                            + {sug}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 8. Upload Bukti Kasbon + Pratinjau + Tombol Ganti/Hapus */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-xs font-semibold text-[#344054]">
-                          Upload Bukti Kasbon <span className="text-[#667085] font-normal">(Opsional)</span>
-                        </label>
-                        <span className="text-[10px] text-[#667085]">Maks. 5 MB · JPG, PNG, WebP</span>
-                      </div>
-
-                      <input
-                        type="file"
-                        ref={attKasbonFileInputRef}
-                        accept="image/*"
-                        onChange={handleAttKasbonPhotoChange}
-                        className="hidden"
-                      />
-
-                      {selectedAttKasbonPhoto ? (
-                        <div className="p-2.5 bg-white rounded-xl border border-[#D0D5DD] space-y-2">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={selectedAttKasbonPhoto.dataBase64}
-                              alt="Pratinjau Bukti Kasbon"
-                              className="w-16 h-16 object-cover rounded-lg border border-[#EAECF0] shrink-0"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-[#1D2939] truncate">
-                                {selectedAttKasbonPhoto.fileName}
-                              </p>
-                              <p className="text-[11px] text-[#667085]">
-                                {selectedAttKasbonPhoto.fileSize
-                                  ? `${(selectedAttKasbonPhoto.fileSize / 1024).toFixed(0)} KB`
-                                  : 'Foto bukti siap disimpan'}
-                              </p>
-                              <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-[#ECFDF3] text-[#027A48] text-[10px] font-medium">
-                                ✓ Pratinjau foto baru
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-[#F2F4F7]">
-                            <button
-                              type="button"
-                              onClick={() => attKasbonFileInputRef.current?.click()}
-                              className="px-2.5 py-1 bg-[#F8F9FA] hover:bg-[#EEF2F6] text-[#344054] border border-[#D0D5DD] rounded-lg text-[11px] font-semibold transition-colors"
-                            >
-                              Ganti Foto
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleRemoveAttKasbonPhoto}
-                              className="px-2.5 py-1 bg-[#FEF3F2] hover:bg-[#FEE4E2] text-[#D92D20] border border-[#FECDCA] rounded-lg text-[11px] font-semibold transition-colors"
-                            >
-                              Hapus Foto
-                            </button>
-                          </div>
-                        </div>
-                      ) : attendanceForm.existingKasbonAttachmentId && !attendanceForm.removeKasbonPhoto ? (
-                        <div className="p-2.5 bg-white rounded-xl border border-[#D0D5DD] space-y-2">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={getKasbonPhotoViewUrl(attendanceForm.existingKasbonAttachmentId)}
-                              alt="Bukti Kasbon Tersimpan"
-                              className="w-16 h-16 object-cover rounded-lg border border-[#EAECF0] shrink-0"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-[#1D2939] truncate">
-                                {attendanceForm.existingKasbonAttachmentFileName || 'Bukti Kasbon Tersimpan'}
-                              </p>
-                              <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-[#EFF5FF] text-[#155EEF] text-[10px] font-medium">
-                                Tersimpan di Supabase Storage
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-end gap-2 pt-1.5 border-t border-[#F2F4F7]">
-                            <button
-                              type="button"
-                              onClick={() => attKasbonFileInputRef.current?.click()}
-                              className="px-2.5 py-1 bg-[#F8F9FA] hover:bg-[#EEF2F6] text-[#344054] border border-[#D0D5DD] rounded-lg text-[11px] font-semibold transition-colors"
-                            >
-                              Ganti Foto
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleRemoveAttKasbonPhoto}
-                              className="px-2.5 py-1 bg-[#FEF3F2] hover:bg-[#FEE4E2] text-[#D92D20] border border-[#FECDCA] rounded-lg text-[11px] font-semibold transition-colors"
-                            >
-                              Hapus Foto
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => attKasbonFileInputRef.current?.click()}
-                          className="w-full py-3.5 border-2 border-dashed border-[#D0D5DD] hover:border-[#6941C6] bg-white hover:bg-[#F9F5FF] rounded-xl flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer"
-                        >
-                          <Upload className="w-4 h-4 text-[#6941C6]" />
-                          <span className="text-xs font-semibold text-[#344054]">
-                            Upload Foto Bukti Transfer / Pembayaran Kasbon
-                          </span>
-                          <span className="text-[10px] text-[#667085]">Klik untuk memilih foto bukti</span>
-                        </button>
-                      )}
-
-                      {attKasbonPhotoError && (
-                        <div className="mt-1.5 p-2 bg-[#FEF3F2] border border-[#FECDCA] text-[#B42318] rounded-lg text-[11px] flex items-center gap-1.5">
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                          <span>{attKasbonPhotoError}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 9. Tombol Batal dan Simpan */}
+              {/* Tombol Batal dan Simpan */}
               <div className="pt-3 flex justify-end gap-2 border-t border-[#EAECF0]">
                 <button
                   type="button"
@@ -6499,6 +6765,305 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   )}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PEMBAYARAN / PELUNASAN KASBON MANUAL */}
+      {isAdmin && kasbonToPay && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-[#EAECF0] overflow-hidden">
+            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between bg-[#F8F9FA]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#ECFDF3] text-[#027A48] flex items-center justify-center shrink-0">
+                  <Wallet className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[#1D2939]">Catat Pembayaran / Pelunasan Kasbon</h3>
+                  <p className="text-[11px] text-[#667085]">
+                    {kasbonToPay.kasbonNumber} · {kasbonToPay.employeeName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setKasbonToPay(null)}
+                disabled={submittingKasbonPayment}
+                className="p-1 text-[#667085] hover:text-[#1D2939] rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handlePayKasbonSubmit} className="p-5 space-y-4 text-xs">
+              <div className="p-3.5 bg-[#F8F9FA] rounded-xl border border-[#EAECF0] space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-[#667085]">Total Kasbon Awal:</span>
+                  <span className="font-mono font-semibold text-[#1D2939]">{formatRupiah(kasbonToPay.amount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#667085]">Sudah Dibayar:</span>
+                  <span className="font-mono font-semibold text-[#027A48]">
+                    {formatRupiah(kasbonToPay.deductedAmount || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-1.5 border-t border-[#EAECF0]">
+                  <span className="font-semibold text-[#344054]">Sisa Kasbon Saat Ini:</span>
+                  <span className="font-mono font-bold text-sm text-[#B42318]">
+                    {formatRupiah(kasbonToPay.remainingAmount)}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-semibold text-[#344054]">
+                    Nominal Pembayaran (Rp) <span className="text-[#D92D20]">*</span>
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setKasbonPaymentForm({
+                          ...kasbonPaymentForm,
+                          amount: String(Math.round(kasbonToPay.remainingAmount / 2)),
+                        })
+                      }
+                      className="px-2 py-0.5 bg-[#F2F4F7] hover:bg-[#E4E7EC] text-[#344054] rounded text-[10px] font-semibold"
+                    >
+                      50%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setKasbonPaymentForm({
+                          ...kasbonPaymentForm,
+                          amount: String(kasbonToPay.remainingAmount),
+                        })
+                      }
+                      className="px-2 py-0.5 bg-[#ECFDF3] hover:bg-[#D1FADF] text-[#027A48] border border-[#A6F4C5] rounded text-[10px] font-semibold"
+                    >
+                      Lunasi Penuh
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type="number"
+                  min="1"
+                  max={kasbonToPay.remainingAmount}
+                  step="any"
+                  required
+                  value={kasbonPaymentForm.amount}
+                  onChange={(e) => setKasbonPaymentForm({ ...kasbonPaymentForm, amount: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-white border border-[#D0D5DD] rounded-xl text-xs font-mono font-bold text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                />
+                {Number(kasbonPaymentForm.amount) > 0 && (
+                  <p className="text-[11px] font-mono text-[#027A48] mt-1">
+                    Sisa setelah pembayaran ini:{' '}
+                    <strong>
+                      {formatRupiah(Math.max(0, kasbonToPay.remainingAmount - Number(kasbonPaymentForm.amount)))}
+                    </strong>
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-[#344054] mb-1.5">Tanggal Pembayaran *</label>
+                  <input
+                    type="date"
+                    required
+                    value={kasbonPaymentForm.paymentDate}
+                    onChange={(e) => setKasbonPaymentForm({ ...kasbonPaymentForm, paymentDate: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-[#344054] mb-1.5">Metode Pembayaran *</label>
+                  <select
+                    value={kasbonPaymentForm.paymentMethod}
+                    onChange={(e) => setKasbonPaymentForm({ ...kasbonPaymentForm, paymentMethod: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                  >
+                    <option value="Tunai">Tunai / Kas Lapangan</option>
+                    <option value="Transfer Bank">Transfer Bank</option>
+                    <option value="E-Wallet">E-Wallet</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-[#344054] mb-1.5">Catatan Pembayaran (Opsional)</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Pelunasan tunai di kantor proyek..."
+                  value={kasbonPaymentForm.notes}
+                  onChange={(e) => setKasbonPaymentForm({ ...kasbonPaymentForm, notes: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-[#EAECF0] flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setKasbonToPay(null)}
+                  disabled={submittingKasbonPayment}
+                  className="px-4 py-2 bg-white hover:bg-[#F2F4F7] text-[#344054] border border-[#D0D5DD] rounded-xl text-xs font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingKasbonPayment}
+                  className="px-4 py-2 bg-[#12B76A] hover:bg-[#027A48] text-white rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  {submittingKasbonPayment ? 'Menyimpan...' : 'Simpan Pembayaran'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL RIWAYAT & DETAIL KASBON KARYAWAN */}
+      {kasbonDetailModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-[#EAECF0] overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between bg-[#F8F9FA]">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold text-[#155EEF] bg-[#EFF5FF] px-2 py-0.5 rounded border border-[#D0E2FF]">
+                    {kasbonDetailModal.kasbonNumber}
+                  </span>
+                  <h3 className="text-base font-bold text-[#1D2939]">{kasbonDetailModal.employeeName}</h3>
+                </div>
+                <p className="text-xs text-[#667085] mt-0.5">
+                  ID: {kasbonDetailModal.employeeId} · Jabatan: {kasbonDetailModal.employeeRole} · Proyek: {project.name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setKasbonDetailModal(null)}
+                className="p-1.5 text-[#667085] hover:text-[#1D2939] rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3 bg-[#F8F9FA] rounded-xl border border-[#EAECF0]">
+                  <span className="text-[#667085] block">Nominal Kasbon</span>
+                  <span className="text-base font-bold font-mono text-[#1D2939] mt-0.5 block">
+                    {formatRupiah(kasbonDetailModal.amount)}
+                  </span>
+                </div>
+                <div className="p-3 bg-[#ECFDF3] rounded-xl border border-[#A6F4C5]">
+                  <span className="text-[#027A48] block">Total Pembayaran</span>
+                  <span className="text-base font-bold font-mono text-[#027A48] mt-0.5 block">
+                    {formatRupiah(kasbonDetailModal.deductedAmount || 0)}
+                  </span>
+                </div>
+                <div className="p-3 bg-[#FEF3F2] rounded-xl border border-[#FECDCA]">
+                  <span className="text-[#B42318] block">Sisa Kasbon</span>
+                  <span className="text-base font-bold font-mono text-[#B42318] mt-0.5 block">
+                    {formatRupiah(kasbonDetailModal.remainingAmount)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-[#F9FAFB] rounded-xl border border-[#EAECF0] space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-[#667085]">Tanggal Pengajuan:</span>
+                  <span className="font-semibold text-[#1D2939]">{formatDateID(kasbonDetailModal.requestDate)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#667085]">Alasan / Keperluan:</span>
+                  <span className="font-semibold text-[#1D2939]">{kasbonDetailModal.reason}</span>
+                </div>
+                {kasbonDetailModal.adminNotes && (
+                  <div className="flex justify-between">
+                    <span className="text-[#667085]">Catatan Admin:</span>
+                    <span className="text-[#344054]">{kasbonDetailModal.adminNotes}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Riwayat Pembayaran / Pelunasan Manual */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-[#1D2939]">Riwayat Pembayaran / Pelunasan</h4>
+                  {isAdmin && kasbonDetailModal.remainingAmount > 0 && kasbonDetailModal.status !== 'Ditolak' && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenPayKasbonModal(kasbonDetailModal)}
+                      className="px-2.5 py-1 bg-[#12B76A] hover:bg-[#027A48] text-white rounded-lg text-[11px] font-semibold"
+                    >
+                      + Catat Pembayaran Manual
+                    </button>
+                  )}
+                </div>
+
+                {!kasbonDetailModal.payments || kasbonDetailModal.payments.length === 0 ? (
+                  <div className="p-4 text-center bg-[#F9FAFB] rounded-xl border border-[#EAECF0] text-[#667085]">
+                    Belum ada catatan pembayaran manual pada kasbon ini.
+                  </div>
+                ) : (
+                  <div className="border border-[#EAECF0] rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-[#F9FAFB] text-[#475467] border-b border-[#EAECF0]">
+                          <th className="py-2 px-3">No. Bayar</th>
+                          <th className="py-2 px-3">Tanggal</th>
+                          <th className="py-2 px-3">Metode</th>
+                          <th className="py-2 px-3 text-right">Nominal</th>
+                          <th className="py-2 px-3">Catatan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#EAECF0]">
+                        {kasbonDetailModal.payments.map((pay) => (
+                          <tr key={pay.id}>
+                            <td className="py-2 px-3 font-mono text-[11px] text-[#4693FD]">{pay.paymentNumber}</td>
+                            <td className="py-2 px-3 text-[#475467]">{formatDateID(pay.paymentDate)}</td>
+                            <td className="py-2 px-3 font-medium text-[#1D2939]">{pay.paymentMethod}</td>
+                            <td className="py-2 px-3 text-right font-mono font-semibold text-[#027A48]">
+                              {formatRupiah(pay.amount)}
+                            </td>
+                            <td className="py-2 px-3 text-[#667085]">{pay.notes || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Audit Trail */}
+              {kasbonDetailModal.auditTrail && kasbonDetailModal.auditTrail.length > 0 && (
+                <div className="space-y-1.5">
+                  <h4 className="font-bold text-[#1D2939]">Jejak Aktivitas (Audit Trail)</h4>
+                  <div className="bg-[#F9FAFB] rounded-xl border border-[#EAECF0] p-3 space-y-2 max-h-40 overflow-y-auto">
+                    {kasbonDetailModal.auditTrail.map((log, i) => (
+                      <div key={i} className="text-[11px] border-b border-[#EAECF0] last:border-0 pb-1.5 last:pb-0">
+                        <span className="font-semibold text-[#1D2939]">{log.user}</span>{' '}
+                        <span className="text-[#667085]">({formatDateID(log.timestamp.slice(0, 10))}):</span>{' '}
+                        <span className="text-[#344054]">{log.action}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-3.5 bg-[#F9FAFB] border-t border-[#EAECF0] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setKasbonDetailModal(null)}
+                className="px-4 py-2 bg-white hover:bg-[#F2F4F7] text-[#344054] border border-[#D0D5DD] rounded-xl text-xs font-semibold"
+              >
+                Tutup
+              </button>
             </div>
           </div>
         </div>

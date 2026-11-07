@@ -264,6 +264,15 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ action, rejectionReason, adminNotes }),
     }),
+  payProjectKasbon: (
+    projectId: string,
+    kasbonId: string,
+    data: { amount: number; paymentDate: string; paymentMethod: string; notes?: string }
+  ) =>
+    request<KasbonRecord>(`/projects/${projectId}/kasbon/${kasbonId}/pay`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   deleteProjectKasbonAttachment: (projectId: string, kasbonId: string, attachmentId: string) =>
     request<{ message: string }>(`/projects/${projectId}/kasbon/${kasbonId}/attachments/${attachmentId}`, {
       method: 'DELETE',
@@ -373,8 +382,19 @@ export const api = {
     }),
 
   // Kasbon
-  getKasbon: () => request<KasbonRecord[]>('/kasbon'),
-  applyKasbon: (data: { employeeId: string; requestDate: string; amount: number; reason: string; targetPaymentPeriod?: string; adminNotes?: string }) =>
+  getKasbon: (projectId?: string) =>
+    request<KasbonRecord[]>(`/kasbon${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  applyKasbon: (data: {
+    projectId?: string;
+    employeeId: string;
+    requestDate: string;
+    amount: number;
+    reason: string;
+    targetPaymentPeriod?: string;
+    adminNotes?: string;
+    status?: string;
+    attachments?: Array<{ fileName: string; dataBase64: string; fileSize?: number; mimeType?: string }>;
+  }) =>
     request<KasbonRecord>('/kasbon', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -383,6 +403,18 @@ export const api = {
     request<KasbonRecord>(`/kasbon/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ action, rejectionReason, adminNotes }),
+    }),
+  payKasbon: (
+    id: string,
+    data: { amount: number; paymentDate: string; paymentMethod: string; notes?: string }
+  ) =>
+    request<KasbonRecord>(`/kasbon/${id}/pay`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteKasbon: (id: string) =>
+    request<{ message: string }>(`/kasbon/${id}`, {
+      method: 'DELETE',
     }),
 
   // Payroll

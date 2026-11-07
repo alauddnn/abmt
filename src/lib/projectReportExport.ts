@@ -523,11 +523,11 @@ export function exportProjectReportPDF(params: {
 
     const rows = transportExpenses.map((e, i) => [
       String(i + 1),
-      e.expenseNumber,
+      e.expenseNumber || e.transactionNumber || '-',
       formatDateID(e.date),
       e.category,
-      e.vehicleOrDriver || '-',
-      e.destinationOrRoute || '-',
+      e.vehicleOrDriver || e.transportType || '-',
+      e.destinationOrRoute || e.destination || '-',
       e.picName || '-',
       e.description || '-',
       e.paymentMethod || '-',
@@ -599,7 +599,7 @@ export function exportProjectReportPDF(params: {
 
     const rows = operationalExpenses.map((e, i) => [
       String(i + 1),
-      e.expenseNumber,
+      e.expenseNumber || e.transactionNumber || '-',
       formatDateID(e.date),
       e.category,
       e.description || '-',

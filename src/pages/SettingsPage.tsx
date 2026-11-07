@@ -130,23 +130,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
   };
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-20 kms-fade-in">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-[#EAECF0] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-7 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
+            <span className="text-[#2563EB] text-xs font-semibold tracking-tight">
               PT. Asta Brata Matahari Terbit
             </span>
-            <span className="text-[#D0D5DD]">·</span>
-            <span className="text-xs text-[#667085] font-medium font-mono">
+            <span className="text-slate-300">·</span>
+            <span className="text-xs text-slate-500 font-medium font-mono">
               Konfigurasi Sistem
             </span>
           </div>
-          <h1 className="text-2xl font-semibold text-[#262626] tracking-tight mt-1">
+          <h1 className="text-2xl sm:text-[26px] font-semibold text-slate-900 tracking-tight mt-1">
             Pengaturan Perusahaan & Tarif Operasional
           </h1>
-          <p className="text-xs text-[#667085] mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             {isAdmin
               ? 'Kelola nama perusahaan, alamat, personil owner & asisten, serta tarif standar upah harian dan lembur kontraktor.'
               : 'Informasi profil perusahaan, personil kunci, dan tarif standar operasional (Mode Baca-Saja).'}
@@ -156,7 +156,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
 
       {/* Owner Notice */}
       {isOwner && (
-        <div className="bg-[#FEF6EE] border border-[#F9DBAF] rounded-xl p-4 flex items-start gap-3 text-xs text-[#B54708]">
+        <div className="bg-[#FEF6EE] border border-[#F9DBAF] rounded-2xl p-4 flex items-start gap-3 text-xs text-[#B54708]">
           <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-[#B54708]" />
           <div>
             <p className="font-semibold text-sm">Mode Baca-Saja (Akun Owner)</p>
@@ -169,7 +169,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Section 1: Profil Perusahaan */}
-        <div className="bg-white p-6 rounded-xl border border-[#EAECF0] shadow-xs space-y-4">
+        <div className="kms-card-hover bg-white p-6 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] space-y-4">
           <div className="flex items-center gap-2 text-[#262626] font-semibold text-sm pb-3 border-b border-[#EAECF0]">
             <Building className="w-4 h-4 text-[#4693FD]" />
             <span>1. Profil Perusahaan Kontraktor</span>
@@ -228,7 +228,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
         </div>
 
         {/* Section 2: Personil Kunci Lapangan */}
-        <div className="bg-white p-6 rounded-xl border border-[#EAECF0] shadow-xs space-y-4">
+        <div className="kms-card-hover bg-white p-6 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] space-y-4">
           <div className="flex items-center gap-2 text-[#262626] font-semibold text-sm pb-3 border-b border-[#EAECF0]">
             <User className="w-4 h-4 text-[#4693FD]" />
             <span>2. Personil Kunci Lapangan (Owner & Asisten)</span>
@@ -270,7 +270,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
         </div>
 
         {/* Section 3: Jam Kerja & Tarif Upah */}
-        <div className="bg-white p-6 rounded-xl border border-[#EAECF0] shadow-xs space-y-4">
+        <div className="kms-card-hover bg-white p-6 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-[#EAECF0]">
             <div className="flex items-center gap-2 text-[#262626] font-semibold text-sm">
               <DollarSign className="w-4 h-4 text-[#16A36A]" />

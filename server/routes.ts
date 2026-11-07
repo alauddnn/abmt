@@ -1435,6 +1435,24 @@ router.put('/projects/:id/kasbon/:kasbonId/status', async (req: Request, res: Re
   return res.status(400).json({ error: 'Koneksi database PostgreSQL Supabase diperlukan' });
 });
 
+router.post('/projects/:id/kasbon/:kasbonId/pay', async (req: Request, res: Response) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak mencatat pembayaran kasbon' });
+  }
+
+  const { kasbonId } = req.params;
+  if (isPostgresConfigured) {
+    try {
+      const updated = await pgService.recordKasbonPayment(kasbonId, req.body, user.name, user.role);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+  return res.status(400).json({ error: 'Koneksi database PostgreSQL Supabase diperlukan' });
+});
+
 router.delete('/projects/:id/kasbon/:kasbonId/attachments/:attachmentId', async (req: Request, res: Response) => {
   const user = getUserFromReq(req);
   if (user.role !== 'admin') {
@@ -2597,40 +2615,101 @@ function checkKasbonEligibility(employeeStartDate: string, requestDate: string, 
   return { isEligible, diffDays, eligibilityDate, reason };
 }
 
-router.get('/kasbon', async (_req: Request, res: Response) => {
+router.get('/kasbon', async (req: Request, res: Response) => {
+  const projectId = req.query.projectId ? String(req.query.projectId) : undefined;
   if (isPostgresConfigured) {
     try {
-      const list = await pgService.getKasbon();
+      const list = await pgService.getKasbon(projectId);
       return res.json(list);
     } catch (err: any) {
       return res.status(500).json({ error: 'Gagal mengambil data kasbon dari PostgreSQL: ' + err.message });
     }
   }
   const db = dbManager.getDb();
-  return res.json(db.kasbon);
+  const list = projectId ? db.kasbon.filter((k) => k.projectId === projectId) : db.kasbon;
+  return res.json(list);
 });
 
 // Ajukan Kasbon
 router.post('/kasbon', async (req: Request, res: Response) => {
   const user = getUserFromReq(req);
-  const { employeeId, requestDate, amount, reason, targetPaymentPeriod, adminNotes } = req.body;
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak mengajukan atau mencatat kasbon' });
+  }
+
+  const { employeeId, projectId, requestDate, amount, reason, targetPaymentPeriod, adminNotes, status, attachments } = req.body;
 
   if (!employeeId || !amount || !requestDate) {
     return res.status(400).json({ error: 'Karyawan, nominal, dan tanggal pengajuan harus diisi' });
   }
 
+  const numAmount = Number(amount);
+  if (!numAmount || numAmount <= 0 || isNaN(numAmount)) {
+    return res.status(400).json({ error: 'Nominal kasbon harus lebih dari 0' });
+  }
+
+  const processedAttachments: Array<{ fileName: string; filePath: string; fileSize: number; mimeType: string }> = [];
+  if (Array.isArray(attachments) && attachments.length > 0) {
+    for (let i = 0; i < attachments.length; i++) {
+      const item = attachments[i];
+      if (!item.dataBase64) continue;
+
+      let base64Clean = item.dataBase64;
+      if (base64Clean.includes(';base64,')) {
+        base64Clean = base64Clean.split(';base64,')[1];
+      }
+      const buffer = Buffer.from(base64Clean, 'base64');
+      const validation = validateImageBuffer(buffer, item.fileName || 'bukti_kasbon.jpg', item.mimeType || 'image/jpeg');
+      if (!validation.valid) {
+        return res.status(400).json({
+          error: `File '${item.fileName}' tidak valid: ${validation.error}`,
+        });
+      }
+
+      try {
+        const uploadResult = await uploadToStorage(
+          buffer,
+          item.fileName || `bukti_kasbon_${i + 1}.jpg`,
+          validation.mimeType,
+          `kasbon_${projectId || 'global'}`
+        );
+
+        processedAttachments.push({
+          fileName: item.fileName || `bukti_kasbon_${i + 1}.jpg`,
+          filePath: uploadResult.filePath,
+          fileSize: buffer.length,
+          mimeType: validation.mimeType,
+        });
+      } catch (uploadErr: any) {
+        console.error('Kasbon photo upload error:', uploadErr);
+        return res.status(500).json({
+          error: `Gagal mengunggah foto bukti kasbon ke Supabase Storage: ${uploadErr.message}`,
+        });
+      }
+    }
+  }
+
   if (isPostgresConfigured) {
     try {
-      const kasbon = await pgService.createKasbon(req.body, user.name, user.role);
+      const kasbon = await pgService.createKasbon(
+        {
+          projectId: projectId || undefined,
+          employeeId,
+          requestDate,
+          amount: numAmount,
+          reason: reason || 'Kebutuhan keluarga mendesak',
+          targetPaymentPeriod: targetPaymentPeriod || '',
+          adminNotes: adminNotes || '',
+          status: status || 'Disetujui',
+        },
+        user.name,
+        user.role,
+        processedAttachments
+      );
       return res.status(201).json(kasbon);
     } catch (err: any) {
       return res.status(500).json({ error: 'Gagal mengajukan kasbon di PostgreSQL: ' + err.message });
     }
-  }
-
-  const numAmount = Number(amount);
-  if (numAmount <= 0) {
-    return res.status(400).json({ error: 'Nominal kasbon harus lebih dari 0' });
   }
 
   const db = dbManager.getDb();
@@ -2786,6 +2865,126 @@ router.put('/kasbon/:id/status', async (req: Request, res: Response) => {
   }
 
   return res.json(updated);
+});
+
+// Pembayaran / Pelunasan Kasbon Secara Manual
+router.post('/kasbon/:id/pay', async (req: Request, res: Response) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak mencatat pembayaran kasbon' });
+  }
+
+  const { id } = req.params;
+  if (isPostgresConfigured) {
+    try {
+      const updated = await pgService.recordKasbonPayment(id, req.body, user.name, user.role);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  const { amount, paymentDate, paymentMethod, notes } = req.body;
+  const payAmount = Math.round(Number(amount || 0));
+  if (!payAmount || payAmount <= 0) {
+    return res.status(400).json({ error: 'Nominal pembayaran harus lebih besar dari Rp0' });
+  }
+
+  let errorMessage: string | null = null;
+  const updated = dbManager.mutate((database) => {
+    const idx = database.kasbon.findIndex((k) => k.id === id);
+    if (idx === -1) {
+      errorMessage = 'Data kasbon tidak ditemukan';
+      return null;
+    }
+    const kb = database.kasbon[idx];
+    if (kb.status === 'Ditolak' || kb.status === 'Lunas' || kb.remainingAmount <= 0) {
+      errorMessage = 'Kasbon sudah lunas atau berstatus ditolak';
+      return null;
+    }
+    if (payAmount > kb.remainingAmount) {
+      errorMessage = `Nominal pembayaran melebihi sisa kasbon (Rp ${kb.remainingAmount.toLocaleString('id-ID')})`;
+      return null;
+    }
+
+    const pDate = paymentDate || new Date().toISOString().split('T')[0];
+    const pMethod = paymentMethod || 'Tunai';
+    const pNumber = `KBP-${pDate.slice(0, 7).replace('-', '')}-${Date.now().toString().slice(-4)}`;
+    const newPayment = {
+      id: `KBP-${Date.now()}`,
+      kasbonId: kb.id,
+      paymentNumber: pNumber,
+      paymentDate: pDate,
+      amount: payAmount,
+      paymentMethod: pMethod,
+      notes: notes || '',
+      createdBy: user.name,
+      createdAt: new Date().toISOString(),
+    };
+
+    const newDeducted = kb.deductedAmount + payAmount;
+    const newRemaining = Math.max(0, kb.amount - newDeducted);
+    const newStatus = newRemaining === 0 ? 'Lunas' : 'Dipotong sebagian';
+
+    database.kasbon[idx] = {
+      ...kb,
+      deductedAmount: newDeducted,
+      remainingAmount: newRemaining,
+      status: newStatus,
+      payments: [newPayment, ...(kb.payments || [])],
+      auditTrail: [
+        ...kb.auditTrail,
+        {
+          timestamp: new Date().toISOString(),
+          user: user.name,
+          action: `Pembayaran manual kasbon sebesar Rp ${payAmount.toLocaleString('id-ID')} via ${pMethod}. Sisa: Rp ${newRemaining.toLocaleString('id-ID')}`,
+        },
+      ],
+    };
+    return database.kasbon[idx];
+  });
+
+  if (errorMessage) {
+    return res.status(400).json({ error: errorMessage });
+  }
+  return res.json(updated);
+});
+
+// Hapus Kasbon
+router.delete('/kasbon/:id', async (req: Request, res: Response) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak menghapus kasbon' });
+  }
+
+  const { id } = req.params;
+  if (isPostgresConfigured) {
+    try {
+      await pgService.deleteKasbon(id, user.name, user.role);
+      return res.json({ message: 'Data kasbon berhasil dihapus' });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  let errorMessage: string | null = null;
+  dbManager.mutate((database) => {
+    const idx = database.kasbon.findIndex((k) => k.id === id);
+    if (idx === -1) {
+      errorMessage = 'Data kasbon tidak ditemukan';
+      return;
+    }
+    if (database.kasbon[idx].deductedAmount > 0) {
+      errorMessage = 'Kasbon tidak dapat dihapus karena sudah memiliki riwayat pembayaran';
+      return;
+    }
+    database.kasbon.splice(idx, 1);
+  });
+
+  if (errorMessage) {
+    return res.status(400).json({ error: errorMessage });
+  }
+  return res.json({ message: 'Data kasbon berhasil dihapus' });
 });
 
 // ---------------------------------------------------------------------------

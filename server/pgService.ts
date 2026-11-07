@@ -5,6 +5,7 @@ import {
   Attendance,
   OvertimeRecord,
   KasbonRecord,
+  KasbonPayment,
   SalaryPayment,
   OperationalExpense,
   OperationalExpenseAttachment,
@@ -44,6 +45,21 @@ export function resolveOvertimeDecimalHours(data: {
 
 export function isDriverRole(role?: string | null): boolean {
   return String(role || '').trim().toLowerCase() === 'driver';
+}
+
+export function cleanDateValue(val: any, fallback: string | null = null): string | null {
+  if (val === undefined || val === null) return fallback;
+  if (val instanceof Date) return val.toISOString().split('T')[0];
+  const s = String(val).trim();
+  if (!s || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined') return fallback;
+  return s.split('T')[0];
+}
+
+export function cleanStringValue(val: any, fallback: string = ''): string {
+  if (val === undefined || val === null) return fallback;
+  const s = String(val).trim();
+  if (!s || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined') return fallback;
+  return s;
 }
 
 export function calcOvertimePayExact(
@@ -114,13 +130,25 @@ function mapProject(row: any): Project {
     code: row.code,
     name: row.name,
     location: row.location || '',
-    client: row.client,
-    startDate: row.start_date ? row.start_date.toISOString().split('T')[0] : '',
-    targetEndDate: row.target_end_date ? row.target_end_date.toISOString().split('T')[0] : '',
+    client: row.client || '-',
+    startDate: row.start_date
+      ? typeof row.start_date === 'string'
+        ? row.start_date.split('T')[0]
+        : row.start_date.toISOString().split('T')[0]
+      : '',
+    targetEndDate: row.target_end_date
+      ? typeof row.target_end_date === 'string'
+        ? row.target_end_date.split('T')[0]
+        : row.target_end_date.toISOString().split('T')[0]
+      : '',
     budget: Number(row.budget || 0),
     status: row.status || 'Berjalan',
     description: row.description || '',
-    createdAt: row.created_at ? row.created_at.toISOString() : new Date().toISOString(),
+    createdAt: row.created_at
+      ? typeof row.created_at === 'string'
+        ? row.created_at
+        : row.created_at.toISOString()
+      : new Date().toISOString(),
   };
 }
 
@@ -182,6 +210,28 @@ function mapOvertime(row: any): OvertimeRecord {
   };
 }
 
+function mapKasbonPayment(row: any): KasbonPayment {
+  return {
+    id: row.id,
+    kasbonId: row.kasbon_id,
+    paymentNumber: row.payment_number,
+    paymentDate: row.payment_date
+      ? typeof row.payment_date === 'string'
+        ? row.payment_date.split('T')[0]
+        : row.payment_date.toISOString().split('T')[0]
+      : '',
+    amount: Number(row.amount || 0),
+    paymentMethod: row.payment_method || 'Tunai',
+    notes: row.notes || '',
+    createdBy: row.created_by || 'Administrator',
+    createdAt: row.created_at
+      ? typeof row.created_at === 'string'
+        ? row.created_at
+        : row.created_at.toISOString()
+      : '',
+  };
+}
+
 function mapKasbon(row: any): KasbonRecord {
   const attachments: OperationalExpenseAttachment[] = Array.isArray(row.attachments)
     ? row.attachments.map((a: any) => ({
@@ -195,6 +245,10 @@ function mapKasbon(row: any): KasbonRecord {
         createdAt: a.createdAt || a.created_at || '',
         viewUrl: `/api/projects/kasbon/attachments/${a.id}/view`,
       }))
+    : [];
+
+  const payments: KasbonPayment[] = Array.isArray(row.payments)
+    ? row.payments.map(mapKasbonPayment)
     : [];
 
   return {
@@ -220,11 +274,14 @@ function mapKasbon(row: any): KasbonRecord {
     approvedAt: row.approved_at ? (typeof row.approved_at === 'string' ? row.approved_at : row.approved_at.toISOString()) : undefined,
     rejectionReason: row.rejection_reason || undefined,
     projectId: row.project_id || undefined,
+    projectName: row.project_name || undefined,
+    projectCode: row.project_code || undefined,
     attachmentFilePath: row.attachment_file_path || undefined,
     attachmentFileName: row.attachment_file_name || undefined,
     attachmentFileSize: row.attachment_file_size ? Number(row.attachment_file_size) : undefined,
     attachmentMimeType: row.attachment_mime_type || undefined,
     attachments,
+    payments,
     auditTrail: Array.isArray(row.audit_trail) ? row.audit_trail : [],
   };
 }
@@ -318,7 +375,11 @@ function mapUser(row: any): AppUser {
     role: row.role,
     salt: row.salt,
     passwordHash: row.password_hash,
-    createdAt: row.created_at ? row.created_at.toISOString() : new Date().toISOString(),
+    createdAt: row.created_at
+      ? typeof row.created_at === 'string'
+        ? row.created_at
+        : row.created_at.toISOString()
+      : new Date().toISOString(),
   };
 }
 
@@ -459,6 +520,10 @@ export async function ensureAllSchemasOnce(): Promise<void> {
         END $$;
 
         DO $$ BEGIN
+          ALTER TABLE projects ALTER COLUMN target_end_date DROP NOT NULL;
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+        DO $$ BEGIN
           ALTER TABLE attendance ALTER COLUMN overtime_hours TYPE NUMERIC(10, 4);
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
@@ -487,6 +552,18 @@ export async function ensureAllSchemasOnce(): Promise<void> {
           file_size INT DEFAULT 0,
           mime_type VARCHAR(100) DEFAULT 'image/jpeg',
           uploaded_by VARCHAR(100),
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS kasbon_payments (
+          id VARCHAR(100) PRIMARY KEY,
+          kasbon_id VARCHAR(100) NOT NULL REFERENCES kasbon_records(id) ON DELETE CASCADE,
+          payment_number VARCHAR(100) NOT NULL,
+          payment_date DATE NOT NULL,
+          amount NUMERIC(15, 2) NOT NULL,
+          payment_method VARCHAR(100) DEFAULT 'Tunai',
+          notes TEXT,
+          created_by VARCHAR(150),
           created_at TIMESTAMPTZ DEFAULT NOW()
         );
 
@@ -779,7 +856,7 @@ export const pgService = {
       : (data.overtimeHourlyWage !== undefined && data.overtimeHourlyWage !== null && data.overtimeHourlyWage !== ('' as any)
         ? Number(data.overtimeHourlyWage)
         : defaultOvertime);
-    const startDate = data.startDate || new Date().toISOString().split('T')[0];
+    const startDate = cleanDateValue(data.startDate, new Date().toISOString().split('T')[0])!;
 
     const res = await query(
       `INSERT INTO employees (id, name, role, daily_wage, overtime_hourly_wage, start_date, status, phone, notes, created_at)
@@ -807,7 +884,16 @@ export const pgService = {
         await client.query('UPDATE project_assignments SET employee_id = $1 WHERE employee_id = $2', [targetId, oldId]);
       }
 
-      const nextOvertimeRate = isDriverRole(data.role) ? 0 : data.overtimeHourlyWage;
+      const cleanDailyWage =
+        data.dailyWage !== undefined && data.dailyWage !== null && data.dailyWage !== ('' as any)
+          ? Number(data.dailyWage)
+          : null;
+      const nextOvertimeRate = isDriverRole(data.role)
+        ? 0
+        : data.overtimeHourlyWage !== undefined && data.overtimeHourlyWage !== null && data.overtimeHourlyWage !== ('' as any)
+        ? Number(data.overtimeHourlyWage)
+        : null;
+      const cleanStartDate = cleanDateValue(data.startDate, null);
 
       const res = await client.query(
         `UPDATE employees SET
@@ -816,7 +902,18 @@ export const pgService = {
           start_date = COALESCE($6, start_date), status = COALESCE($7, status),
           phone = COALESCE($8, phone), notes = COALESCE($9, notes)
          WHERE id = $10 RETURNING *`,
-        [targetId, data.name?.trim(), data.role, data.dailyWage, nextOvertimeRate, data.startDate, data.status, data.phone, data.notes, oldId]
+        [
+          targetId,
+          data.name?.trim() || null,
+          data.role || null,
+          cleanDailyWage,
+          nextOvertimeRate,
+          cleanStartDate,
+          data.status || null,
+          data.phone !== undefined ? data.phone : null,
+          data.notes !== undefined ? data.notes : null,
+          oldId,
+        ]
       );
 
       if (!res.rows.length) {
@@ -963,18 +1060,28 @@ export const pgService = {
   },
 
   async createProject(data: Partial<Project>, userName: string, userRole: string): Promise<Project> {
+    await ensureAllSchemasOnce();
     const id = `PRJ-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
-    const code = data.code?.trim() || `PRJ-${Date.now().toString().slice(-4)}-${randomSuffix}`;
+    const code = cleanStringValue(data.code, `PRJ-${Date.now().toString().slice(-4)}-${randomSuffix}`);
+    const cleanStartDate = cleanDateValue(data.startDate, new Date().toISOString().split('T')[0])!;
+    const cleanTargetEndDate = cleanDateValue(data.targetEndDate, null);
 
     const res = await query(
       `INSERT INTO projects (id, code, name, location, client, start_date, target_end_date, budget, status, description, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
        RETURNING *`,
       [
-        id, code, data.name?.trim(), data.location?.trim() || 'Jakarta', data.client?.trim(),
-        data.startDate || new Date().toISOString().split('T')[0], data.targetEndDate || null,
-        Number(data.budget || 0), data.status || 'Berjalan', data.description || '',
+        id,
+        code,
+        cleanStringValue(data.name, 'Proyek Baru'),
+        cleanStringValue(data.location, 'Jakarta'),
+        cleanStringValue(data.client, '-'),
+        cleanStartDate,
+        cleanTargetEndDate,
+        Number(data.budget || 0),
+        cleanStringValue(data.status, 'Berjalan'),
+        data.description ?? '',
       ]
     );
 
@@ -983,14 +1090,48 @@ export const pgService = {
   },
 
   async updateProject(id: string, data: Partial<Project>, userName: string, userRole: string): Promise<Project> {
+    await ensureAllSchemasOnce();
+    const existingRes = await query('SELECT * FROM projects WHERE id = $1', [id]);
+    if (!existingRes.rows.length) throw new Error('Proyek tidak ditemukan.');
+    const existing = existingRes.rows[0];
+
+    const cleanCode = cleanStringValue(data.code, existing.code);
+    const cleanName = cleanStringValue(data.name, existing.name);
+    const cleanLocation = cleanStringValue(data.location, existing.location);
+    const cleanClient = cleanStringValue(data.client, existing.client);
+    const fallbackStartDate = cleanDateValue(existing.start_date, new Date().toISOString().split('T')[0])!;
+    const cleanStartDate = cleanDateValue(data.startDate, fallbackStartDate)!;
+    // Allow clearing target_end_date to NULL when user submits empty string "" or null
+    const cleanTargetEndDate =
+      data.targetEndDate !== undefined
+        ? cleanDateValue(data.targetEndDate, null)
+        : cleanDateValue(existing.target_end_date, null);
+    const cleanBudget =
+      data.budget !== undefined && data.budget !== null && data.budget !== ('' as any)
+        ? Number(data.budget || 0)
+        : Number(existing.budget || 0);
+    const cleanStatus = cleanStringValue(data.status, existing.status || 'Berjalan');
+    const cleanDescription = data.description !== undefined && data.description !== null ? String(data.description) : existing.description || '';
+
     const res = await query(
       `UPDATE projects SET
-        code = COALESCE($1, code), name = COALESCE($2, name), location = COALESCE($3, location),
-        client = COALESCE($4, client), start_date = COALESCE($5, start_date),
-        target_end_date = COALESCE($6, target_end_date), budget = COALESCE($7, budget),
-        status = COALESCE($8, status), description = COALESCE($9, description)
+        code = $1, name = $2, location = $3,
+        client = $4, start_date = $5,
+        target_end_date = $6, budget = $7,
+        status = $8, description = $9
        WHERE id = $10 RETURNING *`,
-      [data.code?.trim(), data.name?.trim(), data.location?.trim(), data.client?.trim(), data.startDate, data.targetEndDate, data.budget, data.status, data.description, id]
+      [
+        cleanCode,
+        cleanName,
+        cleanLocation,
+        cleanClient,
+        cleanStartDate,
+        cleanTargetEndDate,
+        cleanBudget,
+        cleanStatus,
+        cleanDescription,
+        id,
+      ]
     );
     if (!res.rows.length) throw new Error('Proyek tidak ditemukan.');
     await insertAuditLog(userName, userRole as any, 'Ubah Proyek', 'Proyek', `Memperbarui proyek: ${res.rows[0].name}`);
@@ -1000,8 +1141,35 @@ export const pgService = {
   async deleteProject(id: string, userName: string, userRole: string): Promise<void> {
     const res = await query('SELECT name FROM projects WHERE id = $1', [id]);
     if (!res.rows.length) throw new Error('Proyek tidak ditemukan.');
-    await query('DELETE FROM projects WHERE id = $1', [id]);
-    await insertAuditLog(userName, userRole as any, 'Hapus Proyek', 'Proyek', `Menghapus proyek: ${res.rows[0].name}`);
+    const projName = res.rows[0].name;
+
+    // Protect projects that already have financial/operational transactions so history is never lost
+    const txCheck = await query(
+      `SELECT
+        (SELECT COUNT(*)::int FROM attendance WHERE project_id = $1) AS att_cnt,
+        (SELECT COUNT(*)::int FROM overtime_records WHERE project_id = $1) AS ot_cnt,
+        (SELECT COUNT(*)::int FROM kasbon_records WHERE project_id = $1) AS kb_cnt,
+        (SELECT COUNT(*)::int FROM project_expenses WHERE project_id = $1) AS exp_cnt`,
+      [id]
+    );
+    const counts = txCheck.rows[0] || { att_cnt: 0, ot_cnt: 0, kb_cnt: 0, exp_cnt: 0 };
+    const totalTx =
+      Number(counts.att_cnt || 0) +
+      Number(counts.ot_cnt || 0) +
+      Number(counts.kb_cnt || 0) +
+      Number(counts.exp_cnt || 0);
+
+    if (totalTx > 0) {
+      throw new Error(
+        `Proyek "${projName}" tidak dapat dihapus permanen karena sudah memiliki riwayat transaksi sah (${counts.att_cnt} absensi, ${counts.ot_cnt} lembur, ${counts.kb_cnt} kasbon, ${counts.exp_cnt} pengeluaran proyek). Silakan ubah status proyek menjadi "Selesai" untuk mengarsipkan tanpa kehilangan riwayat keuangan.`
+      );
+    }
+
+    await withTransaction(async (client) => {
+      await client.query('DELETE FROM project_assignments WHERE project_id = $1', [id]);
+      await client.query('DELETE FROM projects WHERE id = $1', [id]);
+    });
+    await insertAuditLog(userName, userRole as any, 'Hapus Proyek', 'Proyek', `Menghapus proyek: ${projName}`);
   },
 
   async getProjectById(id: string): Promise<Project | null> {
@@ -1199,7 +1367,14 @@ export const pgService = {
       const isDriverTarget = isDriverRole(targetRole);
       const effectiveOvertimeRate = isDriverTarget
         ? 0
-        : (data.overtimeHourlyWage !== undefined && data.overtimeHourlyWage !== null ? Number(data.overtimeHourlyWage) : null);
+        : data.overtimeHourlyWage !== undefined && data.overtimeHourlyWage !== null && data.overtimeHourlyWage !== ('' as any)
+        ? Number(data.overtimeHourlyWage)
+        : null;
+      const cleanStartDate = cleanDateValue(data.startDate, null);
+      const cleanDailyWage =
+        data.dailyWage !== undefined && data.dailyWage !== null && data.dailyWage !== ('' as any)
+          ? Number(data.dailyWage)
+          : null;
 
       await client.query(
         `UPDATE employees SET
@@ -1214,15 +1389,15 @@ export const pgService = {
           notes = COALESCE($9, notes)
          WHERE id = $10`,
         [
-          data.name?.trim(),
-          data.phone?.trim(),
+          data.name?.trim() || null,
+          data.phone !== undefined ? data.phone.trim() : null,
           data.nik !== undefined ? data.nik.trim() : null,
-          data.role,
-          data.startDate,
-          data.dailyWage !== undefined && data.dailyWage !== null ? Number(data.dailyWage) : null,
+          data.role || null,
+          cleanStartDate,
+          cleanDailyWage,
           effectiveOvertimeRate,
           effectiveEmpStatus,
-          data.notes,
+          data.notes !== undefined ? data.notes : null,
           empId,
         ]
       );
@@ -1704,7 +1879,7 @@ export const pgService = {
         notes = COALESCE($9, notes)
        WHERE id = $10 RETURNING *`,
       [
-        data.date || null,
+        cleanDateValue(data.date, null),
         data.category || null,
         data.transportType !== undefined ? data.transportType : exp.transport_type,
         data.destination !== undefined ? data.destination : exp.destination,
@@ -2503,25 +2678,25 @@ export const pgService = {
     const values: any[] = [];
     let idx = 1;
 
-    if (params?.date) {
+    if (params?.date && String(params.date).trim()) {
       sql += ` AND date = $${idx++}`;
-      values.push(params.date);
+      values.push(String(params.date).trim());
     }
-    if (params?.startDate && params?.endDate) {
+    if (params?.startDate && String(params.startDate).trim() && params?.endDate && String(params.endDate).trim()) {
       sql += ` AND date >= $${idx++} AND date <= $${idx++}`;
-      values.push(params.startDate, params.endDate);
+      values.push(String(params.startDate).trim(), String(params.endDate).trim());
     }
-    if (params?.employeeId) {
+    if (params?.employeeId && String(params.employeeId).trim()) {
       sql += ` AND employee_id = $${idx++}`;
-      values.push(params.employeeId);
+      values.push(String(params.employeeId).trim());
     }
-    if (params?.projectId) {
+    if (params?.projectId && String(params.projectId).trim()) {
       sql += ` AND project_id = $${idx++}`;
-      values.push(params.projectId);
+      values.push(String(params.projectId).trim());
     }
-    if (params?.role) {
+    if (params?.role && String(params.role).trim()) {
       sql += ` AND employee_role = $${idx++}`;
-      values.push(params.role);
+      values.push(String(params.role).trim());
     }
 
     sql += ' ORDER BY date DESC, employee_name ASC';
@@ -3176,30 +3351,60 @@ export const pgService = {
 
   async getKasbon(projectId?: string): Promise<KasbonRecord[]> {
     await this.ensureKasbonTables();
-    let sql = 'SELECT * FROM kasbon_records';
+    let sql = `
+      SELECT k.*,
+             COALESCE(p.name, p_asg.name) AS project_name,
+             COALESCE(p.code, p_asg.code) AS project_code,
+             COALESCE(k.project_id, p_asg.id) AS resolved_project_id
+      FROM kasbon_records k
+      LEFT JOIN projects p ON p.id = k.project_id
+      LEFT JOIN LATERAL (
+        SELECT pr.id, pr.name, pr.code
+        FROM project_assignments pa
+        JOIN projects pr ON pr.id = pa.project_id
+        WHERE pa.employee_id = k.employee_id
+        ORDER BY (CASE WHEN pa.status = 'active' THEN 0 ELSE 1 END) ASC, pa.assigned_date DESC
+        LIMIT 1
+      ) p_asg ON k.project_id IS NULL
+    `;
     const params: any[] = [];
     if (projectId) {
-      sql += ` WHERE project_id = $1 OR employee_id IN (SELECT employee_id FROM project_assignments WHERE project_id = $1)`;
+      sql += ` WHERE k.project_id = $1 OR k.employee_id IN (SELECT employee_id FROM project_assignments WHERE project_id = $1)`;
       params.push(projectId);
     }
-    sql += ' ORDER BY request_date DESC, id DESC';
+    sql += ' ORDER BY k.request_date DESC, k.id DESC';
 
     const res = await query(sql, params);
     if (!res.rows.length) return [];
 
     const kbIds = res.rows.map((r) => r.id);
-    const attRes = await query(
-      'SELECT * FROM kasbon_attachments WHERE kasbon_id = ANY($1) ORDER BY created_at ASC',
-      [kbIds]
-    );
+    const [attRes, payRes] = await Promise.all([
+      query(
+        'SELECT * FROM kasbon_attachments WHERE kasbon_id = ANY($1) ORDER BY created_at ASC',
+        [kbIds]
+      ),
+      query(
+        'SELECT * FROM kasbon_payments WHERE kasbon_id = ANY($1) ORDER BY payment_date DESC, created_at DESC',
+        [kbIds]
+      ),
+    ]);
+
     const attMap: Record<string, any[]> = {};
     for (const a of attRes.rows) {
       if (!attMap[a.kasbon_id]) attMap[a.kasbon_id] = [];
       attMap[a.kasbon_id].push(a);
     }
 
+    const payMap: Record<string, any[]> = {};
+    for (const p of payRes.rows) {
+      if (!payMap[p.kasbon_id]) payMap[p.kasbon_id] = [];
+      payMap[p.kasbon_id].push(p);
+    }
+
     return res.rows.map((row) => {
+      row.project_id = row.project_id || row.resolved_project_id || undefined;
       row.attachments = attMap[row.id] || [];
+      row.payments = payMap[row.id] || [];
       return mapKasbon(row);
     });
   },
@@ -3243,6 +3448,20 @@ export const pgService = {
     const firstAtt = attachments && attachments.length > 0 ? attachments[0] : null;
     const defaultStatus = data.status || 'Disetujui';
 
+    let resolvedProjectId = data.projectId || null;
+    if (!resolvedProjectId) {
+      const assignRes = await query(
+        `SELECT project_id FROM project_assignments WHERE employee_id = $1 ORDER BY status = 'active' DESC, created_at DESC LIMIT 1`,
+        [emp.id]
+      );
+      if (assignRes.rows.length > 0) {
+        resolvedProjectId = assignRes.rows[0].project_id;
+      }
+    }
+
+    const cleanRequestDate = cleanDateValue(data.requestDate, new Date().toISOString().split('T')[0])!;
+    const cleanEmpStartDate = cleanDateValue(emp.startDate, cleanRequestDate)!;
+
     const res = await query(
       `INSERT INTO kasbon_records (
         id, kasbon_number, attendance_id, request_date, employee_id, employee_name, employee_role,
@@ -3257,11 +3476,11 @@ export const pgService = {
         id,
         kasbonNumber,
         data.attendanceId || null,
-        data.requestDate || new Date().toISOString().split('T')[0],
+        cleanRequestDate,
         emp.id,
         emp.name,
         emp.role,
-        emp.startDate,
+        cleanEmpStartDate,
         null,
         isEligible,
         eligibilityReason,
@@ -3272,7 +3491,7 @@ export const pgService = {
         amount,
         data.targetPaymentPeriod || '',
         data.adminNotes || '',
-        data.projectId || null,
+        resolvedProjectId,
         firstAtt ? firstAtt.filePath : null,
         firstAtt ? firstAtt.fileName : null,
         firstAtt ? firstAtt.fileSize : null,
@@ -3281,7 +3500,7 @@ export const pgService = {
           {
             timestamp: new Date().toISOString(),
             user: userName,
-            action: `Pencatatan kasbon ${kasbonNumber} sebesar Rp ${amount.toLocaleString('id-ID')} untuk ${emp.name}${data.projectId ? ` pada proyek ${data.projectId}` : ''}.`,
+            action: `Pencatatan kasbon ${kasbonNumber} sebesar Rp ${amount.toLocaleString('id-ID')} untuk ${emp.name}${resolvedProjectId ? ` pada proyek ${resolvedProjectId}` : ''}.`,
           },
         ]),
       ]
@@ -3303,6 +3522,15 @@ export const pgService = {
 
     const row = res.rows[0];
     row.attachments = savedAttachments;
+    row.payments = [];
+
+    if (resolvedProjectId) {
+      const projRes = await query('SELECT name, code FROM projects WHERE id = $1 LIMIT 1', [resolvedProjectId]);
+      if (projRes.rows.length > 0) {
+        row.project_name = projRes.rows[0].name;
+        row.project_code = projRes.rows[0].code;
+      }
+    }
 
     await insertAuditLog(
       userName,
@@ -3332,10 +3560,124 @@ export const pgService = {
       [newStatus, rejectionReason || null, adminNotes || null, userName || 'Admin', JSON.stringify(trail), id]
     );
 
-    const attRes = await query('SELECT * FROM kasbon_attachments WHERE kasbon_id = $1 ORDER BY created_at ASC', [id]);
+    const [attRes, payRes, projRes] = await Promise.all([
+      query('SELECT * FROM kasbon_attachments WHERE kasbon_id = $1 ORDER BY created_at ASC', [id]),
+      query('SELECT * FROM kasbon_payments WHERE kasbon_id = $1 ORDER BY payment_date DESC, created_at DESC', [id]),
+      res.rows[0].project_id
+        ? query('SELECT name, code FROM projects WHERE id = $1 LIMIT 1', [res.rows[0].project_id])
+        : Promise.resolve({ rows: [] }),
+    ]);
     const row = res.rows[0];
     row.attachments = attRes.rows;
+    row.payments = payRes.rows;
+    if (projRes.rows.length > 0) {
+      row.project_name = projRes.rows[0].name;
+      row.project_code = projRes.rows[0].code;
+    }
     return mapKasbon(row);
+  },
+
+  async recordKasbonPayment(
+    kasbonId: string,
+    data: { amount: number; paymentDate?: string; paymentMethod?: string; notes?: string },
+    userName: string = 'Administrator',
+    userRole: string = 'admin'
+  ): Promise<KasbonRecord> {
+    await this.ensureKasbonTables();
+    return withTransaction(async (client) => {
+      const kbRes = await client.query('SELECT * FROM kasbon_records WHERE id = $1 FOR UPDATE', [kasbonId]);
+      if (!kbRes.rows.length) {
+        throw new Error('Data kasbon tidak ditemukan.');
+      }
+      const kb = kbRes.rows[0];
+
+      if (kb.status === 'Ditolak') {
+        throw new Error('Kasbon berstatus Ditolak tidak dapat menerima pembayaran.');
+      }
+      if (kb.status === 'Lunas' || Number(kb.remaining_amount || 0) <= 0) {
+        throw new Error('Kasbon ini sudah lunas sepenuhnya.');
+      }
+
+      const payAmount = Math.round(Number(data.amount || 0));
+      if (!payAmount || payAmount <= 0 || isNaN(payAmount)) {
+        throw new Error('Nominal pembayaran harus lebih besar dari Rp0.');
+      }
+
+      const currentRemaining = Math.round(Number(kb.remaining_amount || 0));
+      if (payAmount > currentRemaining) {
+        throw new Error(
+          `Nominal pembayaran (Rp ${payAmount.toLocaleString('id-ID')}) melebihi sisa kasbon saat ini (Rp ${currentRemaining.toLocaleString('id-ID')}).`
+        );
+      }
+
+      const paymentDate = data.paymentDate || new Date().toISOString().split('T')[0];
+      const paymentMethod = (data.paymentMethod || 'Tunai').trim();
+      const notes = (data.notes || '').trim();
+      const datePrefix = paymentDate.slice(0, 7).replace('-', '');
+      const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const paymentNumber = `KBP-${datePrefix}-${Date.now().toString().slice(-5)}-${randomSuffix}`;
+      const payId = `KBP-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+
+      await client.query(
+        `INSERT INTO kasbon_payments (
+          id, kasbon_id, payment_number, payment_date, amount, payment_method, notes, created_by, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        [payId, kasbonId, paymentNumber, paymentDate, payAmount, paymentMethod, notes, userName]
+      );
+
+      const newDeducted = Math.round(Number(kb.deducted_amount || 0)) + payAmount;
+      const newRemaining = Math.max(0, Math.round(Number(kb.amount || 0)) - newDeducted);
+      const newStatus = newRemaining === 0 ? 'Lunas' : 'Dipotong sebagian';
+
+      const prevTrail = Array.isArray(kb.audit_trail) ? kb.audit_trail : [];
+      const nextTrail = [
+        ...prevTrail,
+        {
+          timestamp: new Date().toISOString(),
+          user: userName,
+          action: `Pembayaran / pelunasan manual kasbon (${paymentNumber}) sebesar Rp ${payAmount.toLocaleString('id-ID')} via ${paymentMethod}${
+            notes ? ` (${notes})` : ''
+          }. Sisa kasbon: Rp ${newRemaining.toLocaleString('id-ID')}.`,
+        },
+      ];
+
+      const updRes = await client.query(
+        `UPDATE kasbon_records SET
+          deducted_amount = $1,
+          remaining_amount = $2,
+          status = $3,
+          approved_by = COALESCE(approved_by, $4),
+          approved_at = COALESCE(approved_at, NOW()),
+          audit_trail = $5
+         WHERE id = $6 RETURNING *`,
+        [newDeducted, newRemaining, newStatus, userName, JSON.stringify(nextTrail), kasbonId]
+      );
+
+      await insertAuditLog(
+        userName,
+        userRole as any,
+        'Pembayaran Kasbon Manual',
+        'Kasbon',
+        `Mencatat pembayaran kasbon ${kb.kasbon_number} (${kb.employee_name}) sebesar Rp ${payAmount.toLocaleString('id-ID')} via ${paymentMethod}. Sisa: Rp ${newRemaining.toLocaleString('id-ID')}`
+      );
+
+      const [attRes, payRes, projRes] = await Promise.all([
+        client.query('SELECT * FROM kasbon_attachments WHERE kasbon_id = $1 ORDER BY created_at ASC', [kasbonId]),
+        client.query('SELECT * FROM kasbon_payments WHERE kasbon_id = $1 ORDER BY payment_date DESC, created_at DESC', [kasbonId]),
+        updRes.rows[0].project_id
+          ? client.query('SELECT name, code FROM projects WHERE id = $1 LIMIT 1', [updRes.rows[0].project_id])
+          : Promise.resolve({ rows: [] }),
+      ]);
+
+      const row = updRes.rows[0];
+      row.attachments = attRes.rows;
+      row.payments = payRes.rows;
+      if (projRes.rows.length > 0) {
+        row.project_name = projRes.rows[0].name;
+        row.project_code = projRes.rows[0].code;
+      }
+      return mapKasbon(row);
+    });
   },
 
   async getKasbonAttachmentById(id: string): Promise<OperationalExpenseAttachment | null> {
@@ -3417,9 +3759,9 @@ export const pgService = {
     const deducted = Number(kb.deducted_amount || 0);
     if (deducted > 0 || kb.status === 'Lunas' || kb.status === 'Dipotong sebagian') {
       throw new Error(
-        'Kasbon tidak dapat dihapus karena sudah memiliki riwayat pemotongan gaji (Rp ' +
+        'Kasbon tidak dapat dihapus karena sudah memiliki riwayat pembayaran/pelunasan sebesar Rp ' +
           deducted.toLocaleString('id-ID') +
-          '). Batalkan slip gaji terkait terlebih dahulu jika ingin merevisi.'
+          '.'
       );
     }
 
@@ -3463,21 +3805,21 @@ export const pgService = {
     const values: any[] = [];
     let idx = 1;
 
-    if (params?.periodStart) {
+    if (params?.periodStart && params.periodStart.trim()) {
       sql += ` AND period_start >= $${idx++}`;
-      values.push(params.periodStart);
+      values.push(params.periodStart.trim());
     }
-    if (params?.periodEnd) {
+    if (params?.periodEnd && params.periodEnd.trim()) {
       sql += ` AND period_end <= $${idx++}`;
-      values.push(params.periodEnd);
+      values.push(params.periodEnd.trim());
     }
-    if (params?.status) {
+    if (params?.status && params.status.trim()) {
       sql += ` AND status = $${idx++}`;
-      values.push(params.status);
+      values.push(params.status.trim());
     }
-    if (params?.employeeId) {
+    if (params?.employeeId && params.employeeId.trim()) {
       sql += ` AND employee_id = $${idx++}`;
-      values.push(params.employeeId);
+      values.push(params.employeeId.trim());
     }
 
     sql += ' ORDER BY period_end DESC, id DESC';
@@ -3598,6 +3940,8 @@ export const pgService = {
       const numOther = Math.max(0, Number(data.otherDeductions) || 0);
       const numNet = Math.max(0, numGross - numKasbonDeduction - numOther);
 
+      const cleanPaymentDate = cleanDateValue(data.paymentDate, new Date().toISOString().split('T')[0])!;
+
       if (numKasbonDeduction > 0) {
         let remainingToDeduct = numKasbonDeduction;
         const kbRes = await client.query(
@@ -3627,7 +3971,7 @@ export const pgService = {
           await client.query(
             `INSERT INTO kasbon_deductions (id, kasbon_id, salary_payment_id, date, employee_id, amount, note)
              VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [dedId, row.id, paymentId, data.paymentDate, emp.id, deductFromThis, `Dipotong otomatis via slip ${paymentNumber}`]
+            [dedId, row.id, paymentId, cleanPaymentDate, emp.id, deductFromThis, `Dipotong otomatis via slip ${paymentNumber}`]
           );
 
           remainingToDeduct -= deductFromThis;
@@ -3658,7 +4002,7 @@ export const pgService = {
           Number(fullWorkDays), Number(halfWorkDays), Number(totalWorkDays),
           Number(fullDaySalary), Number(halfDaySalary), Number(approvedOvertimeHours),
           Number(totalBasicSalary), Number(totalOvertimePay),
-          numGross, numKasbonDeduction, numOther, numNet, data.paymentDate,
+          numGross, numKasbonDeduction, numOther, numNet, cleanPaymentDate,
           data.paymentMethod || 'Kas Tunai', data.referenceNumber || null, 'Sudah dibayar',
           data.notes || '', userName, JSON.stringify(initialTrail)
         ]
@@ -3776,9 +4120,9 @@ export const pgService = {
     const opValues: any[] = [];
     let opIdx = 1;
 
-    if (params?.startDate && params?.endDate) {
+    if (params?.startDate && params.startDate.trim() && params?.endDate && params.endDate.trim()) {
       opSql += ` AND e.date >= $${opIdx++} AND e.date <= $${opIdx++}`;
-      opValues.push(params.startDate, params.endDate);
+      opValues.push(params.startDate.trim(), params.endDate.trim());
     }
     opSql += ' GROUP BY e.id';
 
@@ -3809,9 +4153,9 @@ export const pgService = {
     const projValues: any[] = [];
     let projIdx = 1;
 
-    if (params?.startDate && params?.endDate) {
+    if (params?.startDate && params.startDate.trim() && params?.endDate && params.endDate.trim()) {
       projSql += ` AND pe.date >= $${projIdx++} AND pe.date <= $${projIdx++}`;
-      projValues.push(params.startDate, params.endDate);
+      projValues.push(params.startDate.trim(), params.endDate.trim());
     }
     projSql += ' GROUP BY pe.id, p.name';
 
@@ -3894,8 +4238,10 @@ export const pgService = {
   ): Promise<OperationalExpense> {
     await this.ensureAttachmentsTable();
 
+    const cleanExpDate = cleanDateValue(data.date, new Date().toISOString().split('T')[0])!;
+
     const randomSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
-    const expDatePrefix = (data.date || new Date().toISOString()).slice(0, 7).replace('-', '');
+    const expDatePrefix = cleanExpDate.slice(0, 7).replace('-', '');
     const transactionNumber = `EXP-${expDatePrefix}-${Date.now().toString().slice(-4)}-${randomSuffix}`;
     const id = `EXP-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
@@ -3906,7 +4252,7 @@ export const pgService = {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
       RETURNING *`,
       [
-        id, transactionNumber, data.date, data.personType, data.personName, data.category,
+        id, transactionNumber, cleanExpDate, data.personType, data.personName, data.category,
         data.projectId || null, data.description || '', Number(data.amount || 0),
         data.paymentMethod || 'Tunai', data.receiptProof || '', data.notes || '', userName,
       ]
@@ -3958,9 +4304,45 @@ export const pgService = {
   ): Promise<OperationalExpense> {
     await this.ensureAttachmentsTable();
 
-    // 1. Check existing
+    // 1. Check existing in operational_expenses (or fallback to project_expenses if PEXP-*)
     const existingRes = await query('SELECT * FROM operational_expenses WHERE id = $1', [id]);
     if (!existingRes.rows.length) {
+      const projExpRes = await query('SELECT * FROM project_expenses WHERE id = $1', [id]);
+      if (projExpRes.rows.length) {
+        const updatedProjExp = await this.updateProjectExpense(
+          id,
+          {
+            date: data.date && String(data.date).trim() ? String(data.date).trim() : undefined,
+            category: data.category,
+            picName: data.personName,
+            description: data.description,
+            amount: data.amount !== undefined ? Number(data.amount) : undefined,
+            paymentMethod: data.paymentMethod,
+            notes: data.notes,
+          },
+          attachmentsToKeep,
+          newAttachments,
+          userName,
+          userRole
+        );
+        const freshList = await this.getExpenses();
+        return freshList.find((e) => e.id === id) || ({
+          id: updatedProjExp.id,
+          transactionNumber: updatedProjExp.transactionNumber,
+          date: updatedProjExp.date,
+          personType: data.personType || 'Asisten',
+          personName: updatedProjExp.picName,
+          category: (updatedProjExp.category as any) || 'Bensin',
+          description: updatedProjExp.description,
+          amount: updatedProjExp.amount,
+          paymentMethod: (updatedProjExp.paymentMethod as any) || 'Tunai',
+          receiptProof: '',
+          notes: updatedProjExp.notes || '',
+          createdBy: updatedProjExp.createdBy,
+          createdAt: updatedProjExp.createdAt,
+          attachments: updatedProjExp.attachments || [],
+        });
+      }
       throw new Error('Data pengeluaran tidak ditemukan');
     }
 
@@ -3985,13 +4367,15 @@ export const pgService = {
     }
 
     // 4. Update operational_expenses row
+    const cleanDate = cleanDateValue(data.date, cleanDateValue(existingRes.rows[0].date, new Date().toISOString().split('T')[0]))!;
+
     const updRes = await query(
       `UPDATE operational_expenses SET
         date = $1, person_type = $2, person_name = $3, category = $4,
         description = $5, amount = $6, payment_method = $7, receipt_proof = $8, notes = $9
        WHERE id = $10 RETURNING *`,
       [
-        data.date, data.personType, data.personName, data.category,
+        cleanDate, data.personType, data.personName, data.category,
         data.description || '', Number(data.amount || 0),
         data.paymentMethod || 'Tunai', data.receiptProof || '', data.notes || '', id
       ]
@@ -4013,6 +4397,13 @@ export const pgService = {
 
   async deleteExpense(id: string): Promise<void> {
     await this.ensureAttachmentsTable();
+    // Check if it's a project_expenses row
+    const projExpCheck = await query('SELECT id FROM project_expenses WHERE id = $1', [id]);
+    if (projExpCheck.rows.length > 0) {
+      await this.deleteProjectExpense(id, 'Administrator', 'admin');
+      return;
+    }
+
     // Delete attached files from storage first
     const attRes = await query('SELECT * FROM operational_expense_attachments WHERE expense_id = $1', [id]);
     for (const row of attRes.rows) {
@@ -4025,19 +4416,21 @@ export const pgService = {
   async getAttachmentById(id: string): Promise<OperationalExpenseAttachment | null> {
     await this.ensureAttachmentsTable();
     const res = await query('SELECT * FROM operational_expense_attachments WHERE id = $1', [id]);
-    if (!res.rows.length) return null;
-    const r = res.rows[0];
-    return {
-      id: r.id,
-      expenseId: r.expense_id,
-      fileName: r.file_name,
-      filePath: r.file_path,
-      fileSize: Number(r.file_size || 0),
-      mimeType: r.mime_type,
-      uploadedBy: r.uploaded_by,
-      createdAt: r.created_at ? r.created_at.toISOString() : '',
-      viewUrl: `/api/expenses/attachments/${r.id}/view`,
-    };
+    if (res.rows.length > 0) {
+      const r = res.rows[0];
+      return {
+        id: r.id,
+        expenseId: r.expense_id,
+        fileName: r.file_name,
+        filePath: r.file_path,
+        fileSize: Number(r.file_size || 0),
+        mimeType: r.mime_type,
+        uploadedBy: r.uploaded_by,
+        createdAt: r.created_at ? (typeof r.created_at === 'string' ? r.created_at : r.created_at.toISOString()) : '',
+        viewUrl: `/api/expenses/attachments/${r.id}/view`,
+      };
+    }
+    return this.getProjectExpenseAttachmentById(id);
   },
 
   async deleteAttachmentById(id: string): Promise<void> {
@@ -4046,6 +4439,7 @@ export const pgService = {
     if (att) {
       await deleteFromStorage(att.filePath);
       await query('DELETE FROM operational_expense_attachments WHERE id = $1', [id]);
+      await query('DELETE FROM project_expense_attachments WHERE id = $1', [id]);
     }
   },
 
@@ -4054,7 +4448,7 @@ export const pgService = {
     const res = await query('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT $1', [limit]);
     return res.rows.map((r) => ({
       id: r.id,
-      timestamp: r.timestamp.toISOString(),
+      timestamp: r.timestamp ? (typeof r.timestamp === 'string' ? r.timestamp : r.timestamp.toISOString()) : new Date().toISOString(),
       userName: r.user_name,
       userRole: r.user_role,
       action: r.action,

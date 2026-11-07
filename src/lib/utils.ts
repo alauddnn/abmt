@@ -1,3 +1,59 @@
+import { useState, useEffect, useRef } from 'react';
+
+/**
+ * Hook untuk animasi angka statistik (counter) bergaya Solvik dengan kurva ease-out halus
+ * serta menghormati preferensi aksesibilitas prefers-reduced-motion.
+ */
+export function useAnimatedNumber(targetValue: number | undefined | null, durationMs: number = 620): number {
+  const target = Number(targetValue) || 0;
+  const [displayValue, setDisplayValue] = useState<number>(target);
+  const prevValueRef = useRef<number>(0);
+
+  useEffect(() => {
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (prefersReducedMotion || durationMs <= 0) {
+      setDisplayValue(target);
+      prevValueRef.current = target;
+      return;
+    }
+
+    const startValue = prevValueRef.current;
+    const diff = target - startValue;
+    if (diff === 0) {
+      setDisplayValue(target);
+      return;
+    }
+
+    let animationFrameId: number;
+    const startTime = performance.now();
+
+    const step = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / durationMs, 1);
+      // Ease-out quartic: 1 - (1 - t)^4
+      const eased = 1 - Math.pow(1 - progress, 4);
+      const current = Math.round(startValue + diff * eased);
+      setDisplayValue(current);
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(step);
+      } else {
+        setDisplayValue(target);
+        prevValueRef.current = target;
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [target, durationMs]);
+
+  return displayValue;
+}
+
 export function formatRupiah(amount: number | undefined | null): string {
   const val = Number(amount) || 0;
   return new Intl.NumberFormat('id-ID', {

@@ -34,6 +34,7 @@ export interface Employee {
   dailyWage: number;
   overtimeHourlyWage: number;
   startDate: string; // YYYY-MM-DD
+  joinDate?: string;
   status: 'active' | 'inactive';
   phone?: string;
   notes?: string;
@@ -91,6 +92,18 @@ export interface OvertimeRecord {
   auditTrail: Array<{ timestamp: string; user: string; action: string }>;
 }
 
+export interface KasbonPayment {
+  id: string;
+  kasbonId: string;
+  paymentNumber: string;
+  paymentDate: string;
+  amount: number;
+  paymentMethod: string;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface KasbonRecord {
   id: string;
   kasbonNumber: string; // KB-202610-001
@@ -105,7 +118,7 @@ export interface KasbonRecord {
   eligibilityReason: string;
   amount: number;
   reason: string;
-  status: 'Menunggu persetujuan' | 'Disetujui' | 'Ditolak' | 'Dipotong sebagian' | 'Lunas';
+  status: 'Menunggu persetujuan' | 'Disetujui' | 'Ditolak' | 'Dipotong sebagian' | 'Dibayar sebagian' | 'Lunas' | string;
   deductedAmount: number;
   remainingAmount: number;
   targetPaymentPeriod?: string;
@@ -114,11 +127,14 @@ export interface KasbonRecord {
   approvedAt?: string;
   rejectionReason?: string;
   projectId?: string;
+  projectName?: string;
+  projectCode?: string;
   attachmentFilePath?: string;
   attachmentFileName?: string;
   attachmentFileSize?: number;
   attachmentMimeType?: string;
   attachments?: OperationalExpenseAttachment[];
+  payments?: KasbonPayment[];
   auditTrail: Array<{ timestamp: string; user: string; action: string }>;
 }
 

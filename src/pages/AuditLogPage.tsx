@@ -18,6 +18,7 @@ import {
   X,
   ShieldAlert,
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { AuditLog, AppUser } from '../types.js';
 import { api } from '../lib/api.js';
 import { formatDateTimeID, formatDateID } from '../lib/utils.js';
@@ -43,6 +44,8 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
+  const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
   const [userFormData, setUserFormData] = useState({
     username: '',
     email: '',
@@ -138,7 +141,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
     }
   };
 
-  const handleDeleteUser = async (u: AppUser) => {
+  const handleDeleteUser = (u: AppUser) => {
     if (!isAdmin) {
       showToast('error', 'Akses ditolak: Hanya Administrator yang berhak menghapus akun.');
       return;
@@ -149,16 +152,21 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
       return;
     }
 
-    if (!window.confirm(`Hapus akun pengguna "${u.username}" (${u.name})?`)) {
-      return;
-    }
+    setUserToDelete(u);
+  };
 
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    setDeletingUser(true);
     try {
-      await api.deleteUser(u.id);
-      showToast('success', `Akun pengguna ${u.username} berhasil dihapus.`);
+      await api.deleteUser(userToDelete.id);
+      showToast('success', `Akun pengguna ${userToDelete.username} berhasil dihapus.`);
+      setUserToDelete(null);
       fetchUsers();
     } catch (err: any) {
       showToast('error', err.message || 'Gagal menghapus pengguna');
+    } finally {
+      setDeletingUser(false);
     }
   };
 
@@ -172,44 +180,58 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
   });
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-20 kms-fade-in">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-[#EAECF0] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-7 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
+            <span className="text-[#2563EB] text-xs font-semibold tracking-tight">
               PT. Asta Brata Matahari Terbit
             </span>
-            <span className="text-[#D0D5DD]">·</span>
-            <span className="text-xs text-[#667085] font-medium font-mono">Keamanan & Audit Trail</span>
+            <span className="text-slate-300">·</span>
+            <span className="text-xs text-slate-500 font-medium font-mono">Keamanan & Audit Trail</span>
           </div>
-          <h1 className="text-2xl font-semibold text-[#262626] tracking-tight mt-1">
+          <h1 className="text-2xl sm:text-[26px] font-semibold text-slate-900 tracking-tight mt-1">
             Pengguna, Hak Akses & Riwayat Audit
           </h1>
-          <p className="text-xs text-[#667085] mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Merekam seluruh jejak aktivitas transaksi, kelola akun pengguna perusahaan, dan kontrol akses berbasis 2 Role (Admin & Owner).
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center bg-[#F2F4F7] p-0.5 rounded-lg text-xs border border-[#EAECF0] shrink-0">
+        {/* Animated Tab Switcher */}
+        <div className="inline-flex items-center bg-slate-100/90 p-1 rounded-xl text-xs shrink-0">
           <button
             onClick={() => setActiveTab('logs')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors ${
-              activeTab === 'logs' ? 'bg-white text-[#262626] shadow-xs' : 'text-[#667085] hover:text-[#262626]'
+            className={`relative flex items-center gap-1.5 px-3.5 py-1.5 font-medium rounded-lg transition-colors cursor-pointer ${
+              activeTab === 'logs' ? 'text-slate-900' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <History className="w-3.5 h-3.5 text-[#4693FD]" />
-            <span>Audit Log ({logs.length})</span>
+            {activeTab === 'logs' && (
+              <motion.span
+                layoutId="audit-tab-pill"
+                transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                className="absolute inset-0 bg-white rounded-lg shadow-xs"
+              />
+            )}
+            <History className="w-3.5 h-3.5 text-[#2563EB] relative z-10" />
+            <span className="relative z-10">Audit Log ({logs.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors ${
-              activeTab === 'users' ? 'bg-white text-[#262626] shadow-xs' : 'text-[#667085] hover:text-[#262626]'
+            className={`relative flex items-center gap-1.5 px-3.5 py-1.5 font-medium rounded-lg transition-colors cursor-pointer ${
+              activeTab === 'users' ? 'text-slate-900' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Shield className="w-3.5 h-3.5 text-[#4693FD]" />
-            <span>Kelola Pengguna ({users.length})</span>
+            {activeTab === 'users' && (
+              <motion.span
+                layoutId="audit-tab-pill"
+                transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                className="absolute inset-0 bg-white rounded-lg shadow-xs"
+              />
+            )}
+            <Shield className="w-3.5 h-3.5 text-[#2563EB] relative z-10" />
+            <span className="relative z-10">Kelola Pengguna ({users.length})</span>
           </button>
         </div>
       </div>
@@ -288,16 +310,21 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
                     <th className="py-3 px-4">Rincian Perubahan</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+                <tbody className="divide-y divide-slate-100 text-slate-700">
                   {loadingLogs ? (
-                    <tr>
-                      <td colSpan={6} className="py-10 text-center text-[#667085]">
-                        Memuat catatan audit log...
-                      </td>
-                    </tr>
+                    Array.from({ length: 5 }).map((_, idx) => (
+                      <tr key={`log-skel-${idx}`}>
+                        <td className="py-3.5 px-4"><div className="h-4 w-28 rounded kms-skeleton" /></td>
+                        <td className="py-3.5 px-4"><div className="h-4 w-28 rounded kms-skeleton" /></td>
+                        <td className="py-3.5 px-4"><div className="h-5 w-16 rounded kms-skeleton" /></td>
+                        <td className="py-3.5 px-4"><div className="h-4 w-20 rounded kms-skeleton" /></td>
+                        <td className="py-3.5 px-4"><div className="h-4 w-24 rounded kms-skeleton" /></td>
+                        <td className="py-3.5 px-4"><div className="h-4 w-64 rounded kms-skeleton" /></td>
+                      </tr>
+                    ))
                   ) : filteredLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-[#667085]">
+                      <td colSpan={6} className="py-12 text-center text-slate-500">
                         Belum ada riwayat aktivitas log sesuai filter.
                       </td>
                     </tr>
@@ -305,7 +332,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
                     filteredLogs.map((log) => {
                       const isLogAdmin = log.userRole?.toLowerCase().includes('admin');
                       return (
-                        <tr key={log.id} className="h-11 hover:bg-[#F9FAFB] transition-colors">
+                        <tr key={log.id} className="h-11 hover:bg-blue-50/35 transition-colors">
                           <td className="py-3 px-4 font-mono text-[#667085] whitespace-nowrap">
                             {formatDateTimeID(log.timestamp)}
                           </td>
@@ -470,8 +497,8 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
 
       {/* Add / Edit User Modal */}
       {isUserModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full border border-[#EAECF0] shadow-xl overflow-hidden">
+        <div className="kms-modal-overlay fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="kms-modal-content bg-white rounded-2xl max-w-md w-full border border-[#EAECF0] shadow-xl overflow-hidden">
             <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between">
               <div>
                 <h3 className="text-base font-semibold text-[#262626]">
@@ -569,6 +596,58 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Hapus Pengguna */}
+      {userToDelete && (
+        <div className="kms-modal-overlay fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="kms-modal-content bg-white rounded-2xl max-w-md w-full border border-[#EAECF0] shadow-xl overflow-hidden">
+            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between bg-[#FEF3F2]">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#FEE4E2] text-[#D92D20] flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-[#912018]">Hapus Akun Pengguna?</h3>
+                  <p className="text-[11px] text-[#B42318]">Konfirmasi penghapusan akses sistem</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setUserToDelete(null)}
+                className="p-1 text-[#98A2B3] hover:text-[#262626] rounded-md"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3 text-xs text-[#344054]">
+              <p>
+                Apakah Anda yakin ingin menghapus akun pengguna{' '}
+                <strong className="text-[#101828]">
+                  {userToDelete.username} ({userToDelete.name})
+                </strong>
+                ?
+              </p>
+              <div className="pt-3 border-t border-[#EAECF0] flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={deletingUser}
+                  onClick={() => setUserToDelete(null)}
+                  className="px-4 py-2 border border-[#D0D5DD] rounded-lg text-xs font-medium text-[#344054] hover:bg-[#F9FAFB]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingUser}
+                  onClick={confirmDeleteUser}
+                  className="px-4 py-2 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-lg text-xs font-medium shadow-xs disabled:opacity-50"
+                >
+                  {deletingUser ? 'Menghapus...' : 'Ya, Hapus Akun'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
