@@ -34,8 +34,8 @@ const connectionString = getOptimizedConnectionString(databaseUrl);
 export const pool = new Pool({
   connectionString,
   ssl: isPostgresConfigured ? { rejectUnauthorized: false } : undefined,
-  max: 5,
-  idleTimeoutMillis: 5000,
+  max: 10,
+  idleTimeoutMillis: 15000,
   connectionTimeoutMillis: 8000,
 });
 

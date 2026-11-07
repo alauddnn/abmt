@@ -578,6 +578,18 @@ export async function ensureAllSchemasOnce(): Promise<void> {
           created_at TIMESTAMPTZ DEFAULT NOW()
         );
 
+        -- Performance Indexes for Hot Queries & Cross-Module Synchronization
+        CREATE INDEX IF NOT EXISTS idx_attendance_project_date ON attendance(project_id, date DESC);
+        CREATE INDEX IF NOT EXISTS idx_attendance_employee_date ON attendance(employee_id, date DESC);
+        CREATE INDEX IF NOT EXISTS idx_overtime_project_date ON overtime_records(project_id, date DESC);
+        CREATE INDEX IF NOT EXISTS idx_overtime_employee_date ON overtime_records(employee_id, date DESC);
+        CREATE INDEX IF NOT EXISTS idx_kasbon_project_date ON kasbon_records(project_id, request_date DESC);
+        CREATE INDEX IF NOT EXISTS idx_kasbon_employee_status ON kasbon_records(employee_id, status);
+        CREATE INDEX IF NOT EXISTS idx_project_assignments_proj_status ON project_assignments(project_id, status);
+        CREATE INDEX IF NOT EXISTS idx_project_assignments_emp_status ON project_assignments(employee_id, status);
+        CREATE INDEX IF NOT EXISTS idx_operational_expenses_date ON operational_expenses(date DESC);
+        CREATE INDEX IF NOT EXISTS idx_salary_payments_date_status ON salary_payments(payment_date DESC, status);
+
         -- Data Integrity Reconciliation:
         -- 0. Company Policy: Driver does NOT receive overtime pay (Rp0). Keep overtime duration intact, set rate & pay to 0.
         UPDATE company_settings SET overtime_driver_hourly = 0 WHERE overtime_driver_hourly != 0;
@@ -934,6 +946,29 @@ export const pgService = {
       }
 
       const updatedEmp = mapEmployee(res.rows[0]);
+
+      // Synchronize employee_name and employee_role across all dependent modules
+      await client.query(
+        `UPDATE attendance SET employee_name = $1, employee_role = $2 WHERE employee_id = $3 AND (employee_name IS DISTINCT FROM $1 OR employee_role IS DISTINCT FROM $2)`,
+        [updatedEmp.name, updatedEmp.role, targetId]
+      );
+      await client.query(
+        `UPDATE overtime_records SET employee_name = $1, employee_role = $2 WHERE employee_id = $3 AND (employee_name IS DISTINCT FROM $1 OR employee_role IS DISTINCT FROM $2)`,
+        [updatedEmp.name, updatedEmp.role, targetId]
+      );
+      await client.query(
+        `UPDATE kasbon_records SET employee_name = $1, employee_role = $2 WHERE employee_id = $3 AND (employee_name IS DISTINCT FROM $1 OR employee_role IS DISTINCT FROM $2)`,
+        [updatedEmp.name, updatedEmp.role, targetId]
+      );
+      await client.query(
+        `UPDATE salary_payments SET employee_name = $1, employee_role = $2 WHERE employee_id = $3 AND (employee_name IS DISTINCT FROM $1 OR employee_role IS DISTINCT FROM $2)`,
+        [updatedEmp.name, updatedEmp.role, targetId]
+      );
+      await client.query(
+        `UPDATE project_assignments SET role_in_project = $1 WHERE employee_id = $2 AND role_in_project IS DISTINCT FROM $1`,
+        [updatedEmp.role, targetId]
+      );
+
       if (isDriverRole(updatedEmp.role)) {
         await client.query(
           `UPDATE attendance

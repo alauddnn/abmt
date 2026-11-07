@@ -72,65 +72,65 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       );
       setStats(data);
 
-      // Fetch actual recent transactions across modules
-      const [exps, kbs, pays] = await Promise.all([
-        api.getExpenses(),
-        api.getKasbon(),
-        api.getSalaryPayments(),
-      ]);
+      if (Array.isArray(data.recentTransactions)) {
+        setRecentTransactions(data.recentTransactions);
+      } else {
+        // Fallback if backend did not include recentTransactions
+        const [exps, kbs, pays] = await Promise.all([
+          api.getExpenses(),
+          api.getKasbon(),
+          api.getSalaryPayments(),
+        ]);
 
-      const txs: typeof recentTransactions = [];
+        const txs: typeof recentTransactions = [];
 
-      // Add recent operational and project expenses
-      exps.slice(0, 5).forEach((e: any) => {
-        txs.push({
-          id: e.id,
-          date: e.date,
-          description: `${e.personType}: ${e.description}`,
-          category: `Biaya ${e.category}`,
-          amount: e.amount,
-          status: 'Tercatat',
-          statusType: 'info',
-          targetTab: e.description.includes('Proyek') ? 'projects' : 'expenses',
+        exps.slice(0, 5).forEach((e: any) => {
+          txs.push({
+            id: e.id,
+            date: e.date,
+            description: `${e.personType}: ${e.description}`,
+            category: `Biaya ${e.category}`,
+            amount: e.amount,
+            status: 'Tercatat',
+            statusType: 'info',
+            targetTab: e.description.includes('Proyek') ? 'projects' : 'expenses',
+          });
         });
-      });
 
-      // Add recent kasbons
-      kbs.slice(0, 5).forEach((k: any) => {
-        txs.push({
-          id: k.id,
-          date: k.requestDate,
-          description: `Kasbon: ${k.employeeName} (${k.reason})`,
-          category: 'Kasbon',
-          amount: k.amount,
-          status: k.status,
-          statusType:
-            k.status === 'Disetujui' || k.status === 'Lunas'
-              ? 'success'
-              : k.status === 'Ditolak'
-              ? 'danger'
-              : 'warning',
-          targetTab: 'projects',
+        kbs.slice(0, 5).forEach((k: any) => {
+          txs.push({
+            id: k.id,
+            date: k.requestDate,
+            description: `Kasbon: ${k.employeeName} (${k.reason})`,
+            category: 'Kasbon',
+            amount: k.amount,
+            status: k.status,
+            statusType:
+              k.status === 'Disetujui' || k.status === 'Lunas'
+                ? 'success'
+                : k.status === 'Ditolak'
+                ? 'danger'
+                : 'warning',
+            targetTab: 'projects',
+          });
         });
-      });
 
-      // Add recent salary payments
-      pays.slice(0, 5).forEach((p: any) => {
-        txs.push({
-          id: p.id,
-          date: p.paymentDate,
-          description: `Gaji: ${p.employeeName} (Periode ${formatDateID(p.periodStart)} - ${formatDateID(p.periodEnd)})`,
-          category: 'Gaji 2-Mingguan',
-          amount: p.netSalary,
-          status: p.status,
-          statusType: p.status === 'Sudah dibayar' ? 'success' : 'warning',
-          targetTab: 'payroll',
+        pays.slice(0, 5).forEach((p: any) => {
+          txs.push({
+            id: p.id,
+            date: p.paymentDate,
+            description: `Gaji: ${p.employeeName} (Periode ${formatDateID(p.periodStart)} - ${formatDateID(p.periodEnd)})`,
+            category: 'Gaji 2-Mingguan',
+            amount: p.netSalary,
+            status: p.status,
+            statusType: p.status === 'Sudah dibayar' ? 'success' : 'warning',
+            targetTab: 'payroll',
+          });
         });
-      });
 
-      // Sort by date desc
-      txs.sort((a, b) => b.date.localeCompare(a.date));
-      setRecentTransactions(txs.slice(0, 7));
+        txs.sort((a, b) => b.date.localeCompare(a.date));
+        setRecentTransactions(txs.slice(0, 7));
+      }
     } catch (err) {
       console.error('Error fetching dashboard stats:', err);
     } finally {
@@ -215,24 +215,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <p className="text-sm text-slate-500 max-w-2xl">
               Ringkasan realisasi pengeluaran operasional, upah tenaga kerja, dan kasbon perusahaan secara real-time.
             </p>
-          </div>
-
-          {/* Action buttons on header */}
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <button
-              onClick={() => onNavigate('reports')}
-              className="group inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-xl border border-slate-200 shadow-2xs transition-all cursor-pointer"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-slate-500 group-hover:text-[#2563EB] transition-colors" />
-              <span>Ekspor Laporan</span>
-            </button>
-            <button
-              onClick={() => onNavigate('attendance')}
-              className="group inline-flex items-center gap-2 px-4 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-medium rounded-xl shadow-xs hover:shadow-md transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4 transition-transform group-hover:rotate-90 duration-200" />
-              <span>Catat Absensi</span>
-            </button>
           </div>
         </div>
 

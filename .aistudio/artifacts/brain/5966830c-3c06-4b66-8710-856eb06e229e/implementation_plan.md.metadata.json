@@ -1,6 +1,6 @@
 {
-  "summary":  "Rencana implementasi standardisasi Kop Surat resmi PT ASTABRATA MATAHARI TERBIT pada seluruh fitur unduhan PDF (Laporan H1-H5 & Slip Gaji) dan tampilan Print langsung browser, termasuk penyesuaian otomatis di setiap halaman (Landscape & Portrait) serta perbaikan tata letak teks rincian gaji yang sebelumnya bertumpuk.",
-  "updatedAt":  "2026-11-07T13:01:32.096620952Z",
+  "summary":  "Rencana implementasi penyeragaman seluruh unduhan PDF (H1–H5 dan Slip Gaji) serta tampilan Cetak (Print) langsung browser ke ukuran kertas A4 Portrait (210mm x 297mm) dengan proporsi Kop Surat resmi PT ASTABRATA MATAHARI TERBIT, penyesuaian lebar kolom otomatis (columnStyles), serta penguncian rasio dan margin A4 tanpa merusak ukuran font maupun tata letak.",
+  "updatedAt":  "2026-11-07T14:29:25.031271827Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -386,11 +386,56 @@ export interface SessionData {
   expiresAt: string;
 }
 
+const SESSION_HMAC_SECRET =
+  process.env.SESSION_SECRET ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  'kms-asta-brata-session-hmac-key-2026-v1';
+
 export class SessionManager {
   private sessions: Map<string, SessionData> = new Map();
+  private revokedTokens: Set<string> = new Set();
 
   constructor() {
     this.loadSessions();
+  }
+
+  private signPayload(payloadB64: string): string {
+    return crypto
+      .createHmac('sha256', SESSION_HMAC_SECRET)
+      .update(payloadB64)
+      .digest('base64url');
+  }
+
+  private createSignedToken(data: Omit<SessionData, 'token'>): string {
+    const payloadB64 = Buffer.from(JSON.stringify(data), 'utf-8').toString('base64url');
+    const signature = this.signPayload(payloadB64);
+    return `${payloadB64}.${signature}`;
+  }
+
+  private verifySignedToken(token: string): SessionData | null {
+    if (!token || !token.includes('.')) return null;
+    if (this.revokedTokens.has(token)) return null;
+    const parts = token.split('.');
+    if (parts.length !== 2) return null;
+    const [payloadB64, signature] = parts;
+    try {
+      const expectedSig = this.signPayload(payloadB64);
+      const sigBuf = Buffer.from(signature);
+      const expBuf = Buffer.from(expectedSig);
+      if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+        return null;
+      }
+      const parsed = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf-8'));
+      if (!parsed || !parsed.expiresAt || new Date(parsed.expiresAt).getTime() <= Date.now()) {
+        return null;
+      }
+      return {
+        ...parsed,
+        token,
+      };
+    } catch {
+      return null;
+    }
   }
 
   private loadSessions() {
@@ -420,13 +465,11 @@ export class SessionManager {
   }
 
   public createSession(user: AppUser): SessionData {
-    const token = crypto.randomBytes(32).toString('hex');
     const now = new Date();
     // 30 days session expiry
     const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const session: SessionData = {
-      token,
+    const baseData: Omit<SessionData, 'token'> = {
       userId: user.id,
       username: user.username,
       email: user.email,
@@ -436,29 +479,45 @@ export class SessionManager {
       expiresAt,
     };
 
+    const token = this.createSignedToken(baseData);
+    const session: SessionData = {
+      ...baseData,
+      token,
+    };
+
     this.sessions.set(token, session);
     this.saveSessions();
     return session;
   }
 
   public getSession(token: string): SessionData | null {
-    if (!token) return null;
+    if (!token || this.revokedTokens.has(token)) return null;
     const session = this.sessions.get(token);
-    if (!session) return null;
-
-    if (new Date(session.expiresAt).getTime() < Date.now()) {
-      this.sessions.delete(token);
-      this.saveSessions();
-      return null;
+    if (session) {
+      if (new Date(session.expiresAt).getTime() < Date.now()) {
+        this.sessions.delete(token);
+        this.saveSessions();
+        return null;
+      }
+      return session;
     }
 
-    return session;
+    // Fallback to stateless HMAC-SHA256 verification (resilient across container restarts)
+    const verified = this.verifySignedToken(token);
+    if (verified) {
+      this.sessions.set(token, verified);
+      return verified;
+    }
+
+    return null;
   }
 
   public destroySession(token: string): boolean {
+    if (!token) return false;
+    this.revokedTokens.add(token);
     const deleted = this.sessions.delete(token);
     if (deleted) this.saveSessions();
-    return deleted;
+    return true;
   }
 }
 

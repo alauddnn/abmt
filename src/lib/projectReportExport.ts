@@ -99,11 +99,10 @@ function getPeriodLabel(startDate?: string, endDate?: string): string {
  */
 export function drawOfficialKopSurat(doc: jsPDF, margin = 12): number {
   const pageWidth = doc.internal.pageSize.getWidth();
-  const isLandscape = pageWidth > 240;
 
-  // 1. Left Company Logo
-  const logoSize = 25;
-  const logoX = isLandscape ? margin + 4 : margin + 2;
+  // 1. Left Company Logo (24.5mm x 24.5mm positioned cleanly on A4 Portrait)
+  const logoSize = 24.5;
+  const logoX = margin + 1.5;
   const logoY = 6;
   try {
     doc.addImage(KOP_LOGO_DATA_URL, 'PNG', logoX, logoY, logoSize, logoSize);
@@ -111,43 +110,43 @@ export function drawOfficialKopSurat(doc: jsPDF, margin = 12): number {
     // Fallback if image rendering fails
   }
 
-  // 2. Centered Identity Text Block (offset slightly right of logo on portrait to match reference)
-  const textCenterX = isLandscape
-    ? pageWidth / 2 + 6
-    : margin + logoSize + (pageWidth - margin * 2 - logoSize) / 2 + 1;
+  // 2. Centered Identity Text Block (centered in the header space to the right of the logo)
+  const textAreaLeft = margin + logoSize + 3;
+  const textAreaWidth = pageWidth - margin - textAreaLeft;
+  const textCenterX = textAreaLeft + textAreaWidth / 2;
 
   // Company Name (Bold Navy Blue #0B3070)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(isLandscape ? 17.5 : 16.5);
+  doc.setFontSize(16);
   doc.setTextColor(11, 48, 112);
-  doc.text(KOP_COMPANY_NAME, textCenterX, 13.5, { align: 'center' });
+  doc.text(KOP_COMPANY_NAME, textCenterX, 13.2, { align: 'center' });
 
   // Tagline (Bold Gold #BE870F)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.2);
+  doc.setFontSize(9);
   doc.setTextColor(190, 135, 15);
-  doc.text(KOP_TAGLINE, textCenterX, 18.6, { align: 'center' });
+  doc.text(KOP_TAGLINE, textCenterX, 18.2, { align: 'center' });
 
   // Address (Regular Dark Gray #323232)
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.2);
+  doc.setFontSize(8);
   doc.setTextColor(50, 50, 50);
-  doc.text(KOP_ADDRESS, textCenterX, 23.2, { align: 'center' });
+  doc.text(KOP_ADDRESS, textCenterX, 22.8, { align: 'center' });
 
   // Contact Phone & Email (Regular Dark Gray #323232)
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.2);
+  doc.setFontSize(8);
   doc.setTextColor(50, 50, 50);
-  doc.text(KOP_CONTACT, textCenterX, 27.4, { align: 'center' });
+  doc.text(KOP_CONTACT, textCenterX, 27, { align: 'center' });
 
-  // 3. Double Horizontal Divider Line (Thick Navy top + Thin Gold bottom)
+  // 3. Double Horizontal Divider Line (Thick Navy top + Thin Gold bottom) across full 186mm printable width
   doc.setFillColor(11, 48, 112);
-  doc.rect(margin, 32.2, pageWidth - margin * 2, 0.65, 'F');
+  doc.rect(margin, 32, pageWidth - margin * 2, 0.65, 'F');
 
   doc.setFillColor(221, 170, 34);
-  doc.rect(margin, 33.45, pageWidth - margin * 2, 0.25, 'F');
+  doc.rect(margin, 33.25, pageWidth - margin * 2, 0.25, 'F');
 
-  return 38;
+  return 37.5;
 }
 
 function drawDocumentHeader(
@@ -164,46 +163,48 @@ function drawDocumentHeader(
   // Draw Official Kop Surat at top
   drawOfficialKopSurat(doc, margin);
 
-  // Report Title & Print Timestamp Row
+  // Report Title & Print Timestamp Row (sized for A4 Portrait 186mm width without collision)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10.5);
+  doc.setFontSize(9.2);
   doc.setTextColor(11, 48, 112);
-  doc.text(reportTitle.toUpperCase(), margin, 39.5);
+  const cleanTitle =
+    reportTitle.length > 64 ? `${reportTitle.slice(0, 62).trim()}...` : reportTitle;
+  doc.text(cleanTitle.toUpperCase(), margin, 39.2);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.2);
   doc.setTextColor(102, 112, 133);
   const docCode = `${project.code}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`;
   doc.text(
-    `Dicetak: ${getPrintTimestamp()}  |  Kode Dokumen: ${docCode}`,
+    `Dicetak: ${getPrintTimestamp()} | Kode: ${docCode}`,
     pageWidth - margin,
-    39.5,
+    39.2,
     { align: 'right' }
   );
 
-  // Project Metadata Box
+  // Project Metadata Box (186mm width on A4 Portrait)
   doc.setFillColor(248, 249, 250);
   doc.setDrawColor(224, 228, 235);
-  doc.roundedRect(margin, 41.8, pageWidth - margin * 2, 13.5, 1.8, 1.8, 'FD');
+  doc.roundedRect(margin, 41.4, pageWidth - margin * 2, 13.2, 1.6, 1.6, 'FD');
 
-  doc.setFontSize(8.3);
+  doc.setFontSize(8);
   doc.setTextColor(52, 64, 84);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Proyek: ${project.name} (${project.code})`, margin + 3, 46.8);
+  doc.text(`Proyek: ${project.name} (${project.code})`, margin + 3, 46.3);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Lokasi: ${project.location || '-'}`, margin + 3, 52.2);
+  doc.text(`Lokasi: ${project.location || '-'}`, margin + 3, 51.6);
 
-  const midX = pageWidth / 2;
+  const midX = pageWidth / 2 + 2;
   doc.setFont('helvetica', 'bold');
-  doc.text(`Periode Laporan: ${getPeriodLabel(startDate, endDate)}`, midX, 46.8);
+  doc.text(`Periode: ${getPeriodLabel(startDate, endDate)}`, midX, 46.3);
   doc.setFont('helvetica', 'normal');
   doc.text(
     `Status Proyek: ${project.status}${extraFilterLabel ? ` | Filter: ${extraFilterLabel}` : ''}`,
     midX,
-    52.2
+    51.6
   );
 
-  return 58.5;
+  return 57.8;
 }
 
 function addPageFootersAndSignatures(
@@ -228,8 +229,8 @@ function addPageFootersAndSignatures(
     doc.setFontSize(8.5);
     doc.setTextColor(52, 64, 84);
 
-    const col1X = margin + 18;
-    const col2X = pageWidth - margin - 65;
+    const col1X = margin + 12;
+    const col2X = pageWidth - margin - 62;
 
     doc.text('Disiapkan Oleh,', col1X, finalY);
     doc.text('Admin Proyek / Keuangan', col1X, finalY + 4.5);
@@ -255,7 +256,7 @@ function addPageFootersAndSignatures(
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
 
-    // Ensure Official Kop Surat appears on EVERY page
+    // Ensure Official Kop Surat appears on EVERY A4 page
     drawOfficialKopSurat(doc, margin);
 
     // Footer divider line
@@ -281,7 +282,7 @@ function addPageFootersAndSignatures(
 }
 
 // ============================================================================
-// 1. EXPORT PDF FOR SUBMENUS H1, H2, H3, H4, H5
+// 1. EXPORT PDF FOR SUBMENUS H1, H2, H3, H4, H5 (ALL STANDARDIZED TO A4 PORTRAIT)
 // ============================================================================
 export function exportProjectReportPDF(params: {
   submenu: 'h1' | 'h2' | 'h3' | 'h4' | 'h5';
@@ -310,20 +311,23 @@ export function exportProjectReportPDF(params: {
     categoryFilter,
   } = params;
 
-  const isLandscape = submenu === 'h1' || submenu === 'h2';
+  // All documents standardized to A4 Portrait (210mm x 297mm)
   const doc = new jsPDF({
-    orientation: isLandscape ? 'landscape' : 'portrait',
+    orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
   });
 
+  const margin = 12;
+  const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
+  const printableWidth = pageWidth - margin * 2; // 186mm
   const dateSlug = new Date().toISOString().slice(0, 10);
   const safeProjCode = (project.code || project.name).replace(/[^a-zA-Z0-9_-]/g, '_');
 
   if (submenu === 'h1') {
     const targetList = selectedEmployee ? [selectedEmployee] : employeeRecaps;
     const title = selectedEmployee
-      ? `H1. Laporan Rekap Gaji & Kehadiran Karyawan — ${selectedEmployee.employeeName}`
+      ? `H1. Rekap Gaji & Kehadiran Karyawan — ${selectedEmployee.employeeName}`
       : `H1. Laporan Rekap Gaji Per Karyawan Proyek (Detail Kehadiran & Upah)`;
 
     let currentY = drawDocumentHeader(
@@ -342,64 +346,64 @@ export function exportProjectReportPDF(params: {
           doc.addPage();
           currentY = drawDocumentHeader(doc, title, project, startDate, endDate);
         } else {
-          currentY = lastY + 7;
+          currentY = lastY + 6.5;
         }
       }
 
-      // Employee Summary Strip (3 structured rows so left & right text NEVER overlap)
+      // Employee Summary Strip (3 structured rows inside 186mm A4 Portrait box so text never overlaps)
       doc.setFillColor(239, 245, 255);
       doc.setDrawColor(208, 226, 255);
-      doc.roundedRect(12, currentY, doc.internal.pageSize.getWidth() - 24, 18, 1.5, 1.5, 'FD');
+      doc.roundedRect(margin, currentY, printableWidth, 17.5, 1.5, 1.5, 'FD');
 
       // Row 1: Employee Name & Role (Left) + Net Salary (Right)
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
+      doc.setFontSize(8.2);
       doc.setTextColor(11, 48, 112);
       doc.text(
         `${idx + 1}. ${emp.employeeName} (${emp.employeeId}) — Jabatan: ${emp.role} ${
           emp.status === 'inactive' ? '[Nonaktif]' : '[Aktif]'
         }`,
-        15,
-        currentY + 4.8
+        margin + 3,
+        currentY + 4.6
       );
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.8);
+      doc.setFontSize(8.4);
       doc.setTextColor(21, 94, 239);
       doc.text(
         `Gaji Bersih: ${formatRupiah(emp.netSalary)}`,
-        doc.internal.pageSize.getWidth() - 15,
-        currentY + 4.8,
+        pageWidth - margin - 3,
+        currentY + 4.6,
         { align: 'right' }
       );
 
       // Row 2: Daily Rate, Overtime Rate & Attendance Days Breakdown
       const isDriver = isDriverRole(emp.role);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.8);
+      doc.setFontSize(7.3);
       doc.setTextColor(52, 64, 84);
       doc.text(
-        `Tarif Harian: ${formatRupiah(emp.dailyWage)}   |   Tarif Lembur/Jam: ${
-          isDriver ? 'Rp 0 (Driver Tidak Lembur)' : formatRupiah(emp.overtimeHourlyWage)
-        }   |   Hadir Penuh: ${emp.fullWorkDays} hr   |   Setengah Hari: ${emp.halfWorkDays} hr   |   Alpa/Izin/Sakit: ${emp.absentDays} hr`,
-        15,
-        currentY + 10.2
+        `Tarif/Hr: ${formatRupiah(emp.dailyWage)}  |  Tarif Lembur/Jam: ${
+          isDriver ? 'Rp 0 (Driver)' : formatRupiah(emp.overtimeHourlyWage)
+        }  |  Hadir Penuh: ${emp.fullWorkDays} hr  |  Setengah Hari: ${emp.halfWorkDays} hr  |  Absen: ${emp.absentDays} hr`,
+        margin + 3,
+        currentY + 9.8
       );
 
       // Row 3: Financial Breakdown (Pokok, Lembur, Kotor, Potongan Kasbon, Sisa Kasbon)
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.8);
+      doc.setFontSize(7.3);
       doc.setTextColor(71, 84, 103);
       doc.text(
-        `Gaji Pokok: ${formatRupiah(emp.totalBasicSalary)}   |   Upah Lembur (${formatOvertimeDuration(
+        `Gaji Pokok: ${formatRupiah(emp.totalBasicSalary)}  |  Lembur (${formatOvertimeDuration(
           emp.overtimeHours
-        )}): ${formatRupiah(emp.totalOvertimePay)}   |   Gaji Kotor: ${formatRupiah(
+        )}): ${formatRupiah(emp.totalOvertimePay)}  |  Kotor: ${formatRupiah(
           emp.grossSalary
-        )}   |   Pot. Kasbon: -${formatRupiah(emp.kasbonDeduction)} (Sisa Kasbon: ${formatRupiah(
+        )}  |  Pot. Kasbon: -${formatRupiah(emp.kasbonDeduction)} (Sisa: ${formatRupiah(
           emp.remainingKasbon
         )})`,
-        15,
-        currentY + 15.2
+        margin + 3,
+        currentY + 14.8
       );
 
       const attRows = (emp.attendanceRecords || [])
@@ -427,57 +431,71 @@ export function exportProjectReportPDF(params: {
             formatRupiah(basicDay),
             att.overtimeHours > 0 ? formatOvertimeDuration(att.overtimeHours) : '-',
             isDriver && att.overtimeHours > 0 ? 'Rp 0 (Driver)' : formatRupiah(otPayDay),
-            kbNominal > 0 ? `${formatRupiah(kbNominal)} (${att.kasbonStatus || 'Disetujui'})` : '-',
+            kbNominal > 0 ? formatRupiah(kbNominal) : '-',
             formatRupiah(basicDay + otPayDay),
             att.notes || '-',
           ];
         });
 
+      // Proportional column widths summing to 186mm on A4 Portrait
       autoTable(doc, {
-        startY: currentY + 19.5,
-        margin: { top: 38, bottom: 14, left: 12, right: 12 },
+        startY: currentY + 19,
+        margin: { top: 38, bottom: 14, left: margin, right: margin },
+        tableWidth: printableWidth,
         showHead: 'everyPage',
         head: [
           [
             'No',
             'Tanggal',
-            'Status Kehadiran',
+            'Status',
             'Jam Kerja',
             'Upah Harian',
-            'Durasi Lembur',
+            'Durasi OT',
             'Upah Lembur',
-            'Kasbon Hari Itu',
-            'Total Upah Hari Itu',
+            'Kasbon',
+            'Total Harian',
             'Catatan',
           ],
         ],
         body:
           attRows.length > 0
             ? attRows
-            : [['-', '-', 'Belum ada riwayat kehadiran pada periode ini', '-', 'Rp 0', '-', 'Rp 0', '-', 'Rp 0', '-']],
+            : [['-', '-', 'Belum ada kehadiran', '-', 'Rp 0', '-', 'Rp 0', '-', 'Rp 0', '-']],
         foot: [
           [
             '',
-            'SUBTOTAL KARYAWAN',
-            `${emp.fullWorkDays} Penuh, ${emp.halfWorkDays} Setengah`,
-            `${emp.totalWorkDays} Hari Efektif`,
+            'SUBTOTAL',
+            `${emp.fullWorkDays}P, ${emp.halfWorkDays}S`,
+            `${emp.totalWorkDays} Hr`,
             formatRupiah(emp.totalBasicSalary),
             formatOvertimeDuration(emp.overtimeHours),
             formatRupiah(emp.totalOvertimePay),
-            `Pot: -${formatRupiah(emp.kasbonDeduction)}`,
-            `Bersih: ${formatRupiah(emp.netSalary)}`,
-            `Sisa Kasbon: ${formatRupiah(emp.remainingKasbon)}`,
+            `-${formatRupiah(emp.kasbonDeduction)}`,
+            formatRupiah(emp.netSalary),
+            `Sisa KB: ${formatRupiah(emp.remainingKasbon)}`,
           ],
         ],
         showFoot: 'lastPage',
-        styles: { fontSize: 7.4, cellPadding: 1.7, textColor: [29, 41, 57] },
-        headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold' },
-        footStyles: { fillColor: [239, 245, 255], textColor: [11, 48, 112], fontStyle: 'bold' },
+        styles: { fontSize: 7.2, cellPadding: 1.5, textColor: [29, 41, 57], valign: 'middle' },
+        headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.2 },
+        footStyles: { fillColor: [239, 245, 255], textColor: [11, 48, 112], fontStyle: 'bold', fontSize: 7.1 },
         alternateRowStyles: { fillColor: [249, 250, 251] },
+        columnStyles: {
+          0: { cellWidth: 7, halign: 'center' },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 18 },
+          3: { cellWidth: 17, halign: 'center' },
+          4: { cellWidth: 21, halign: 'right' },
+          5: { cellWidth: 17, halign: 'center' },
+          6: { cellWidth: 21, halign: 'right' },
+          7: { cellWidth: 21, halign: 'right' },
+          8: { cellWidth: 22, halign: 'right' },
+          9: { cellWidth: 22 },
+        },
       });
     });
 
-    addPageFootersAndSignatures(doc, project, true);
+    addPageFootersAndSignatures(doc, project, true, margin);
     const empSuffix = selectedEmployee ? `_${selectedEmployee.employeeName.replace(/\s+/g, '_')}` : '_Semua_Karyawan';
     doc.save(`H1_Rekap_Gaji_Karyawan_${safeProjCode}${empSuffix}_${dateSlug}.pdf`);
     return;
@@ -495,21 +513,19 @@ export function exportProjectReportPDF(params: {
 
     const rows = employeeRecaps.map((r, i) => [
       String(i + 1),
-      r.employeeId,
-      r.employeeName,
+      `${r.employeeName}\n(${r.employeeId})`,
       r.role,
-      String(r.fullWorkDays),
-      String(r.halfWorkDays),
-      String(r.absentDays),
+      `${r.fullWorkDays}P / ${r.halfWorkDays}S / ${r.absentDays}A`,
       formatRupiah(r.dailyWage),
       formatRupiah(r.totalBasicSalary),
-      r.overtimeHours > 0 ? formatOvertimeDuration(r.overtimeHours) : '-',
-      isDriverRole(r.role) ? 'Rp 0' : formatRupiah(r.overtimeHourlyWage),
+      r.overtimeHours > 0
+        ? `${formatOvertimeDuration(r.overtimeHours)}\n(${isDriverRole(r.role) ? 'Rp 0' : formatRupiah(r.overtimeHourlyWage)})`
+        : '-',
       formatRupiah(r.totalOvertimePay),
       formatRupiah(r.grossSalary),
-      formatRupiah(r.kasbonInPeriod),
-      formatRupiah(r.kasbonDeduction),
-      formatRupiah(r.remainingKasbon),
+      r.kasbonDeduction > 0 || r.remainingKasbon > 0
+        ? `-${formatRupiah(r.kasbonDeduction)}\n(Sisa: ${formatRupiah(r.remainingKasbon)})`
+        : 'Rp 0',
       formatRupiah(r.netSalary),
     ]);
 
@@ -520,33 +536,28 @@ export function exportProjectReportPDF(params: {
     const totOtHours = employeeRecaps.reduce((s, r) => s + r.overtimeHours, 0);
     const totOtPay = employeeRecaps.reduce((s, r) => s + r.totalOvertimePay, 0);
     const totGross = employeeRecaps.reduce((s, r) => s + r.grossSalary, 0);
-    const totKbPeriod = employeeRecaps.reduce((s, r) => s + r.kasbonInPeriod, 0);
     const totKbDed = employeeRecaps.reduce((s, r) => s + r.kasbonDeduction, 0);
     const totKbRem = employeeRecaps.reduce((s, r) => s + r.remainingKasbon, 0);
     const totNet = employeeRecaps.reduce((s, r) => s + r.netSalary, 0);
 
+    // Proportional column widths summing to 186mm on A4 Portrait
     autoTable(doc, {
       startY,
-      margin: { top: 38, bottom: 14, left: 10, right: 10 },
+      margin: { top: 38, bottom: 14, left: margin, right: margin },
+      tableWidth: printableWidth,
       showHead: 'everyPage',
       head: [
         [
           'No',
-          'ID',
-          'Nama Karyawan',
+          'Nama & ID Karyawan',
           'Jabatan',
-          'Penuh',
-          '1/2 Hr',
-          'Absen',
+          'Hadir (P/S/A)',
           'Tarif/Hr',
           'Gaji Pokok',
-          'Durasi Lembur',
-          'Tarif OT',
+          'Durasi & Tarif OT',
           'Upah Lembur',
           'Gaji Kotor',
-          'Total Kasbon',
-          'Pot. Kasbon',
-          'Sisa Kasbon',
+          'Pot. & Sisa Kasbon',
           'Gaji Bersih',
         ],
       ],
@@ -554,32 +565,39 @@ export function exportProjectReportPDF(params: {
       foot: [
         [
           '',
-          '',
           `GRAND TOTAL (${employeeRecaps.length} Karyawan)`,
           '',
-          String(totFull),
-          String(totHalf),
-          String(totAbs),
+          `${totFull}P/${totHalf}S/${totAbs}A`,
           '-',
           formatRupiah(totBasic),
           formatOvertimeDuration(totOtHours),
-          '-',
           formatRupiah(totOtPay),
           formatRupiah(totGross),
-          formatRupiah(totKbPeriod),
-          formatRupiah(totKbDed),
-          formatRupiah(totKbRem),
+          `-${formatRupiah(totKbDed)}\n(Sisa: ${formatRupiah(totKbRem)})`,
           formatRupiah(totNet),
         ],
       ],
       showFoot: 'lastPage',
-      styles: { fontSize: 6.8, cellPadding: 1.6, textColor: [29, 41, 57] },
-      headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold' },
-      footStyles: { fillColor: [239, 245, 255], textColor: [21, 94, 239], fontStyle: 'bold' },
+      styles: { fontSize: 7.1, cellPadding: 1.5, textColor: [29, 41, 57], valign: 'middle' },
+      headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.1 },
+      footStyles: { fillColor: [239, 245, 255], textColor: [21, 94, 239], fontStyle: 'bold', fontSize: 7.1 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
+      columnStyles: {
+        0: { cellWidth: 6, halign: 'center' },
+        1: { cellWidth: 28 },
+        2: { cellWidth: 13 },
+        3: { cellWidth: 15, halign: 'center' },
+        4: { cellWidth: 16, halign: 'right' },
+        5: { cellWidth: 18, halign: 'right' },
+        6: { cellWidth: 18, halign: 'center' },
+        7: { cellWidth: 16, halign: 'right' },
+        8: { cellWidth: 18, halign: 'right' },
+        9: { cellWidth: 18, halign: 'right' },
+        10: { cellWidth: 20, halign: 'right' },
+      },
     });
 
-    addPageFootersAndSignatures(doc, project, true);
+    addPageFootersAndSignatures(doc, project, true, margin);
     doc.save(`H2_Rekap_Total_Gaji_Seluruh_Karyawan_${safeProjCode}_${dateSlug}.pdf`);
     return;
   }
@@ -603,16 +621,17 @@ export function exportProjectReportPDF(params: {
       e.destinationOrRoute || e.destination || '-',
       e.picName || '-',
       e.description || '-',
-      e.paymentMethod || '-',
-      e.attachments && e.attachments.length > 0 ? `${e.attachments.length} Foto` : 'Tanpa Foto',
+      `${e.paymentMethod || '-'}\n(${e.attachments && e.attachments.length > 0 ? `${e.attachments.length} Foto` : 'Tanpa Foto'})`,
       formatRupiah(e.amount),
     ]);
 
     const totalAmount = transportExpenses.reduce((s, e) => s + e.amount, 0);
 
+    // Proportional column widths summing to 186mm on A4 Portrait
     autoTable(doc, {
       startY,
-      margin: { top: 38, bottom: 14, left: 12, right: 12 },
+      margin: { top: 38, bottom: 14, left: margin, right: margin },
+      tableWidth: printableWidth,
       showHead: 'everyPage',
       head: [
         [
@@ -624,15 +643,14 @@ export function exportProjectReportPDF(params: {
           'Rute/Tujuan',
           'PIC',
           'Keterangan',
-          'Metode',
-          'Bukti',
+          'Metode/Bukti',
           'Nominal',
         ],
       ],
       body:
         rows.length > 0
           ? rows
-          : [['-', '-', '-', 'Tidak ada data biaya transportasi pada periode ini', '-', '-', '-', '-', '-', '-', 'Rp 0']],
+          : [['-', '-', '-', 'Tidak ada data biaya transportasi pada periode ini', '-', '-', '-', '-', '-', 'Rp 0']],
       foot: [
         [
           '',
@@ -644,18 +662,29 @@ export function exportProjectReportPDF(params: {
           '',
           '',
           '',
-          '',
           formatRupiah(totalAmount),
         ],
       ],
       showFoot: 'lastPage',
-      styles: { fontSize: 7.2, cellPadding: 1.8, textColor: [29, 41, 57] },
-      headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold' },
-      footStyles: { fillColor: [239, 245, 255], textColor: [21, 94, 239], fontStyle: 'bold' },
+      styles: { fontSize: 7.2, cellPadding: 1.6, textColor: [29, 41, 57], valign: 'middle' },
+      headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.2 },
+      footStyles: { fillColor: [239, 245, 255], textColor: [21, 94, 239], fontStyle: 'bold', fontSize: 7.3 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
+      columnStyles: {
+        0: { cellWidth: 7, halign: 'center' },
+        1: { cellWidth: 21 },
+        2: { cellWidth: 18 },
+        3: { cellWidth: 20 },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 24 },
+        6: { cellWidth: 16 },
+        7: { cellWidth: 24 },
+        8: { cellWidth: 14, halign: 'center' },
+        9: { cellWidth: 20, halign: 'right' },
+      },
     });
 
-    addPageFootersAndSignatures(doc, project, true);
+    addPageFootersAndSignatures(doc, project, true, margin);
     doc.save(`H3_Rekap_Biaya_Transportasi_${safeProjCode}_${dateSlug}.pdf`);
     return;
   }
@@ -684,9 +713,11 @@ export function exportProjectReportPDF(params: {
 
     const totalAmount = operationalExpenses.reduce((s, e) => s + e.amount, 0);
 
+    // Proportional column widths summing to 186mm on A4 Portrait
     autoTable(doc, {
       startY,
-      margin: { top: 38, bottom: 14, left: 12, right: 12 },
+      margin: { top: 38, bottom: 14, left: margin, right: margin },
+      tableWidth: printableWidth,
       showHead: 'everyPage',
       head: [
         [
@@ -709,7 +740,7 @@ export function exportProjectReportPDF(params: {
         [
           '',
           '',
-          'TOTAL PENGELUARAN OPERASIONAL LAPANGAN',
+          'TOTAL OPERASIONAL LAPANGAN',
           `${operationalExpenses.length} Transaksi`,
           '',
           '',
@@ -719,13 +750,24 @@ export function exportProjectReportPDF(params: {
         ],
       ],
       showFoot: 'lastPage',
-      styles: { fontSize: 7.5, cellPadding: 2, textColor: [29, 41, 57] },
-      headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold' },
-      footStyles: { fillColor: [239, 245, 255], textColor: [21, 94, 239], fontStyle: 'bold' },
+      styles: { fontSize: 7.4, cellPadding: 1.8, textColor: [29, 41, 57], valign: 'middle' },
+      headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.4 },
+      footStyles: { fillColor: [239, 245, 255], textColor: [21, 94, 239], fontStyle: 'bold', fontSize: 7.5 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
+      columnStyles: {
+        0: { cellWidth: 7, halign: 'center' },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 24 },
+        4: { cellWidth: 43 },
+        5: { cellWidth: 22 },
+        6: { cellWidth: 15, halign: 'center' },
+        7: { cellWidth: 13, halign: 'center' },
+        8: { cellWidth: 20, halign: 'right' },
+      },
     });
 
-    addPageFootersAndSignatures(doc, project, true);
+    addPageFootersAndSignatures(doc, project, true, margin);
     doc.save(`H4_Rekap_Operasional_Lapangan_${safeProjCode}_${dateSlug}.pdf`);
     return;
   }
@@ -783,9 +825,11 @@ export function exportProjectReportPDF(params: {
       ]);
     }
 
+    // Proportional column widths summing to 186mm on A4 Portrait
     autoTable(doc, {
       startY,
-      margin: { top: 38, bottom: 14, left: 12, right: 12 },
+      margin: { top: 38, bottom: 14, left: margin, right: margin },
+      tableWidth: printableWidth,
       showHead: 'everyPage',
       head: [['No', 'Komponen Pengeluaran Proyek', 'Rincian & Keterangan Realisasi', 'Nominal (Rp)']],
       body: rows,
@@ -806,19 +850,25 @@ export function exportProjectReportPDF(params: {
         ],
       ],
       showFoot: 'lastPage',
-      styles: { fontSize: 8.5, cellPadding: 2.8, textColor: [29, 41, 57] },
-      headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold' },
-      footStyles: { fillColor: [239, 245, 255], textColor: [21, 94, 239], fontStyle: 'bold' },
+      styles: { fontSize: 8.2, cellPadding: 2.5, textColor: [29, 41, 57], valign: 'middle' },
+      headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.2 },
+      footStyles: { fillColor: [239, 245, 255], textColor: [21, 94, 239], fontStyle: 'bold', fontSize: 8.2 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 62 },
+        2: { cellWidth: 78 },
+        3: { cellWidth: 36, halign: 'right' },
+      },
     });
 
-    addPageFootersAndSignatures(doc, project, true);
+    addPageFootersAndSignatures(doc, project, true, margin);
     doc.save(`H5_Rekap_Seluruh_Pengeluaran_Proyek_${safeProjCode}_${dateSlug}.pdf`);
   }
 }
 
 // ============================================================================
-// 2. EXPORT SLIP GAJI KARYAWAN PROYEK PDF (SINGLE OR MULTI-EMPLOYEE, 1 PAGE EACH)
+// 2. EXPORT SLIP GAJI KARYAWAN PROYEK PDF (SINGLE OR MULTI-EMPLOYEE, A4 PORTRAIT)
 // ============================================================================
 export function exportProjectSlipGajiPDF(params: {
   project: Project;
@@ -835,8 +885,9 @@ export function exportProjectSlipGajiPDF(params: {
     format: 'a4',
   });
 
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 14;
+  const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
+  const margin = 12;
+  const printableWidth = pageWidth - margin * 2; // 186mm
   const dateSlug = new Date().toISOString().slice(0, 10);
   const safeProjCode = (project.code || project.name).replace(/[^a-zA-Z0-9_-]/g, '_');
 
@@ -852,54 +903,55 @@ export function exportProjectSlipGajiPDF(params: {
 
     // Slip Title & Print Timestamp Row
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10.5);
+    doc.setFontSize(10);
     doc.setTextColor(11, 48, 112);
-    doc.text('SLIP GAJI & REKAP KEHADIRAN KARYAWAN PROYEK', margin, 39.5);
+    doc.text('SLIP GAJI & REKAP KEHADIRAN KARYAWAN PROYEK', margin, 39.2);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.8);
+    doc.setFontSize(7.5);
     doc.setTextColor(102, 112, 133);
-    doc.text(`Tanggal Cetak: ${getPrintTimestamp()}`, pageWidth - margin, 39.5, { align: 'right' });
+    doc.text(`Tanggal Cetak: ${getPrintTimestamp()}`, pageWidth - margin, 39.2, { align: 'right' });
 
-    // Identity Box
+    // Identity Box (186mm width)
     doc.setFillColor(248, 249, 250);
     doc.setDrawColor(234, 236, 240);
-    doc.roundedRect(margin, 42, pageWidth - margin * 2, 23, 2, 2, 'FD');
+    doc.roundedRect(margin, 41.6, printableWidth, 23, 2, 2, 'FD');
 
-    doc.setFontSize(8.3);
+    doc.setFontSize(8.2);
     doc.setTextColor(52, 64, 84);
 
     // Left column
     doc.setFont('helvetica', 'bold');
-    doc.text('Nama Karyawan', margin + 4, 47.5);
-    doc.text('ID Karyawan', margin + 4, 52.8);
-    doc.text('Jabatan / Peran', margin + 4, 58);
-    doc.text('Status Penugasan', margin + 4, 63);
+    doc.text('Nama Karyawan', margin + 4, 47.2);
+    doc.text('ID Karyawan', margin + 4, 52.4);
+    doc.text('Jabatan / Peran', margin + 4, 57.6);
+    doc.text('Status Penugasan', margin + 4, 62.6);
 
     doc.setFont('helvetica', 'normal');
-    doc.text(`: ${emp.employeeName}`, margin + 36, 47.5);
-    doc.text(`: ${emp.employeeId}`, margin + 36, 52.8);
-    doc.text(`: ${emp.role}${isDriver ? ' (Tanpa Upah Lembur)' : ''}`, margin + 36, 58);
-    doc.text(`: ${emp.status === 'active' ? 'Aktif di Proyek' : 'Nonaktif (Riwayat Periode)'}`, margin + 36, 63);
+    doc.text(`: ${emp.employeeName}`, margin + 35, 47.2);
+    doc.text(`: ${emp.employeeId}`, margin + 35, 52.4);
+    doc.text(`: ${emp.role}${isDriver ? ' (Tanpa Upah Lembur)' : ''}`, margin + 35, 57.6);
+    doc.text(`: ${emp.status === 'active' ? 'Aktif di Proyek' : 'Nonaktif (Riwayat Periode)'}`, margin + 35, 62.6);
 
     // Right column
-    const rightColX = pageWidth / 2 + 4;
+    const rightColX = pageWidth / 2 + 2;
     doc.setFont('helvetica', 'bold');
-    doc.text('Nama Proyek', rightColX, 47.5);
-    doc.text('Kode & Lokasi', rightColX, 52.8);
-    doc.text('Periode Gaji', rightColX, 58);
-    doc.text('Status Pembayaran', rightColX, 63);
+    doc.text('Nama Proyek', rightColX, 47.2);
+    doc.text('Kode & Lokasi', rightColX, 52.4);
+    doc.text('Periode Gaji', rightColX, 57.6);
+    doc.text('Status Pembayaran', rightColX, 62.6);
 
     doc.setFont('helvetica', 'normal');
-    doc.text(`: ${project.name}`, rightColX + 32, 47.5);
-    doc.text(`: ${project.code} — ${project.location || '-'}`, rightColX + 32, 52.8);
-    doc.text(`: ${getPeriodLabel(startDate, endDate)}`, rightColX + 32, 58);
-    doc.text(`: ${emp.paymentStatusLabel}`, rightColX + 32, 63);
+    doc.text(`: ${project.name}`, rightColX + 31, 47.2);
+    doc.text(`: ${project.code} — ${project.location || '-'}`, rightColX + 31, 52.4);
+    doc.text(`: ${getPeriodLabel(startDate, endDate)}`, rightColX + 31, 57.6);
+    doc.text(`: ${emp.paymentStatusLabel}`, rightColX + 31, 62.6);
 
-    // Table 1: Rincian Penerimaan & Potongan Gaji
+    // Table 1: Rincian Penerimaan & Potongan Gaji (total 186mm)
     autoTable(doc, {
-      startY: 68.5,
+      startY: 68,
       margin: { top: 38, bottom: 14, left: margin, right: margin },
+      tableWidth: printableWidth,
       head: [['Komponen Pengupahan & Potongan', 'Perhitungan / Rincian', 'Nominal (Rp)']],
       body: [
         [
@@ -948,16 +1000,21 @@ export function exportProjectSlipGajiPDF(params: {
           formatRupiah(emp.netSalary),
         ],
       ],
-      styles: { fontSize: 8.1, cellPadding: 2.1, textColor: [29, 41, 57] },
-      headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold' },
-      footStyles: { fillColor: [236, 253, 243], textColor: [2, 122, 72], fontStyle: 'bold', fontSize: 8.8 },
+      styles: { fontSize: 8.1, cellPadding: 2, textColor: [29, 41, 57], valign: 'middle' },
+      headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.1 },
+      footStyles: { fillColor: [236, 253, 243], textColor: [2, 122, 72], fontStyle: 'bold', fontSize: 8.6 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
+      columnStyles: {
+        0: { cellWidth: 68 },
+        1: { cellWidth: 80 },
+        2: { cellWidth: 38, halign: 'right' },
+      },
     });
 
-    // Table 2: Ringkasan Kehadiran Harian Karyawan (if records exist)
+    // Table 2: Ringkasan Kehadiran Harian Karyawan (total 186mm)
     const afterSummaryY = ((doc as any).lastAutoTable?.finalY || 145) + 5.5;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
+    doc.setFontSize(8.4);
     doc.setTextColor(11, 48, 112);
     doc.text('Rincian Kehadiran & Lembur Harian pada Periode Ini:', margin, afterSummaryY);
 
@@ -992,14 +1049,26 @@ export function exportProjectSlipGajiPDF(params: {
     autoTable(doc, {
       startY: afterSummaryY + 2,
       margin: { top: 38, bottom: 14, left: margin, right: margin },
+      tableWidth: printableWidth,
       head: [['No', 'Tanggal', 'Status', 'Jam', 'Upah Pokok', 'Lembur', 'Upah OT', 'Kasbon', 'Total Harian']],
       body:
         attRows.length > 0
           ? attRows
           : [['-', '-', 'Tidak ada rincian absensi harian pada periode ini', '-', 'Rp 0', '-', 'Rp 0', '-', 'Rp 0']],
-      styles: { fontSize: 7.2, cellPadding: 1.5, textColor: [52, 64, 84] },
-      headStyles: { fillColor: [52, 64, 84], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 7.3, cellPadding: 1.5, textColor: [52, 64, 84], valign: 'middle' },
+      headStyles: { fillColor: [52, 64, 84], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.3 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
+      columnStyles: {
+        0: { cellWidth: 8, halign: 'center' },
+        1: { cellWidth: 24 },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 18, halign: 'center' },
+        4: { cellWidth: 24, halign: 'right' },
+        5: { cellWidth: 20, halign: 'center' },
+        6: { cellWidth: 23, halign: 'right' },
+        7: { cellWidth: 24, halign: 'right' },
+        8: { cellWidth: 25, halign: 'right' },
+      },
     });
 
     // Signature block for Slip Gaji

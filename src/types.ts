@@ -245,6 +245,16 @@ export interface DashboardStats {
     asisten: number;
     total: number;
   }>;
+  recentTransactions?: Array<{
+    id: string;
+    date: string;
+    description: string;
+    category: string;
+    amount: number;
+    status: string;
+    statusType: 'success' | 'warning' | 'danger' | 'info';
+    targetTab: string;
+  }>;
 }
 
 export type UserRole = 'admin' | 'owner' | 'Administrator' | 'Petugas';

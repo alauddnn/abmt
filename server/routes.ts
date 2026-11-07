@@ -6,6 +6,7 @@ import {
   verifyPassword,
   hashPassword,
   generateSalt,
+  DatabaseSchema,
   Employee,
   Attendance,
   OvertimeRecord,
@@ -34,42 +35,73 @@ import {
 
 export const router = express.Router();
 
+// Short-lived burst cache (1.5s) to deduplicate concurrent full-DB reads during page transitions
+let effectiveDbCache: { data: DatabaseSchema; timestamp: number } | null = null;
+let effectiveDbInflight: Promise<DatabaseSchema> | null = null;
+
+export function invalidateEffectiveDbCache() {
+  effectiveDbCache = null;
+}
+
 // Helper to provide a unified data source, preferring PostgreSQL when configured
-async function getEffectiveDb() {
+async function getEffectiveDb(): Promise<DatabaseSchema> {
   if (isPostgresConfigured) {
-    try {
-      const settings = await pgService.getSettings();
-      const [employees, attendance, overtime] = await Promise.all([
-        pgService.getEmployees(),
-        pgService.getAttendance(),
-        pgService.getOvertime(),
-      ]);
-      const [kasbon, payments, operationalExpenses] = await Promise.all([
-        pgService.getKasbon(),
-        pgService.getPayments(),
-        pgService.getExpenses(),
-      ]);
-      const [auditLogs, projects, users] = await Promise.all([
-        pgService.getAuditLogs(),
-        pgService.getProjects(),
-        pgService.getUsers(),
-      ]);
-      return {
-        settings,
-        employees,
-        attendance,
-        overtime,
-        kasbon,
-        kasbonDeductions: [] as any[],
-        salaryPayments: payments,
-        operationalExpenses,
-        auditLogs,
-        users: users.length > 0 ? users : dbManager.getDb().users,
-        projects,
-      };
-    } catch (err: any) {
-      console.warn('Notice fetching PostgreSQL data for effective DB:', err.message);
+    const now = Date.now();
+    if (effectiveDbCache && now - effectiveDbCache.timestamp < 1500) {
+      return effectiveDbCache.data;
     }
+    if (effectiveDbInflight) {
+      return effectiveDbInflight;
+    }
+    effectiveDbInflight = (async (): Promise<DatabaseSchema> => {
+      try {
+        const [
+          settings,
+          employees,
+          attendance,
+          overtime,
+          kasbon,
+          payments,
+          operationalExpenses,
+          auditLogs,
+          projects,
+          users,
+        ] = await Promise.all([
+          pgService.getSettings(),
+          pgService.getEmployees(),
+          pgService.getAttendance(),
+          pgService.getOvertime(),
+          pgService.getKasbon(),
+          pgService.getPayments(),
+          pgService.getExpenses(),
+          pgService.getAuditLogs(),
+          pgService.getProjects(),
+          pgService.getUsers(),
+        ]);
+        const result: DatabaseSchema = {
+          settings,
+          employees,
+          attendance,
+          overtime,
+          kasbon,
+          kasbonDeductions: [],
+          salaryPayments: payments as SalaryPayment[],
+          operationalExpenses,
+          operationalExpenseAttachments: [],
+          auditLogs,
+          users: users.length > 0 ? users : dbManager.getDb().users,
+          projects: projects as Project[],
+        };
+        effectiveDbCache = { data: result, timestamp: Date.now() };
+        return result;
+      } catch (err: any) {
+        console.warn('Notice fetching PostgreSQL data for effective DB:', err.message);
+        return dbManager.getDb();
+      } finally {
+        effectiveDbInflight = null;
+      }
+    })();
+    return effectiveDbInflight;
   }
   return dbManager.getDb();
 }
@@ -185,6 +217,9 @@ router.use((req: Request, res: Response, next) => {
     return next();
   }
 
+  // Invalidate burst cache on any mutating request
+  invalidateEffectiveDbCache();
+
   // ALL OTHER MUTATING REQUESTS (POST, PUT, DELETE, PATCH) REQUIRE ADMIN ROLE
   const user = getUserFromReq(req);
   if (user.role !== 'admin') {
@@ -195,6 +230,35 @@ router.use((req: Request, res: Response, next) => {
   }
   next();
 });
+
+// Brute-force login rate limiter per client IP (max 15 failed attempts per 5 minutes)
+const loginAttemptMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkLoginRateLimit(ip: string): { allowed: boolean; retryAfterSec?: number } {
+  const now = Date.now();
+  const entry = loginAttemptMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    return { allowed: true };
+  }
+  if (entry.count >= 15) {
+    return { allowed: false, retryAfterSec: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+  return { allowed: true };
+}
+
+function recordFailedLogin(ip: string) {
+  const now = Date.now();
+  const entry = loginAttemptMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    loginAttemptMap.set(ip, { count: 1, resetAt: now + 5 * 60 * 1000 });
+  } else {
+    entry.count += 1;
+  }
+}
+
+function clearFailedLogin(ip: string) {
+  loginAttemptMap.delete(ip);
+}
 
 // ---------------------------------------------------------------------------
 // 1. AUTH & USER SESSIONS
@@ -337,17 +401,28 @@ router.get('/auth/callback', (_req: Request, res: Response) => {
 </html>`);
 });
 
-// D. Traditional Password Login (Secured with optional Turnstile)
+// D. Traditional Password Login (Secured with PBKDF2-SHA512, Turnstile & Rate Limiting)
 router.post('/auth/login', async (req: Request, res: Response) => {
-  const { username, usernameOrEmail, password, role, turnstileToken, turnstileTicket } = req.body;
+  const { username, usernameOrEmail, password, turnstileToken, turnstileTicket } = req.body;
   const identifier = (usernameOrEmail || username || '').trim();
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip || 'unknown';
+
+  const rateCheck = checkLoginRateLimit(clientIp);
+  if (!rateCheck.allowed) {
+    return res.status(429).json({
+      error: `Terlalu banyak percobaan masuk yang gagal. Silakan tunggu ${rateCheck.retryAfterSec || 60} detik sebelum mencoba kembali.`,
+    });
+  }
 
   if (!identifier) {
     return res.status(400).json({ error: 'Username atau Email harus diisi' });
   }
 
+  if (password === undefined || password === null || String(password) === '') {
+    return res.status(400).json({ error: 'Kata sandi (password) wajib diisi.' });
+  }
+
   // Turnstile check if token or ticket provided
-  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip;
   if (turnstileTicket) {
     const isTicketValid = consumeTurnstileTicket(turnstileTicket);
     if (!isTicketValid) {
@@ -386,50 +461,21 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     );
   }
 
-  // If password provided, verify password hash
-  if (password !== undefined && password !== null && password !== '') {
-    if (!user) {
-      return res.status(401).json({ error: 'Akun tidak ditemukan. Periksa kembali username atau email Anda.' });
-    }
-    const isValid = verifyPassword(String(password), user.salt, user.passwordHash);
-    if (!isValid) {
-      return res.status(401).json({ error: 'Kata sandi (password) salah. Silakan coba lagi.' });
-    }
-  } else if (!user) {
-    // If no password sent (e.g. quick demo switcher), match by role
-    const assignedRole: 'admin' | 'owner' = role === 'owner' || role === 'Petugas' ? 'owner' : 'admin';
-    let fallbackUser: AppUser | undefined;
-    if (isPostgresConfigured) {
-      try {
-        const pgUsers = await pgService.getUsers();
-        fallbackUser = pgUsers.find((u) => u.role === assignedRole) || pgUsers[0];
-      } catch (err) {
-        console.error('Error fallback user from pg:', err);
-      }
-    }
-    if (!fallbackUser) {
-      const db = dbManager.getDb();
-      fallbackUser = db.users.find((u) => u.role === assignedRole) || db.users[0];
-    }
-    if (!fallbackUser) {
-      return res.status(401).json({ error: 'Akun tidak ditemukan' });
-    }
-    const session = sessionManager.createSession(fallbackUser);
-    dbManager.addAuditLog(fallbackUser.name, fallbackUser.role, 'Login', 'Sistem', `Pengguna ${fallbackUser.username} masuk ke sistem`);
-    return res.json({
-      token: session.token,
-      user: {
-        id: fallbackUser.id,
-        username: fallbackUser.username,
-        email: fallbackUser.email,
-        name: fallbackUser.name,
-        role: fallbackUser.role,
-      },
-    });
+  if (!user) {
+    recordFailedLogin(clientIp);
+    return res.status(401).json({ error: 'Akun tidak ditemukan. Periksa kembali username atau email Anda.' });
   }
 
+  const isValid = verifyPassword(String(password), user.salt, user.passwordHash);
+  if (!isValid) {
+    recordFailedLogin(clientIp);
+    return res.status(401).json({ error: 'Kata sandi (password) salah. Silakan coba lagi.' });
+  }
+
+  clearFailedLogin(clientIp);
+
   // User verified successfully
-  const targetUser = user!;
+  const targetUser = user;
   const session = sessionManager.createSession(targetUser);
   dbManager.addAuditLog(
     targetUser.name,
@@ -461,7 +507,10 @@ router.post('/auth/logout', (req: Request, res: Response) => {
 });
 
 router.get('/auth/me', (req: Request, res: Response) => {
-  const user = getUserFromReq(req);
+  const user = getAuthenticatedUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Sesi tidak valid atau telah berakhir.' });
+  }
   return res.json({ user });
 });
 
@@ -4120,6 +4169,64 @@ router.get('/dashboard/stats', async (req: Request, res: Response) => {
 
   const dailyTrend = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
 
+  // Build recentTransactions directly so DashboardPage doesn't need 3 separate full-table fetches
+  const recentTxs: Array<{
+    id: string;
+    date: string;
+    description: string;
+    category: string;
+    amount: number;
+    status: string;
+    statusType: 'success' | 'warning' | 'danger' | 'info';
+    targetTab: string;
+  }> = [];
+
+  db.operationalExpenses.slice(0, 5).forEach((e: any) => {
+    recentTxs.push({
+      id: e.id,
+      date: e.date,
+      description: `${e.personType}: ${e.description}`,
+      category: `Biaya ${e.category}`,
+      amount: e.amount,
+      status: 'Tercatat',
+      statusType: 'info',
+      targetTab: e.description.includes('Proyek') ? 'projects' : 'expenses',
+    });
+  });
+
+  db.kasbon.slice(0, 5).forEach((k: any) => {
+    recentTxs.push({
+      id: k.id,
+      date: k.requestDate,
+      description: `Kasbon: ${k.employeeName} (${k.reason})`,
+      category: 'Kasbon',
+      amount: k.amount,
+      status: k.status,
+      statusType:
+        k.status === 'Disetujui' || k.status === 'Lunas'
+          ? 'success'
+          : k.status === 'Ditolak'
+          ? 'danger'
+          : 'warning',
+      targetTab: 'projects',
+    });
+  });
+
+  db.salaryPayments.slice(0, 5).forEach((p: any) => {
+    recentTxs.push({
+      id: p.id,
+      date: p.paymentDate,
+      description: `Gaji: ${p.employeeName} (${p.periodStart} s/d ${p.periodEnd})`,
+      category: 'Gaji 2-Mingguan',
+      amount: p.netSalary,
+      status: p.status,
+      statusType: p.status === 'Sudah dibayar' ? 'success' : 'warning',
+      targetTab: 'payroll',
+    });
+  });
+
+  recentTxs.sort((a, b) => b.date.localeCompare(a.date));
+
   return res.json({
     periodInfo: {
       period: period || 'this_month',
@@ -4164,6 +4271,7 @@ router.get('/dashboard/stats', async (req: Request, res: Response) => {
       unpaidSalaryEstimate: Math.max(0, totalGajiPokok + totalUpahLembur - totalGajiBersihDibayarkan),
     },
     dailyTrend,
+    recentTransactions: recentTxs.slice(0, 7),
   });
 });
 
