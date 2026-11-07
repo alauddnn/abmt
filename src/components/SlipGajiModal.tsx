@@ -3,6 +3,7 @@ import { X, Printer, Building2, CheckCircle2 } from 'lucide-react';
 import { SalaryPayment } from '../types.js';
 import { formatRupiah, formatDateID, formatOvertimeDuration } from '../lib/utils.js';
 import { useCompany } from '../context/CompanyContext.js';
+import { OfficialKopSurat } from './OfficialKopSurat.js';
 
 interface SlipGajiModalProps {
   payment: SalaryPayment | null;
@@ -51,21 +52,19 @@ export const SlipGajiModal: React.FC<SlipGajiModalProps> = ({ payment, onClose }
 
         {/* Printable Area */}
         <div className="p-8 text-[#344054] bg-white" id="printable-slip">
-          {/* Company Header */}
-          <div className="flex items-start justify-between border-b border-[#EAECF0] pb-5 mb-6">
+          {/* Official Kop Surat Header */}
+          <OfficialKopSurat compact className="mb-4" />
+
+          {/* Document Title & Date */}
+          <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#EAECF0]">
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-[#262626] uppercase">
-                {settings?.companyName || 'PT. ASTA BRATA MATAHARI TERBIT'}
-              </h1>
-              <p className="text-xs text-[#667085] font-medium">{settings?.tagline || 'General Contractor & Interior Specialist'}</p>
-              <p className="text-xs text-[#667085] mt-1 max-w-md">{settings?.address || 'Jl. Konstruksi Mandiri No. 88, Jakarta Selatan'} | Telp: {settings?.phone || '0812-8899-7722'}</p>
+              <span className="inline-block px-2.5 py-1 bg-[#EFF5FF] text-[#0B3070] text-[11px] font-bold uppercase rounded-md border border-[#D0E2FF]">
+                SLIP PEMBAYARAN GAJI KARYAWAN
+              </span>
             </div>
             <div className="text-right">
-              <span className="inline-block px-2.5 py-1 bg-[#EFF5FF] text-[#4693FD] text-[11px] font-semibold uppercase rounded-md border border-[#D0E2FF]">
-                SLIP PEMBAYARAN GAJI
-              </span>
-              <p className="text-xs font-mono font-medium text-[#262626] mt-1.5">{payment.paymentNumber}</p>
-              <p className="text-xs text-[#667085]">Tgl: {formatDateID(payment.paymentDate)}</p>
+              <p className="text-xs font-mono font-semibold text-[#262626]">No: {payment.paymentNumber}</p>
+              <p className="text-xs text-[#667085]">Tanggal Cetak: {formatDateID(payment.paymentDate)}</p>
             </div>
           </div>
 

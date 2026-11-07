@@ -70,6 +70,7 @@ import {
 } from '../lib/projectReportExport.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useCompany } from '../context/CompanyContext.js';
+import { OfficialKopSurat } from './OfficialKopSurat.js';
 
 interface ProjectOverviewDashboardProps {
   project: Project;
@@ -3615,12 +3616,10 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
               <div id="project-report-printable" className="space-y-5">
                 {/* OFFICIAL REPORT HEADER (Visible on Print and as Banner in UI) */}
                 <div className="bg-white rounded-2xl border border-[#EAECF0] p-5 shadow-xs">
+                  <OfficialKopSurat className="mb-4" />
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 border-b border-[#EAECF0] pb-4">
                     <div>
-                      <p className="text-[11px] font-bold tracking-wider uppercase text-[#155EEF]">
-                        PT ASTA BRATA MATAHARI TERBIT
-                      </p>
-                      <h3 className="text-lg font-bold text-[#1D2939] mt-0.5">
+                      <h3 className="text-base sm:text-lg font-bold text-[#0B3070] uppercase">
                         {submenuMeta[activeReportSubmenu].title}
                       </h3>
                       <p className="text-xs text-[#667085] mt-0.5">{submenuMeta[activeReportSubmenu].subtitle}</p>
@@ -4818,21 +4817,18 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                             idx > 0 ? 'print-page-break' : ''
                           }`}
                         >
-                          {/* Header Perusahaan */}
-                          <div className="flex items-start justify-between border-b-2 border-[#1D2939] pb-3">
+                          {/* Official Kop Surat Perusahaan */}
+                          <OfficialKopSurat compact className="mb-3" />
+
+                          {/* Sub-header Slip Gaji */}
+                          <div className="flex items-center justify-between border-b border-[#EAECF0] pb-2.5">
                             <div>
-                              <h2 className="text-base font-bold text-[#1D2939] tracking-tight">
-                                PT ASTA BRATA MATAHARI TERBIT
-                              </h2>
-                              <p className="text-[11px] text-[#667085]">
-                                Dokumen Resmi Slip Gaji & Rekap Kehadiran Tenaga Kerja Proyek
-                              </p>
+                              <span className="inline-block px-2.5 py-0.5 rounded bg-[#EFF5FF] text-[#0B3070] font-bold text-xs border border-[#D0E2FF]">
+                                SLIP GAJI & REKAP KEHADIRAN KARYAWAN PROYEK
+                              </span>
                             </div>
                             <div className="text-right">
-                              <span className="inline-block px-2.5 py-0.5 rounded bg-[#EFF5FF] text-[#155EEF] font-bold text-xs border border-[#D0E2FF]">
-                                SLIP GAJI KARYAWAN PROYEK
-                              </span>
-                              <p className="text-[10px] text-[#667085] mt-1">
+                              <p className="text-[11px] text-[#667085]">
                                 Tanggal Cetak: {formatDateID(getTodayDateString())}
                               </p>
                             </div>

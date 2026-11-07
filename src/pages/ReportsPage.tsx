@@ -13,6 +13,7 @@ import {
 import { api } from '../lib/api.js';
 import { formatRupiah, formatDateID, getTodayDateString, formatOvertimeDuration } from '../lib/utils.js';
 import { useCompany } from '../context/CompanyContext.js';
+import { OfficialKopSurat } from '../components/OfficialKopSurat.js';
 
 const REPORT_COLUMN_LABELS: Record<string, string> = {
   id: 'ID',
@@ -247,21 +248,20 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ showToast }) => {
 
       {/* Printable Report Document Card */}
       <div className="bg-white rounded-xl border border-[#EAECF0] shadow-xs p-8" id="report-printable">
-        {/* Company Header */}
-        <div className="border-b border-[#EAECF0] pb-5 mb-6 flex items-start justify-between">
+        {/* Official Kop Surat */}
+        <OfficialKopSurat className="mb-5" />
+
+        {/* Document Title & Period */}
+        <div className="border-b border-[#EAECF0] pb-4 mb-6 flex items-start justify-between">
           <div>
-            <h1 className="text-xl font-bold text-[#262626] tracking-tight uppercase">
-              {settings?.companyName || 'PT. ASTA BRATA MATAHARI TERBIT'}
-            </h1>
-            <p className="text-xs text-[#667085] font-medium">{settings?.tagline || 'General Contractor & Interior Specialist'}</p>
-            <p className="text-xs text-[#667085] mt-1">{settings?.address || 'Jakarta Selatan'} | Telp: {settings?.phone || '0812-8899-7722'}</p>
+            <span className="inline-block px-2.5 py-1 bg-[#EFF5FF] text-[#0B3070] text-[11px] font-bold uppercase rounded-md border border-[#D0E2FF]">
+              DOKUMEN LAPORAN RESMI
+            </span>
+            <h2 className="text-base font-bold text-[#0B3070] mt-1.5 uppercase">{reportData?.title}</h2>
           </div>
           <div className="text-right">
-            <span className="inline-block px-2.5 py-1 bg-[#EFF5FF] text-[#4693FD] text-[11px] font-semibold uppercase rounded-md border border-[#D0E2FF]">
-              DOKUMEN LAPORAN
-            </span>
-            <p className="text-xs font-semibold text-[#262626] mt-1.5">{reportData?.title}</p>
-            <p className="text-xs text-[#667085]">Periode: {formatDateID(startDate)} s/d {formatDateID(endDate)}</p>
+            <p className="text-xs font-semibold text-[#262626]">Periode Laporan</p>
+            <p className="text-xs text-[#667085] mt-0.5">{formatDateID(startDate)} s/d {formatDateID(endDate)}</p>
           </div>
         </div>
 
