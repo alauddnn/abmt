@@ -4604,20 +4604,20 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   )}
 
                   {/* OFFICIAL SIGNATURE BLOCK (Visible on Print and Bottom of Report) */}
-                  <div className="mt-8 pt-6 border-t border-[#EAECF0] grid grid-cols-2 gap-8 text-xs text-[#344054]">
+                  <div className="mt-8 pt-6 grid grid-cols-2 gap-8 text-xs text-[#344054]">
                     <div className="text-center">
                       <p className="text-[#667085]">Disiapkan Oleh,</p>
                       <p className="font-semibold text-[#1D2939] mt-0.5">Admin Proyek / Bagian Keuangan</p>
                       <div className="h-16" />
-                      <p className="font-bold text-[#1D2939] underline">( ____________________________ )</p>
+                      <p className="font-bold text-[#1D2939]">( ............................................ )</p>
                     </div>
                     <div className="text-center">
                       <p className="text-[#667085]">
-                        {project.location || 'Jakarta'}, {formatDateID(getTodayDateString())}
+                        {project.location || 'Serang'}, {formatDateID(getTodayDateString())}
                       </p>
                       <p className="font-semibold text-[#1D2939] mt-0.5">Disetujui Oleh, Pimpinan / Owner</p>
                       <div className="h-16" />
-                      <p className="font-bold text-[#1D2939] underline">( ____________________________ )</p>
+                      <p className="font-bold text-[#1D2939]">( ............................................ )</p>
                     </div>
                   </div>
                 </div>
@@ -4937,12 +4937,12 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                             <div>
                               <p className="text-[#667085]">Penerima Upah / Karyawan,</p>
                               <div className="h-12" />
-                              <p className="font-bold text-[#1D2939] underline">( {emp.employeeName} )</p>
+                              <p className="font-bold text-[#1D2939]">( {emp.employeeName} )</p>
                             </div>
                             <div>
                               <p className="text-[#667085]">Bagian Keuangan / Admin Proyek,</p>
                               <div className="h-12" />
-                              <p className="font-bold text-[#1D2939] underline">( ________________________ )</p>
+                              <p className="font-bold text-[#1D2939]">( ............................................ )</p>
                             </div>
                           </div>
                         </div>

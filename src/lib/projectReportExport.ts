@@ -207,6 +207,15 @@ function drawDocumentHeader(
   return 57.8;
 }
 
+function applyColumnAlignmentToAllSections(columnStyles: Record<number, { cellWidth?: number; halign?: 'left' | 'center' | 'right' }>) {
+  return (data: any) => {
+    const colStyle = columnStyles[data.column.index];
+    if (colStyle && colStyle.halign) {
+      data.cell.styles.halign = colStyle.halign;
+    }
+  };
+}
+
 function addPageFootersAndSignatures(
   doc: jsPDF,
   project: Project,
@@ -219,37 +228,43 @@ function addPageFootersAndSignatures(
 
   if (includeSignatures) {
     const lastAutoTable = (doc as any).lastAutoTable;
-    let finalY = lastAutoTable ? lastAutoTable.finalY + 7 : 140;
-    if (finalY + 28 > pageHeight - 13) {
+    let finalY = lastAutoTable ? lastAutoTable.finalY + 9 : 140;
+    if (finalY + 30 > pageHeight - 14) {
       doc.addPage();
-      finalY = 42;
+      finalY = 44;
     }
+
+    const leftCenterX = margin + 38;
+    const rightCenterX = pageWidth - margin - 38;
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(52, 64, 84);
 
-    const col1X = margin + 12;
-    const col2X = pageWidth - margin - 62;
-
-    doc.text('Disiapkan Oleh,', col1X, finalY);
-    doc.text('Admin Proyek / Keuangan', col1X, finalY + 4.5);
-    doc.setDrawColor(102, 112, 133);
-    doc.setLineWidth(0.3);
-    doc.line(col1X, finalY + 20, col1X + 48, finalY + 20);
+    // Left signature column (Centered, single clean placeholder without extra line above)
+    doc.text('Disiapkan Oleh,', leftCenterX, finalY, { align: 'center' });
+    doc.text('Admin Proyek / Keuangan', leftCenterX, finalY + 4.5, { align: 'center' });
     doc.setFont('helvetica', 'bold');
-    doc.text('( ______________________ )', col1X, finalY + 24.5);
+    doc.setTextColor(29, 41, 57);
+    doc.text('( ............................................ )', leftCenterX, finalY + 23, {
+      align: 'center',
+    });
 
+    // Right signature column (Centered, single clean placeholder without extra line above)
     doc.setFont('helvetica', 'normal');
+    doc.setTextColor(52, 64, 84);
     doc.text(
       `${project.location || 'Serang'}, ${formatDateID(new Date().toISOString().split('T')[0])}`,
-      col2X,
-      finalY
+      rightCenterX,
+      finalY,
+      { align: 'center' }
     );
-    doc.text('Disetujui Oleh, Pimpinan / Owner', col2X, finalY + 4.5);
-    doc.line(col2X, finalY + 20, col2X + 52, finalY + 20);
+    doc.text('Disetujui Oleh, Pimpinan / Owner', rightCenterX, finalY + 4.5, { align: 'center' });
     doc.setFont('helvetica', 'bold');
-    doc.text('( ________________________ )', col2X, finalY + 24.5);
+    doc.setTextColor(29, 41, 57);
+    doc.text('( ............................................ )', rightCenterX, finalY + 23, {
+      align: 'center',
+    });
   }
 
   const totalPages = doc.getNumberOfPages();
@@ -338,6 +353,19 @@ export function exportProjectReportPDF(params: {
       endDate,
       roleFilter && roleFilter !== 'ALL' ? `Jabatan: ${roleFilter}` : undefined
     );
+
+    const h1Cols: Record<number, { cellWidth: number; halign?: 'left' | 'center' | 'right' }> = {
+      0: { cellWidth: 7, halign: 'center' },
+      1: { cellWidth: 18, halign: 'center' },
+      2: { cellWidth: 18, halign: 'left' },
+      3: { cellWidth: 19, halign: 'center' },
+      4: { cellWidth: 21, halign: 'right' },
+      5: { cellWidth: 16, halign: 'center' },
+      6: { cellWidth: 21, halign: 'right' },
+      7: { cellWidth: 21, halign: 'right' },
+      8: { cellWidth: 22, halign: 'right' },
+      9: { cellWidth: 23, halign: 'left' },
+    };
 
     targetList.forEach((emp, idx) => {
       if (idx > 0) {
@@ -476,22 +504,19 @@ export function exportProjectReportPDF(params: {
           ],
         ],
         showFoot: 'lastPage',
-        styles: { fontSize: 7.2, cellPadding: 1.5, textColor: [29, 41, 57], valign: 'middle' },
+        styles: {
+          fontSize: 7.2,
+          cellPadding: 1.5,
+          textColor: [29, 41, 57],
+          valign: 'middle',
+          lineWidth: 0.12,
+          lineColor: [226, 232, 240],
+        },
         headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.2 },
         footStyles: { fillColor: [239, 245, 255], textColor: [11, 48, 112], fontStyle: 'bold', fontSize: 7.1 },
         alternateRowStyles: { fillColor: [249, 250, 251] },
-        columnStyles: {
-          0: { cellWidth: 7, halign: 'center' },
-          1: { cellWidth: 20 },
-          2: { cellWidth: 18 },
-          3: { cellWidth: 17, halign: 'center' },
-          4: { cellWidth: 21, halign: 'right' },
-          5: { cellWidth: 17, halign: 'center' },
-          6: { cellWidth: 21, halign: 'right' },
-          7: { cellWidth: 21, halign: 'right' },
-          8: { cellWidth: 22, halign: 'right' },
-          9: { cellWidth: 22 },
-        },
+        columnStyles: h1Cols,
+        didParseCell: applyColumnAlignmentToAllSections(h1Cols),
       });
     });
 
@@ -540,6 +565,20 @@ export function exportProjectReportPDF(params: {
     const totKbRem = employeeRecaps.reduce((s, r) => s + r.remainingKasbon, 0);
     const totNet = employeeRecaps.reduce((s, r) => s + r.netSalary, 0);
 
+    const h2Cols: Record<number, { cellWidth: number; halign?: 'left' | 'center' | 'right' }> = {
+      0: { cellWidth: 6, halign: 'center' },
+      1: { cellWidth: 28, halign: 'left' },
+      2: { cellWidth: 13, halign: 'left' },
+      3: { cellWidth: 15, halign: 'center' },
+      4: { cellWidth: 16, halign: 'right' },
+      5: { cellWidth: 18, halign: 'right' },
+      6: { cellWidth: 18, halign: 'center' },
+      7: { cellWidth: 16, halign: 'right' },
+      8: { cellWidth: 18, halign: 'right' },
+      9: { cellWidth: 18, halign: 'right' },
+      10: { cellWidth: 20, halign: 'right' },
+    };
+
     // Proportional column widths summing to 186mm on A4 Portrait
     autoTable(doc, {
       startY,
@@ -578,23 +617,19 @@ export function exportProjectReportPDF(params: {
         ],
       ],
       showFoot: 'lastPage',
-      styles: { fontSize: 7.1, cellPadding: 1.5, textColor: [29, 41, 57], valign: 'middle' },
+      styles: {
+        fontSize: 7.1,
+        cellPadding: 1.5,
+        textColor: [29, 41, 57],
+        valign: 'middle',
+        lineWidth: 0.12,
+        lineColor: [226, 232, 240],
+      },
       headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.1 },
       footStyles: { fillColor: [239, 245, 255], textColor: [21, 94, 239], fontStyle: 'bold', fontSize: 7.1 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
-      columnStyles: {
-        0: { cellWidth: 6, halign: 'center' },
-        1: { cellWidth: 28 },
-        2: { cellWidth: 13 },
-        3: { cellWidth: 15, halign: 'center' },
-        4: { cellWidth: 16, halign: 'right' },
-        5: { cellWidth: 18, halign: 'right' },
-        6: { cellWidth: 18, halign: 'center' },
-        7: { cellWidth: 16, halign: 'right' },
-        8: { cellWidth: 18, halign: 'right' },
-        9: { cellWidth: 18, halign: 'right' },
-        10: { cellWidth: 20, halign: 'right' },
-      },
+      columnStyles: h2Cols,
+      didParseCell: applyColumnAlignmentToAllSections(h2Cols),
     });
 
     addPageFootersAndSignatures(doc, project, true, margin);
@@ -626,6 +661,19 @@ export function exportProjectReportPDF(params: {
     ]);
 
     const totalAmount = transportExpenses.reduce((s, e) => s + e.amount, 0);
+
+    const h3Cols: Record<number, { cellWidth: number; halign?: 'left' | 'center' | 'right' }> = {
+      0: { cellWidth: 7, halign: 'center' },
+      1: { cellWidth: 21, halign: 'left' },
+      2: { cellWidth: 18, halign: 'center' },
+      3: { cellWidth: 20, halign: 'left' },
+      4: { cellWidth: 22, halign: 'left' },
+      5: { cellWidth: 24, halign: 'left' },
+      6: { cellWidth: 16, halign: 'left' },
+      7: { cellWidth: 24, halign: 'left' },
+      8: { cellWidth: 14, halign: 'center' },
+      9: { cellWidth: 20, halign: 'right' },
+    };
 
     // Proportional column widths summing to 186mm on A4 Portrait
     autoTable(doc, {
@@ -666,22 +714,19 @@ export function exportProjectReportPDF(params: {
         ],
       ],
       showFoot: 'lastPage',
-      styles: { fontSize: 7.2, cellPadding: 1.6, textColor: [29, 41, 57], valign: 'middle' },
+      styles: {
+        fontSize: 7.2,
+        cellPadding: 1.6,
+        textColor: [29, 41, 57],
+        valign: 'middle',
+        lineWidth: 0.12,
+        lineColor: [226, 232, 240],
+      },
       headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.2 },
       footStyles: { fillColor: [239, 245, 255], textColor: [21, 94, 239], fontStyle: 'bold', fontSize: 7.3 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
-      columnStyles: {
-        0: { cellWidth: 7, halign: 'center' },
-        1: { cellWidth: 21 },
-        2: { cellWidth: 18 },
-        3: { cellWidth: 20 },
-        4: { cellWidth: 22 },
-        5: { cellWidth: 24 },
-        6: { cellWidth: 16 },
-        7: { cellWidth: 24 },
-        8: { cellWidth: 14, halign: 'center' },
-        9: { cellWidth: 20, halign: 'right' },
-      },
+      columnStyles: h3Cols,
+      didParseCell: applyColumnAlignmentToAllSections(h3Cols),
     });
 
     addPageFootersAndSignatures(doc, project, true, margin);
@@ -712,6 +757,18 @@ export function exportProjectReportPDF(params: {
     ]);
 
     const totalAmount = operationalExpenses.reduce((s, e) => s + e.amount, 0);
+
+    const h4Cols: Record<number, { cellWidth: number; halign?: 'left' | 'center' | 'right' }> = {
+      0: { cellWidth: 7, halign: 'center' },
+      1: { cellWidth: 22, halign: 'left' },
+      2: { cellWidth: 20, halign: 'center' },
+      3: { cellWidth: 24, halign: 'left' },
+      4: { cellWidth: 43, halign: 'left' },
+      5: { cellWidth: 22, halign: 'left' },
+      6: { cellWidth: 15, halign: 'center' },
+      7: { cellWidth: 13, halign: 'center' },
+      8: { cellWidth: 20, halign: 'right' },
+    };
 
     // Proportional column widths summing to 186mm on A4 Portrait
     autoTable(doc, {
@@ -750,21 +807,19 @@ export function exportProjectReportPDF(params: {
         ],
       ],
       showFoot: 'lastPage',
-      styles: { fontSize: 7.4, cellPadding: 1.8, textColor: [29, 41, 57], valign: 'middle' },
+      styles: {
+        fontSize: 7.4,
+        cellPadding: 1.8,
+        textColor: [29, 41, 57],
+        valign: 'middle',
+        lineWidth: 0.12,
+        lineColor: [226, 232, 240],
+      },
       headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.4 },
       footStyles: { fillColor: [239, 245, 255], textColor: [21, 94, 239], fontStyle: 'bold', fontSize: 7.5 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
-      columnStyles: {
-        0: { cellWidth: 7, halign: 'center' },
-        1: { cellWidth: 22 },
-        2: { cellWidth: 20 },
-        3: { cellWidth: 24 },
-        4: { cellWidth: 43 },
-        5: { cellWidth: 22 },
-        6: { cellWidth: 15, halign: 'center' },
-        7: { cellWidth: 13, halign: 'center' },
-        8: { cellWidth: 20, halign: 'right' },
-      },
+      columnStyles: h4Cols,
+      didParseCell: applyColumnAlignmentToAllSections(h4Cols),
     });
 
     addPageFootersAndSignatures(doc, project, true, margin);
@@ -825,6 +880,13 @@ export function exportProjectReportPDF(params: {
       ]);
     }
 
+    const h5Cols: Record<number, { cellWidth: number; halign?: 'left' | 'center' | 'right' }> = {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 62, halign: 'left' },
+      2: { cellWidth: 78, halign: 'left' },
+      3: { cellWidth: 36, halign: 'right' },
+    };
+
     // Proportional column widths summing to 186mm on A4 Portrait
     autoTable(doc, {
       startY,
@@ -850,16 +912,19 @@ export function exportProjectReportPDF(params: {
         ],
       ],
       showFoot: 'lastPage',
-      styles: { fontSize: 8.2, cellPadding: 2.5, textColor: [29, 41, 57], valign: 'middle' },
+      styles: {
+        fontSize: 8.2,
+        cellPadding: 2.5,
+        textColor: [29, 41, 57],
+        valign: 'middle',
+        lineWidth: 0.12,
+        lineColor: [226, 232, 240],
+      },
       headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.2 },
       footStyles: { fillColor: [239, 245, 255], textColor: [21, 94, 239], fontStyle: 'bold', fontSize: 8.2 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
-      columnStyles: {
-        0: { cellWidth: 10, halign: 'center' },
-        1: { cellWidth: 62 },
-        2: { cellWidth: 78 },
-        3: { cellWidth: 36, halign: 'right' },
-      },
+      columnStyles: h5Cols,
+      didParseCell: applyColumnAlignmentToAllSections(h5Cols),
     });
 
     addPageFootersAndSignatures(doc, project, true, margin);
@@ -890,6 +955,24 @@ export function exportProjectSlipGajiPDF(params: {
   const printableWidth = pageWidth - margin * 2; // 186mm
   const dateSlug = new Date().toISOString().slice(0, 10);
   const safeProjCode = (project.code || project.name).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  const slipTable1Cols: Record<number, { cellWidth: number; halign?: 'left' | 'center' | 'right' }> = {
+    0: { cellWidth: 68, halign: 'left' },
+    1: { cellWidth: 80, halign: 'left' },
+    2: { cellWidth: 38, halign: 'right' },
+  };
+
+  const slipTable2Cols: Record<number, { cellWidth: number; halign?: 'left' | 'center' | 'right' }> = {
+    0: { cellWidth: 8, halign: 'center' },
+    1: { cellWidth: 23, halign: 'center' },
+    2: { cellWidth: 20, halign: 'left' },
+    3: { cellWidth: 19, halign: 'center' },
+    4: { cellWidth: 24, halign: 'right' },
+    5: { cellWidth: 20, halign: 'center' },
+    6: { cellWidth: 23, halign: 'right' },
+    7: { cellWidth: 24, halign: 'right' },
+    8: { cellWidth: 25, halign: 'right' },
+  };
 
   employees.forEach((emp, index) => {
     if (index > 0) {
@@ -1000,15 +1083,19 @@ export function exportProjectSlipGajiPDF(params: {
           formatRupiah(emp.netSalary),
         ],
       ],
-      styles: { fontSize: 8.1, cellPadding: 2, textColor: [29, 41, 57], valign: 'middle' },
+      styles: {
+        fontSize: 8.1,
+        cellPadding: 2,
+        textColor: [29, 41, 57],
+        valign: 'middle',
+        lineWidth: 0.12,
+        lineColor: [226, 232, 240],
+      },
       headStyles: { fillColor: [11, 48, 112], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.1 },
       footStyles: { fillColor: [236, 253, 243], textColor: [2, 122, 72], fontStyle: 'bold', fontSize: 8.6 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
-      columnStyles: {
-        0: { cellWidth: 68 },
-        1: { cellWidth: 80 },
-        2: { cellWidth: 38, halign: 'right' },
-      },
+      columnStyles: slipTable1Cols,
+      didParseCell: applyColumnAlignmentToAllSections(slipTable1Cols),
     });
 
     // Table 2: Ringkasan Kehadiran Harian Karyawan (total 186mm)
@@ -1055,50 +1142,53 @@ export function exportProjectSlipGajiPDF(params: {
         attRows.length > 0
           ? attRows
           : [['-', '-', 'Tidak ada rincian absensi harian pada periode ini', '-', 'Rp 0', '-', 'Rp 0', '-', 'Rp 0']],
-      styles: { fontSize: 7.3, cellPadding: 1.5, textColor: [52, 64, 84], valign: 'middle' },
+      styles: {
+        fontSize: 7.3,
+        cellPadding: 1.5,
+        textColor: [52, 64, 84],
+        valign: 'middle',
+        lineWidth: 0.12,
+        lineColor: [226, 232, 240],
+      },
       headStyles: { fillColor: [52, 64, 84], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.3 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
-      columnStyles: {
-        0: { cellWidth: 8, halign: 'center' },
-        1: { cellWidth: 24 },
-        2: { cellWidth: 20 },
-        3: { cellWidth: 18, halign: 'center' },
-        4: { cellWidth: 24, halign: 'right' },
-        5: { cellWidth: 20, halign: 'center' },
-        6: { cellWidth: 23, halign: 'right' },
-        7: { cellWidth: 24, halign: 'right' },
-        8: { cellWidth: 25, halign: 'right' },
-      },
+      columnStyles: slipTable2Cols,
+      didParseCell: applyColumnAlignmentToAllSections(slipTable2Cols),
     });
 
-    // Signature block for Slip Gaji
-    let sigY = ((doc as any).lastAutoTable?.finalY || 225) + 8;
+    // Signature block for Slip Gaji (Centered per column, no duplicate horizontal line above)
+    let sigY = ((doc as any).lastAutoTable?.finalY || 225) + 9;
     const pageHeight = doc.internal.pageSize.getHeight();
-    if (sigY + 28 > pageHeight - 13) {
+    if (sigY + 30 > pageHeight - 14) {
       doc.addPage();
-      sigY = 42;
+      sigY = 44;
     }
+
+    const leftSigX = margin + 38;
+    const rightSigX = pageWidth - margin - 38;
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(52, 64, 84);
-    doc.text('Penerima Upah / Karyawan,', margin + 12, sigY);
-    doc.setDrawColor(102, 112, 133);
-    doc.setLineWidth(0.3);
-    doc.line(margin + 12, sigY + 19, margin + 62, sigY + 19);
+    doc.text('Penerima Upah / Karyawan,', leftSigX, sigY, { align: 'center' });
     doc.setFont('helvetica', 'bold');
-    doc.text(`( ${emp.employeeName} )`, margin + 12, sigY + 23.5);
+    doc.setTextColor(29, 41, 57);
+    doc.text(`( ${emp.employeeName} )`, leftSigX, sigY + 23, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
+    doc.setTextColor(52, 64, 84);
     doc.text(
       `${project.location || 'Serang'}, ${formatDateID(new Date().toISOString().split('T')[0])}`,
-      pageWidth - margin - 62,
-      sigY
+      rightSigX,
+      sigY,
+      { align: 'center' }
     );
-    doc.text('Bagian Keuangan / Admin Proyek,', pageWidth - margin - 62, sigY + 4.5);
-    doc.line(pageWidth - margin - 62, sigY + 19, pageWidth - margin - 10, sigY + 19);
+    doc.text('Bagian Keuangan / Admin Proyek,', rightSigX, sigY + 4.5, { align: 'center' });
     doc.setFont('helvetica', 'bold');
-    doc.text('( ______________________ )', pageWidth - margin - 62, sigY + 23.5);
+    doc.setTextColor(29, 41, 57);
+    doc.text('( ............................................ )', rightSigX, sigY + 23, {
+      align: 'center',
+    });
   });
 
   addPageFootersAndSignatures(doc, project, false, margin);
