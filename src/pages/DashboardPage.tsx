@@ -132,7 +132,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         setRecentTransactions(txs.slice(0, 7));
       }
     } catch (err) {
-      console.error('Error fetching dashboard stats:', err);
+      console.warn('Notice fetching dashboard stats:', err);
     } finally {
       setLoading(false);
     }
@@ -190,7 +190,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           ========================================================================= */}
       <motion.div
         variants={itemVariants}
-        className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-7 shadow-[0_1px_3px_rgba(15,23,42,0.03)]"
+        className="glass-panel rounded-2xl p-6 sm:p-7"
       >
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="space-y-1.5">
@@ -220,7 +220,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
         {/* Filter Periode with Animated Sliding Pill */}
         <div className="mt-6 pt-5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
-          <div className="inline-flex items-center gap-1 p-1 bg-slate-100/90 rounded-xl overflow-x-auto max-w-full">
+          <div className="inline-flex items-center gap-1 p-1 bg-slate-200/50 backdrop-blur-sm rounded-xl overflow-x-auto max-w-full border border-white/60">
             {[
               { id: 'today', label: 'Hari Ini' },
               { id: 'this_week', label: 'Minggu Ini' },
@@ -608,9 +608,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           ========================================================================= */}
       <motion.div
         variants={itemVariants}
-        className="bg-white rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] overflow-hidden"
+        className="glass-table rounded-2xl overflow-hidden"
       >
-        <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="p-6 border-b border-slate-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-slate-900">
               Transaksi Operasional Terbaru
@@ -632,7 +632,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-600 font-medium">
+              <tr className="bg-slate-50/60 backdrop-blur-xs border-b border-slate-200/80 text-slate-600 font-medium">
                 <th className="py-3.5 px-6">Tanggal</th>
                 <th className="py-3.5 px-6">Keterangan Transaksi</th>
                 <th className="py-3.5 px-6">Kategori</th>

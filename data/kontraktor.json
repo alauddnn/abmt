@@ -355,6 +355,69 @@
   "operationalExpenseAttachments": [],
   "auditLogs": [
     {
+      "id": "LOG-1794116476079-2298",
+      "timestamp": "2026-11-08T05:41:16.079Z",
+      "userName": "Administrator Proyek",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1794116475998-0kfe",
+      "timestamp": "2026-11-08T05:41:15.998Z",
+      "userName": "Administrator Proyek",
+      "userRole": "admin",
+      "action": "Ubah Profil",
+      "module": "Pengguna",
+      "details": "Pengguna admin memperbarui profil dan foto profil."
+    },
+    {
+      "id": "LOG-1794116475389-qomi",
+      "timestamp": "2026-11-08T05:41:15.389Z",
+      "userName": "Administrator Proyek",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1794116468477-tgkx",
+      "timestamp": "2026-11-08T05:41:08.477Z",
+      "userName": "Administrator Proyek",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1794116459890-pej1",
+      "timestamp": "2026-11-08T05:40:59.890Z",
+      "userName": "Administrator Proyek",
+      "userRole": "admin",
+      "action": "Ubah Profil",
+      "module": "Pengguna",
+      "details": "Pengguna admin memperbarui profil dan foto profil."
+    },
+    {
+      "id": "LOG-1794116458413-jra7",
+      "timestamp": "2026-11-08T05:40:58.413Z",
+      "userName": "Administrator Proyek",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
+      "id": "LOG-1794116205187-yw2w",
+      "timestamp": "2026-11-08T05:36:45.187Z",
+      "userName": "Administrator Proyek",
+      "userRole": "admin",
+      "action": "Login",
+      "module": "Sistem",
+      "details": "Pengguna admin (ADMIN) berhasil masuk ke sistem"
+    },
+    {
       "id": "LOG-1793005607921-ttxj",
       "timestamp": "2026-10-26T09:06:47.921Z",
       "userName": "Administrator (Tim IT)",
@@ -607,7 +670,8 @@
       "role": "admin",
       "salt": "e5a1b3c7d9f2468013579bdf02468ace",
       "passwordHash": "9955fc54f93d60f99178b67d8f9ab27481f6d64c4d840f70f30d990d2e0307f805c2b2e171f38af28adc69d0a5c203abec13c6bc8b61a83a27d72220eb61f49f",
-      "createdAt": "2026-10-19T00:00:00.000Z"
+      "createdAt": "2026-10-19T00:00:00.000Z",
+      "avatarUrl": "https://wrphgazcvapjbwlaryny.supabase.co/storage/v1/object/sign/expense-receipts/avatars/1794116475392_a543a91ec5d4_avatar_USR-ADMIN-01.jpg?token=eyJraWQiOiIxNzhhMDllYy1jNjkwLTQxY2MtODRiYS1kYWY1N2RlNjFlM2QiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJleHBlbnNlLXJlY2VpcHRzL2F2YXRhcnMvMTc5NDExNjQ3NTM5Ml9hNTQzYTkxZWM1ZDRfYXZhdGFyX1VTUi1BRE1JTi0wMS5qcGciLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzk0MTE2NDc1LCJleHAiOjE3OTQxMjAwNzV9.ESKGYA0uVv2mvMPWxep5NqkLdQ3ke7COL-5WH1YJdv3955fGUvmHxxhjmW7xvQB82_IlUJMwQlr4mtWvT5eXjQ"
     },
     {
       "id": "USR-OWNER-01",

@@ -226,6 +226,7 @@ export interface AppUser {
   role: 'admin' | 'owner';
   passwordHash: string;
   salt: string;
+  avatarUrl?: string;
   createdAt: string;
 }
 
@@ -382,6 +383,7 @@ export interface SessionData {
   email: string;
   name: string;
   role: 'admin' | 'owner';
+  avatarUrl?: string;
   createdAt: string;
   expiresAt: string;
 }
@@ -475,6 +477,7 @@ export class SessionManager {
       email: user.email,
       name: user.name,
       role: user.role,
+      avatarUrl: user.avatarUrl,
       createdAt: now.toISOString(),
       expiresAt,
     };
@@ -510,6 +513,20 @@ export class SessionManager {
     }
 
     return null;
+  }
+
+  public updateSessionUser(userIdOrUsername: string, updates: { name?: string; avatarUrl?: string; email?: string }): void {
+    let changed = false;
+    for (const [token, session] of this.sessions.entries()) {
+      if (session.userId === userIdOrUsername || session.username.toLowerCase() === userIdOrUsername.toLowerCase()) {
+        if (updates.name !== undefined) session.name = updates.name;
+        if (updates.avatarUrl !== undefined) session.avatarUrl = updates.avatarUrl;
+        if (updates.email !== undefined) session.email = updates.email;
+        this.sessions.set(token, session);
+        changed = true;
+      }
+    }
+    if (changed) this.saveSessions();
   }
 
   public destroySession(token: string): boolean {

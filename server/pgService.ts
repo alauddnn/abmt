@@ -375,6 +375,7 @@ function mapUser(row: any): AppUser {
     role: row.role,
     salt: row.salt,
     passwordHash: row.password_hash,
+    avatarUrl: row.avatar_url || row.avatarUrl || undefined,
     createdAt: row.created_at
       ? typeof row.created_at === 'string'
         ? row.created_at
@@ -566,6 +567,20 @@ export async function ensureAllSchemasOnce(): Promise<void> {
           created_by VARCHAR(150),
           created_at TIMESTAMPTZ DEFAULT NOW()
         );
+
+        CREATE TABLE IF NOT EXISTS app_users (
+          id VARCHAR(64) PRIMARY KEY,
+          username VARCHAR(100) UNIQUE NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          name VARCHAR(255) NOT NULL,
+          role VARCHAR(50) NOT NULL DEFAULT 'admin',
+          salt VARCHAR(255) NOT NULL,
+          password_hash VARCHAR(255) NOT NULL,
+          avatar_url TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        ALTER TABLE app_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
         CREATE TABLE IF NOT EXISTS operational_expense_attachments (
           id VARCHAR(64) PRIMARY KEY,
@@ -4509,27 +4524,32 @@ export const pgService = {
 
   async createUser(data: Partial<AppUser>): Promise<AppUser> {
     const res = await query(
-      `INSERT INTO app_users (id, username, email, name, role, salt, password_hash, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING *`,
+      `INSERT INTO app_users (id, username, email, name, role, salt, password_hash, avatar_url, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING *`,
       [
         data.id, data.username, data.email, data.name, data.role,
-        data.salt, data.passwordHash,
+        data.salt, data.passwordHash, data.avatarUrl || null,
       ]
     );
     return mapUser(res.rows[0]);
   },
 
   async updateUser(id: string, data: Partial<AppUser>): Promise<AppUser> {
+    await ensureAllSchemasOnce();
     const currentRes = await query('SELECT * FROM app_users WHERE id = $1', [id]);
     if (!currentRes.rows.length) throw new Error('User tidak ditemukan.');
     const current = mapUser(currentRes.rows[0]);
     const updated = { ...current, ...data };
 
+    try {
+      await query('ALTER TABLE app_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;');
+    } catch {}
+
     const res = await query(
       `UPDATE app_users SET
-        name = $1, email = $2, role = $3, salt = $4, password_hash = $5
-       WHERE id = $6 RETURNING *`,
-      [updated.name, updated.email, updated.role, updated.salt, updated.passwordHash, id]
+        name = $1, email = $2, role = $3, salt = $4, password_hash = $5, avatar_url = $6
+       WHERE id = $7 RETURNING *`,
+      [updated.name, updated.email, updated.role, updated.salt, updated.passwordHash, updated.avatarUrl || null, id]
     );
     return mapUser(res.rows[0]);
   },

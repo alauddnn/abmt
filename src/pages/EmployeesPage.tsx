@@ -262,7 +262,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
   return (
     <div className="space-y-6 pb-20">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-[#EAECF0] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="glass-panel rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
@@ -284,7 +284,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
         {isAdmin && (
           <button
             onClick={openCreateModal}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-medium rounded-lg shadow-xs transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-medium rounded-xl shadow-xs transition-colors shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>Tambah Karyawan Baru</span>
@@ -294,7 +294,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
 
       {/* Role Notice for Owner */}
       {isOwner && (
-        <div className="bg-[#FEF6EE] border border-[#F9DBAF] rounded-xl p-3.5 flex items-center justify-between text-xs text-[#B54708]">
+        <div className="bg-[#FEF6EE]/90 backdrop-blur-xs border border-[#F9DBAF] rounded-2xl p-3.5 flex items-center justify-between text-xs text-[#B54708]">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-[#B54708] shrink-0" />
             <span>
@@ -305,32 +305,32 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        <div className="glass-card p-4 rounded-2xl">
           <p className="text-xs font-medium text-[#667085]">Total Personil</p>
           <p className="text-xl font-semibold text-[#262626] mt-1.5">{employees.length}</p>
           <p className="text-[10px] text-[#667085] mt-0.5">Semua jabatan</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs">
+        <div className="glass-card p-4 rounded-2xl">
           <p className="text-xs font-medium text-[#7F56D9]">Mandor</p>
           <p className="text-xl font-semibold text-[#7F56D9] mt-1.5">{countMandor}</p>
           <p className="text-[10px] text-[#667085] mt-0.5">Pengawas lapangan</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs">
+        <div className="glass-card p-4 rounded-2xl">
           <p className="text-xs font-medium text-[#4693FD]">Tukang</p>
           <p className="text-xl font-semibold text-[#4693FD] mt-1.5">{countTukang}</p>
           <p className="text-[10px] text-[#667085] mt-0.5">Tenaga terampil</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs">
+        <div className="glass-card p-4 rounded-2xl">
           <p className="text-xs font-medium text-[#D99A23]">Helper</p>
           <p className="text-xl font-semibold text-[#D99A23] mt-1.5">{countHelper}</p>
           <p className="text-[10px] text-[#667085] mt-0.5">Pembantu tukang</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs">
+        <div className="glass-card p-4 rounded-2xl">
           <p className="text-xs font-medium text-[#0E9384]">Driver</p>
           <p className="text-xl font-semibold text-[#0E9384] mt-1.5">{countDriver}</p>
           <p className="text-[10px] text-[#667085] mt-0.5">Logistik & armada</p>
@@ -338,7 +338,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+      <div className="glass-panel p-4 sm:p-5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3">
         <div className="relative w-full md:w-80">
           <Search className="w-4 h-4 text-[#98A2B3] absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -346,49 +346,49 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
             placeholder="Cari nama atau ID karyawan..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3.5 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+            className="w-full pl-9 pr-3.5 py-2 bg-white/70 hover:bg-white/90 focus:bg-white border border-slate-200/90 rounded-xl text-xs text-[#262626] backdrop-blur-md focus:outline-none focus:border-[#4693FD]"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           {/* Role Filter */}
-          <div className="flex items-center bg-[#F2F4F7] p-0.5 rounded-lg text-xs border border-[#EAECF0]">
+          <div className="flex items-center bg-slate-200/50 backdrop-blur-sm p-1 rounded-xl text-xs border border-white/60">
             <button
               onClick={() => setRoleFilter('all')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                roleFilter === 'all' ? 'bg-white text-[#262626] shadow-xs' : 'text-[#667085] hover:text-[#262626]'
+              className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
+                roleFilter === 'all' ? 'bg-white/90 text-[#262626] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#262626]'
               }`}
             >
               Semua ({employees.length})
             </button>
             <button
               onClick={() => setRoleFilter('Mandor')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                roleFilter === 'Mandor' ? 'bg-white text-[#7F56D9] shadow-xs' : 'text-[#667085] hover:text-[#7F56D9]'
+              className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
+                roleFilter === 'Mandor' ? 'bg-white/90 text-[#7F56D9] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#7F56D9]'
               }`}
             >
               Mandor ({countMandor})
             </button>
             <button
               onClick={() => setRoleFilter('Tukang')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                roleFilter === 'Tukang' ? 'bg-white text-[#4693FD] shadow-xs' : 'text-[#667085] hover:text-[#4693FD]'
+              className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
+                roleFilter === 'Tukang' ? 'bg-white/90 text-[#4693FD] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#4693FD]'
               }`}
             >
               Tukang ({countTukang})
             </button>
             <button
               onClick={() => setRoleFilter('Helper')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                roleFilter === 'Helper' ? 'bg-white text-[#D99A23] shadow-xs' : 'text-[#667085] hover:text-[#D99A23]'
+              className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
+                roleFilter === 'Helper' ? 'bg-white/90 text-[#D99A23] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#D99A23]'
               }`}
             >
               Helper ({countHelper})
             </button>
             <button
               onClick={() => setRoleFilter('Driver')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                roleFilter === 'Driver' ? 'bg-white text-[#0E9384] shadow-xs' : 'text-[#667085] hover:text-[#0E9384]'
+              className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
+                roleFilter === 'Driver' ? 'bg-white/90 text-[#0E9384] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#0E9384]'
               }`}
             >
               Driver ({countDriver})
@@ -396,27 +396,27 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
           </div>
 
           {/* Status Filter */}
-          <div className="flex items-center bg-[#F2F4F7] p-0.5 rounded-lg text-xs border border-[#EAECF0]">
+          <div className="flex items-center bg-slate-200/50 backdrop-blur-sm p-1 rounded-xl text-xs border border-white/60">
             <button
               onClick={() => setStatusFilter('all')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                statusFilter === 'all' ? 'bg-white text-[#262626] shadow-xs' : 'text-[#667085] hover:text-[#262626]'
+              className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
+                statusFilter === 'all' ? 'bg-white/90 text-[#262626] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#262626]'
               }`}
             >
               Semua
             </button>
             <button
               onClick={() => setStatusFilter('active')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                statusFilter === 'active' ? 'bg-white text-[#16A36A] shadow-xs' : 'text-[#667085] hover:text-[#262626]'
+              className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
+                statusFilter === 'active' ? 'bg-white/90 text-[#16A36A] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#262626]'
               }`}
             >
               Aktif
             </button>
             <button
               onClick={() => setStatusFilter('inactive')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                statusFilter === 'inactive' ? 'bg-white text-[#D64545] shadow-xs' : 'text-[#667085] hover:text-[#262626]'
+              className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
+                statusFilter === 'inactive' ? 'bg-white/90 text-[#667085] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#262626]'
               }`}
             >
               Nonaktif
@@ -426,11 +426,11 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
       </div>
 
       {/* Employees Table */}
-      <div className="bg-white rounded-xl border border-[#EAECF0] shadow-xs overflow-hidden">
+      <div className="glass-table rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-[#F9FAFB] text-[#475467] font-medium border-b border-[#EAECF0]">
+              <tr className="bg-slate-50/60 backdrop-blur-xs text-[#475467] font-medium border-b border-slate-200/80">
                 <th className="py-3 px-4">ID Karyawan</th>
                 <th className="py-3 px-4">Nama Lengkap</th>
                 <th className="py-3 px-4">Jabatan</th>
@@ -569,9 +569,9 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
 
       {/* Edit / Add / Detail Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full border border-[#EAECF0] overflow-hidden">
-            <div className="px-6 py-4 bg-white text-[#262626] border-b border-[#EAECF0] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
+          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden">
+            <div className="px-6 py-4 bg-white/40 backdrop-blur-sm text-[#262626] border-b border-white/70 flex items-center justify-between">
               <div>
                 <h3 className="font-semibold text-sm">
                   {isViewOnly
@@ -818,9 +818,9 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
 
       {/* Permanent Delete / Deactivate Confirmation Modal */}
       {empToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full border border-[#EAECF0] overflow-hidden">
-            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between bg-[#FEF3F2]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
+          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden">
+            <div className="p-5 border-b border-rose-200/60 flex items-center justify-between bg-rose-50/70 backdrop-blur-xs">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-[#FEE4E2] text-[#D92D20] flex items-center justify-center shrink-0">
                   <Trash2 className="w-4 h-4" />

@@ -440,7 +440,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
   return (
     <div className="space-y-6 pb-20">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-[#EAECF0] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="glass-panel rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
@@ -463,7 +463,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <button
               onClick={openBulkModal}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-[#F9FAFB] text-[#344054] text-xs font-medium rounded-lg border border-[#D0D5DD] shadow-xs transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white/80 hover:bg-white text-[#344054] text-xs font-medium rounded-xl border border-slate-200/90 shadow-2xs transition-colors backdrop-blur-sm"
               title="Catat seluruh karyawan aktif sekaligus untuk tanggal terpilih"
             >
               <Layers className="w-4 h-4 text-[#4693FD]" />
@@ -471,7 +471,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
             </button>
             <button
               onClick={() => openSingleModal()}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-medium rounded-lg shadow-xs transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-medium rounded-xl shadow-xs transition-colors"
             >
               <Plus className="w-4 h-4" />
               <span>Input Tunggal</span>
@@ -481,7 +481,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
       </div>
 
       {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <div className="glass-panel p-4 sm:p-5 rounded-2xl flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-[#667085]" />
@@ -570,11 +570,11 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
       </div>
 
       {/* Attendance Table */}
-      <div className="bg-white rounded-xl border border-[#EAECF0] shadow-xs overflow-hidden">
+      <div className="glass-table rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-[#F9FAFB] text-[#475467] font-medium border-b border-[#EAECF0]">
+              <tr className="bg-slate-50/60 backdrop-blur-xs text-[#475467] font-medium border-b border-slate-200/80">
                 <th className="py-3 px-4">Tanggal</th>
                 <th className="py-3 px-4">Nama Karyawan</th>
                 <th className="py-3 px-4">Jabatan</th>
@@ -715,9 +715,9 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
 
       {/* Single Attendance Modal (Create & Edit with Integrated Kasbon) */}
       {isSingleModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-[2px] overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full border border-[#EAECF0] overflow-hidden animate-in fade-in zoom-in-95 my-8">
-            <div className="px-6 py-4 bg-white text-[#262626] border-b border-[#EAECF0] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md overflow-y-auto">
+          <div className="glass-modal rounded-2xl max-w-lg w-full overflow-hidden my-8">
+            <div className="px-6 py-4 bg-white/40 backdrop-blur-sm text-[#262626] border-b border-white/70 flex items-center justify-between">
               <h3 className="font-semibold text-sm">
                 {editingAtt ? `Edit Absensi: ${editingAtt.employeeName}` : 'Catat Kehadiran Karyawan'}
               </h3>
@@ -928,9 +928,9 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
 
       {/* Bulk Attendance Modal */}
       {isBulkModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-[2px] overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full border border-[#EAECF0] overflow-hidden animate-in fade-in zoom-in-95 my-8">
-            <div className="px-6 py-4 bg-white text-[#262626] border-b border-[#EAECF0] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md overflow-y-auto">
+          <div className="glass-modal rounded-2xl max-w-5xl w-full overflow-hidden my-8">
+            <div className="px-6 py-4 bg-white/40 backdrop-blur-sm text-[#262626] border-b border-white/70 flex items-center justify-between">
               <div>
                 <h3 className="font-semibold text-sm">Absensi Massal Karyawan ({bulkEntries.length} Karyawan)</h3>
                 <p className="text-[11px] text-[#667085]">
@@ -1095,9 +1095,9 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
         );
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/50 backdrop-blur-xs">
-            <div className="bg-white rounded-2xl max-w-md w-full border border-[#EAECF0] shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
-              <div className="p-5 bg-[#FEF3F2] border-b border-[#FECDCA] flex items-center justify-between">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
+            <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden">
+              <div className="p-5 bg-rose-50/70 border-b border-rose-200/60 flex items-center justify-between backdrop-blur-xs">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-[#FEE4E2] text-[#D92D20] flex items-center justify-center shrink-0">
                     <Trash2 className="w-5 h-5" />

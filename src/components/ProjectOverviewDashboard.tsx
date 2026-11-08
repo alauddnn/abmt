@@ -88,6 +88,53 @@ type SubModule =
   | 'operasional'
   | 'laporan';
 
+export type ReportSubmenuId = 'h1' | 'h2' | 'h3' | 'h4' | 'h5';
+
+export const REPORT_SUBMENUS: Record<ReportSubmenuId, { code: string; title: string; subtitle: string }> = {
+  h1: {
+    code: 'H1',
+    title: 'H1. Rekap Gaji Per Karyawan',
+    subtitle: 'Rincian lengkap kehadiran harian, setengah hari, jam lembur aktual, kasbon, gaji kotor, dan gaji bersih per individu.',
+  },
+  h2: {
+    code: 'H2',
+    title: 'H2. Rekap Total Gaji Seluruh Karyawan',
+    subtitle: 'Ringkasan tabel kolektif gaji seluruh tenaga kerja proyek beserta akumulasi grand total komponen pengupahan.',
+  },
+  h3: {
+    code: 'H3',
+    title: 'H3. Rekap Biaya Transportasi Proyek',
+    subtitle: 'Daftar transaksi biaya transportasi proyek (BBM, tol, parkir, ongkos & armada) lengkap dengan bukti foto.',
+  },
+  h4: {
+    code: 'H4',
+    title: 'H4. Rekap Biaya Pengeluaran Operasional Lapangan',
+    subtitle: 'Daftar pengeluaran operasional lapangan proyek (material kecil, alat kerja, konsumsi & darurat) beserta struk bukti.',
+  },
+  h5: {
+    code: 'H5',
+    title: 'H5. Rekap Seluruh Pengeluaran Proyek',
+    subtitle: 'Ringkasan eksekutif penggabungan total gaji karyawan, transportasi, operasional lapangan, sisa anggaran, dan persentase realisasi.',
+  },
+};
+
+const avatarPalettes = [
+  'bg-[#DCE7F9] text-[#1E293B]',
+  'bg-[#F9E2D2] text-[#1E293B]',
+  'bg-[#EDE3DA] text-[#1E293B]',
+  'bg-[#D9EFE6] text-[#1E293B]',
+  'bg-[#E5EEDF] text-[#1E293B]',
+];
+
+const getInitials = (name: string) => {
+  const cleaned = (name || 'Karyawan').trim();
+  const parts = cleaned.split(/\s+/);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+  return cleaned.slice(0, 2).toUpperCase();
+};
+
 export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> = ({
   project,
   onBack,
@@ -377,7 +424,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
   });
 
   // Section H: Laporan & Rekapitulasi Komprehensif Proyek (H1 - H5) state
-  const [activeReportSubmenu, setActiveReportSubmenu] = useState<'h1' | 'h2' | 'h3' | 'h4' | 'h5'>('h1');
+  const [activeReportSubmenu, setActiveReportSubmenu] = useState<ReportSubmenuId | null>(null);
   const [reportStartDate, setReportStartDate] = useState<string>('');
   const [reportEndDate, setReportEndDate] = useState<string>('');
   const [appliedStartDate, setAppliedStartDate] = useState<string>('');
@@ -385,6 +432,8 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
   const [reportRoleFilter, setReportRoleFilter] = useState<string>('ALL');
   const [reportEmployeeFilter, setReportEmployeeFilter] = useState<string>('ALL');
   const [reportCategoryFilter, setReportCategoryFilter] = useState<string>('ALL');
+  const [searchH1, setSearchH1] = useState<string>('');
+  const [h1StatusFilter, setH1StatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [selectedH1EmployeeDetail, setSelectedH1EmployeeDetail] = useState<ProjectEmployeeRecapItem | null>(null);
   const [slipGajiModalEmployees, setSlipGajiModalEmployees] = useState<ProjectEmployeeRecapItem[] | null>(null);
 
@@ -1195,7 +1244,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
   return (
     <div className="space-y-7 pb-20 kms-fade-in">
       {/* 3. TOP INFO DASHBOARD */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-7 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
+      <div className="glass-panel rounded-2xl p-6 sm:p-7">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2.5">
             <button
@@ -1350,28 +1399,57 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
 
       {/* NAVIGATION TABS OR SUB-MODULE HEADER */}
       {activeModule !== 'overview' && (
-        <div className="kms-fade-in bg-white border border-slate-200/90 rounded-2xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
+        <div className="kms-fade-in glass-panel rounded-2xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-xs">
             <button
-              onClick={() => setActiveModule('overview')}
+              onClick={() => {
+                setActiveModule('overview');
+                setActiveReportSubmenu(null);
+              }}
               className="group text-[#2563EB] font-semibold hover:underline inline-flex items-center gap-1.5 cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
               <span>Pusat Proyek</span>
             </button>
             <span className="text-slate-300">/</span>
-            <span className="font-semibold text-slate-900">
-              {activeModule === 'karyawan' && 'A. Data Karyawan Proyek'}
-              {activeModule === 'absensi' && 'B. Absensi Karyawan Proyek'}
-              {activeModule === 'lembur' && 'C. Sistem Lembur Proyek'}
-              {activeModule === 'kasbon' && 'D. Kasbon Karyawan'}
-              {activeModule === 'transport' && 'E. Biaya Transportasi Proyek'}
-              {activeModule === 'operasional' && 'F. Pengeluaran Operasional Lapangan'}
-              {activeModule === 'laporan' && 'H. Laporan & Rekapitulasi Komprehensif Proyek'}
-            </span>
+            {activeModule === 'laporan' && activeReportSubmenu ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveReportSubmenu(null)}
+                  className="font-semibold text-[#2563EB] hover:underline cursor-pointer"
+                >
+                  H. Laporan & Rekapitulasi
+                </button>
+                <span className="text-slate-300">/</span>
+                <span className="font-semibold text-slate-900">
+                  {REPORT_SUBMENUS[activeReportSubmenu].title}
+                </span>
+              </div>
+            ) : (
+              <span className="font-semibold text-slate-900">
+                {activeModule === 'karyawan' && 'A. Data Karyawan Proyek'}
+                {activeModule === 'absensi' && 'B. Absensi Karyawan Proyek'}
+                {activeModule === 'lembur' && 'C. Sistem Lembur Proyek'}
+                {activeModule === 'kasbon' && 'D. Kasbon Karyawan'}
+                {activeModule === 'transport' && 'E. Biaya Transportasi Proyek'}
+                {activeModule === 'operasional' && 'F. Pengeluaran Operasional Lapangan'}
+                {activeModule === 'laporan' && 'H. Laporan & Rekapitulasi Komprehensif Proyek'}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
+            {activeModule === 'laporan' && activeReportSubmenu && (
+              <button
+                type="button"
+                onClick={() => setActiveReportSubmenu(null)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Daftar Sub-Menu (H1–H5)</span>
+              </button>
+            )}
             {isAdmin && activeModule === 'karyawan' && (
               <button
                 onClick={() => setIsAddEmployeeModalOpen(true)}
@@ -1612,7 +1690,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
             {/* H. Laporan & Rekapitulasi Komprehensif Proyek (H1 - H5) */}
             <div
               onClick={() => {
-                setActiveReportSubmenu('h1');
+                setActiveReportSubmenu(null);
                 setActiveModule('laporan');
               }}
               className="kms-module-card bg-white p-6 rounded-2xl border border-slate-200/90 hover:border-[#2563EB] shadow-[0_1px_3px_rgba(15,23,42,0.03)] cursor-pointer group flex flex-col justify-between md:col-span-2 lg:col-span-3"
@@ -1632,46 +1710,13 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 <p className="text-xs text-slate-500 mt-1.5 leading-relaxed max-w-3xl">
                   Pusat rekap keuangan resmi proyek {project.name} ({project.code}): rekap gaji per karyawan, rekap total gaji seluruh karyawan, biaya transportasi, pengeluaran operasional lapangan, dan realisasi seluruh anggaran proyek.
                 </p>
-
-                {/* 5 Submenu Quick-Launch Buttons (H1 - H5) */}
-                <div
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-5"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {[
-                    { id: 'h1', code: 'H1', label: 'Rekap Gaji Per Karyawan', desc: 'Detail harian, lembur, kasbon & slip gaji' },
-                    { id: 'h2', code: 'H2', label: 'Rekap Total Gaji Karyawan', desc: 'Tabel rekap kolektif & grand total upah' },
-                    { id: 'h3', code: 'H3', label: 'Rekap Biaya Transportasi', desc: 'Rincian BBM, tol, parkir & bukti foto' },
-                    { id: 'h4', code: 'H4', label: 'Rekap Operasional Lapangan', desc: 'Rincian belanja lapangan & struk' },
-                    { id: 'h5', code: 'H5', label: 'Rekap Seluruh Pengeluaran', desc: 'Realisasi anggaran vs total biaya proyek' },
-                  ].map((sub) => (
-                    <button
-                      key={sub.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveReportSubmenu(sub.id as any);
-                        setActiveModule('laporan');
-                      }}
-                      className="kms-card-hover text-left p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/70 hover:bg-blue-50/50 hover:border-[#2563EB] transition-all group/sub cursor-pointer"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-mono font-bold text-[#2563EB]">
-                          {sub.code}
-                        </span>
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover/sub:text-[#2563EB] group-hover/sub:translate-x-0.5 transition-all" />
-                      </div>
-                      <p className="text-xs font-semibold text-slate-900 mt-1.5 line-clamp-1">{sub.label}</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{sub.desc}</p>
-                    </button>
-                  ))}
-                </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-[#F2F4F7] flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="font-semibold text-[#4693FD]">
+              <div className="mt-5 pt-3.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="font-semibold text-[#155EEF]">
                   Realisasi Anggaran Proyek: {stats.realizationPercentage}% (Sisa Anggaran: {formatRupiah(stats.budgetRemaining)})
                 </span>
                 <span className="inline-flex items-center gap-1 font-semibold text-[#155EEF]">
-                  <span>Buka Pusat Laporan H1–H5</span>
+                  <span>Buka Pusat Laporan (H1–H5)</span>
                   <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </span>
               </div>
@@ -1709,23 +1754,6 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
           (a) => a.status === 'active' && a.employeeStatus !== 'inactive'
         ).length;
         const inactiveCount = assignments.length - activeCount;
-
-        const avatarPalettes = [
-          'bg-[#DCE7F9] text-[#1E293B]',
-          'bg-[#F9E2D2] text-[#1E293B]',
-          'bg-[#EDE3DA] text-[#1E293B]',
-          'bg-[#D9EFE6] text-[#1E293B]',
-          'bg-[#E5EEDF] text-[#1E293B]',
-        ];
-
-        const getInitials = (name: string) => {
-          const cleaned = (name || 'Karyawan').trim();
-          const parts = cleaned.split(/\s+/);
-          if (parts.length >= 2) {
-            return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-          }
-          return cleaned.slice(0, 2).toUpperCase();
-        };
 
         const formatJoinDateShort = (dateStr?: string) => {
           if (!dateStr) return '-';
@@ -3167,7 +3195,23 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
             activeReportSubmenu !== 'h1' ||
             reportEmployeeFilter === 'ALL' ||
             emp.employeeId === reportEmployeeFilter;
-          return matchRole && matchEmp;
+          const q = searchH1.toLowerCase().trim();
+          const asgMatch = assignments.find((a) => a.employeeId === emp.employeeId);
+          const matchSearch =
+            activeReportSubmenu !== 'h1' ||
+            !q ||
+            emp.employeeName.toLowerCase().includes(q) ||
+            emp.employeeId.toLowerCase().includes(q) ||
+            emp.role.toLowerCase().includes(q) ||
+            Boolean(asgMatch?.employeeNik && asgMatch.employeeNik.toLowerCase().includes(q)) ||
+            Boolean(asgMatch?.employeePhone && asgMatch.employeePhone.includes(q));
+          const isAct = emp.status !== 'inactive';
+          const matchStatus =
+            activeReportSubmenu !== 'h1' ||
+            h1StatusFilter === 'all' ||
+            (h1StatusFilter === 'active' && isAct) ||
+            (h1StatusFilter === 'inactive' && !isAct);
+          return matchRole && matchEmp && matchSearch && matchStatus;
         });
 
         // Filtered transport expenses for H3
@@ -3239,33 +3283,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
             ? `${formatDateID(appliedStartDate)} s/d ${formatDateID(appliedEndDate)}`
             : 'Semua Periode Proyek (Kumulatif)';
 
-        const submenuMeta: Record<'h1' | 'h2' | 'h3' | 'h4' | 'h5', { code: string; title: string; subtitle: string }> = {
-          h1: {
-            code: 'H1',
-            title: 'H1. Rekap Gaji Per Karyawan',
-            subtitle: 'Rincian lengkap kehadiran harian, setengah hari, jam lembur aktual, kasbon, gaji kotor, dan gaji bersih per individu.',
-          },
-          h2: {
-            code: 'H2',
-            title: 'H2. Rekap Total Gaji Seluruh Karyawan',
-            subtitle: 'Ringkasan tabel kolektif gaji seluruh tenaga kerja proyek beserta akumulasi grand total komponen pengupahan.',
-          },
-          h3: {
-            code: 'H3',
-            title: 'H3. Rekap Biaya Transportasi Proyek',
-            subtitle: 'Daftar transaksi biaya transportasi proyek (BBM, tol, parkir, ongkos & armada) lengkap dengan bukti foto.',
-          },
-          h4: {
-            code: 'H4',
-            title: 'H4. Rekap Biaya Pengeluaran Operasional Lapangan',
-            subtitle: 'Daftar pengeluaran operasional lapangan proyek (material kecil, alat kerja, konsumsi & darurat) beserta struk bukti.',
-          },
-          h5: {
-            code: 'H5',
-            title: 'H5. Rekap Seluruh Pengeluaran Proyek',
-            subtitle: 'Ringkasan eksekutif penggabungan total gaji karyawan, transportasi, operasional lapangan, sisa anggaran, dan persentase realisasi.',
-          },
-        };
+        const submenuMeta = REPORT_SUBMENUS;
 
         const handleApplyReportFilter = () => {
           if ((reportStartDate && !reportEndDate) || (!reportStartDate && reportEndDate)) {
@@ -3325,6 +3343,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
         };
 
         const handleExportCurrentSubmenuPDF = (singleEmp?: ProjectEmployeeRecapItem) => {
+          if (!activeReportSubmenu) return;
           exportProjectReportPDF({
             submenu: activeReportSubmenu,
             project,
@@ -3342,6 +3361,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
         };
 
         const handleExportCurrentSubmenuExcel = (singleEmp?: ProjectEmployeeRecapItem) => {
+          if (!activeReportSubmenu) return;
           exportProjectReportExcel({
             submenu: activeReportSubmenu,
             project,
@@ -3362,164 +3382,468 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
 
         return (
           <div className="space-y-5">
-            {/* 1. SUBMENU NAVIGATION BAR (H1 - H5) */}
-            <div className="bg-white rounded-2xl border border-[#EAECF0] p-3 shadow-xs print:hidden">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 mb-3 border-b border-[#F2F4F7]">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-[#EFF5FF] text-[#155EEF] border border-[#D0E2FF]">
-                      BAGIAN H
-                    </span>
-                    <h2 className="text-base font-bold text-[#1D2939]">
-                      Laporan & Rekapitulasi Komprehensif Proyek — {project.name} ({project.code})
-                    </h2>
+            {activeReportSubmenu === null ? (
+              /* ========================================================== */
+              /* DAFTAR SUB-MENU H1 - H5 (HUB DIRECTORY VIEW)               */
+              /* ========================================================== */
+              <div className="space-y-5 kms-fade-in">
+                {/* Header Card */}
+                <div className="glass-panel rounded-2xl p-5 sm:p-6">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-[#EFF5FF] text-[#155EEF] border border-blue-200 font-mono">
+                          MODUL H
+                        </span>
+                        <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                          H. Laporan & Rekapitulasi Komprehensif Proyek — {project.name}
+                        </h2>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
+                        Pusat rekapitulasi keuangan resmi proyek {project.name} ({project.code}). Silakan pilih salah satu sub-menu laporan di bawah ini untuk melihat rincian pengupahan tenaga kerja, biaya transportasi armada, belanja operasional lapangan, atau realisasi anggaran proyek.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveModule('overview')}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer self-start md:self-auto shadow-2xs"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Kembali ke Pusat Proyek</span>
+                    </button>
                   </div>
-                  <p className="text-xs text-[#667085] mt-0.5">
-                    Pilih salah satu dari 5 submenu di bawah untuk melihat rincian, memfilter periode, mencetak PDF, Print langsung, atau mengekspor ke Excel.
-                  </p>
+
+                  {/* 4 High-level financial metric strips */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-100 text-xs">
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                      <span className="text-[11px] font-semibold text-slate-500 block uppercase tracking-wider">Nilai Anggaran</span>
+                      <p className="text-base font-bold font-mono text-slate-900 mt-1">{formatRupiah(rawSummary.budget)}</p>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block truncate">Plafon resmi kontrak</span>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/80">
+                      <span className="text-[11px] font-semibold text-blue-700 block uppercase tracking-wider">Total Pengeluaran</span>
+                      <p className="text-base font-bold font-mono text-blue-700 mt-1">{formatRupiah(rawSummary.totalProjectCost)}</p>
+                      <span className="text-[10px] text-blue-600/80 mt-0.5 block truncate">Gaji + Transport + Lapangan</span>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200/80">
+                      <span className="text-[11px] font-semibold text-emerald-700 block uppercase tracking-wider">Sisa Anggaran</span>
+                      <p className={`text-base font-bold font-mono mt-1 ${rawSummary.budgetRemaining >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                        {formatRupiah(rawSummary.budgetRemaining)}
+                      </p>
+                      <span className="text-[10px] text-emerald-600/80 mt-0.5 block truncate">
+                        {rawSummary.budgetRemaining >= 0 ? 'Surplus anggaran' : 'Defisit anggaran'}
+                      </span>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/80">
+                      <span className="text-[11px] font-semibold text-amber-800 block uppercase tracking-wider">Tingkat Serapan</span>
+                      <p className="text-base font-bold font-mono text-amber-800 mt-1">{rawSummary.realizationPercentage}%</p>
+                      <span className="text-[10px] text-amber-700/80 mt-0.5 block truncate">Persentase realisasi</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleExportCurrentSubmenuPDF()}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#D92D20] hover:bg-[#B42318] text-white text-xs font-semibold transition-colors shadow-xs"
+
+                {/* Section Heading */}
+                <div className="flex items-center justify-between px-1">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      Daftar Sub-Menu Laporan (H1 s/d H5)
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Klik pada salah satu sub-menu di bawah ini untuk membuka halaman data, tabel rincian, filter periode, dan opsi ekspor.
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200/80 hidden sm:inline-block">
+                    5 Sub-Menu Tersedia
+                  </span>
+                </div>
+
+                {/* 5 Sub-menu Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* CARD H1 */}
+                  <div
+                    onClick={() => {
+                      setActiveReportSubmenu('h1');
+                      setReportCategoryFilter('ALL');
+                    }}
+                    className="kms-card-hover bg-white p-5 rounded-2xl border border-slate-200/90 hover:border-blue-500 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
                   >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Cetak PDF ({submenuMeta[activeReportSubmenu].code})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDirectPrint}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1D2939] hover:bg-[#344054] text-white text-xs font-semibold transition-colors shadow-xs"
+                    <div>
+                      <div className="flex items-center justify-between mb-3.5">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#155EEF] flex items-center justify-center group-hover:scale-105 transition-transform">
+                          <Users className="w-5 h-5" />
+                        </div>
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                          H1
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900 group-hover:text-[#155EEF] transition-colors">
+                        H1. Rekap Gaji Per Karyawan
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                        Rincian lengkap kehadiran harian (penuh & setengah hari), jam lembur aktual, potongan kasbon, gaji kotor, serta slip gaji bersih per individu karyawan proyek.
+                      </p>
+                    </div>
+
+                    <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-700">
+                        {allEmployeeRecaps.length} Karyawan Terdaftar
+                      </span>
+                      <span className="inline-flex items-center gap-1 font-semibold text-[#155EEF] group-hover:translate-x-1 transition-transform">
+                        <span>Buka Sub-Menu H1</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* CARD H2 */}
+                  <div
+                    onClick={() => {
+                      setActiveReportSubmenu('h2');
+                      setReportCategoryFilter('ALL');
+                    }}
+                    className="kms-card-hover bg-white p-5 rounded-2xl border border-slate-200/90 hover:border-indigo-500 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
                   >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>Print Laporan</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleExportCurrentSubmenuExcel()}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#027A48] hover:bg-[#05603A] text-white text-xs font-semibold transition-colors shadow-xs"
+                    <div>
+                      <div className="flex items-center justify-between mb-3.5">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                          <FileSpreadsheet className="w-5 h-5" />
+                        </div>
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          H2
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                        H2. Rekap Total Gaji Seluruh Karyawan
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                        Tabel spreadsheet kolektif seluruh tenaga kerja proyek dengan perbandingan hari kerja, upah lembur, dan grand total akumulasi seluruh pos pengupahan.
+                      </p>
+                    </div>
+
+                    <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="font-semibold font-mono text-slate-900 tabular-nums">
+                        THP: {formatRupiah(rawSummary.totalNetSalary)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 font-semibold text-indigo-600 group-hover:translate-x-1 transition-transform">
+                        <span>Buka Sub-Menu H2</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* CARD H3 */}
+                  <div
+                    onClick={() => {
+                      setActiveReportSubmenu('h3');
+                      setReportCategoryFilter('ALL');
+                    }}
+                    className="kms-card-hover bg-white p-5 rounded-2xl border border-slate-200/90 hover:border-cyan-500 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
                   >
-                    <FileSpreadsheet className="w-3.5 h-3.5" />
-                    <span>Ekspor Excel (.xlsx)</span>
-                  </button>
+                    <div>
+                      <div className="flex items-center justify-between mb-3.5">
+                        <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                          <Truck className="w-5 h-5" />
+                        </div>
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
+                          H3
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900 group-hover:text-cyan-600 transition-colors">
+                        H3. Rekap Biaya Transportasi Proyek
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                        Pencatatan riil pengeluaran armada dan logistik: BBM bensin/solar, tol, karcis parkir, ongkos angkut, dan sewa kendaraan beserta bukti foto fisik nota.
+                      </p>
+                    </div>
+
+                    <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="font-semibold font-mono text-cyan-700 tabular-nums">
+                        {formatRupiah(rawSummary.totalTransport)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 font-semibold text-cyan-600 group-hover:translate-x-1 transition-transform">
+                        <span>Buka Sub-Menu H3</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* CARD H4 */}
+                  <div
+                    onClick={() => {
+                      setActiveReportSubmenu('h4');
+                      setReportCategoryFilter('ALL');
+                    }}
+                    className="kms-card-hover bg-white p-5 rounded-2xl border border-slate-200/90 hover:border-purple-500 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3.5">
+                        <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                          <Receipt className="w-5 h-5" />
+                        </div>
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                          H4
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900 group-hover:text-purple-600 transition-colors">
+                        H4. Rekap Biaya Operasional Lapangan
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                        Pencatatan rincian belanja lapangan harian: material bantu kecil, sewa alat darurat, konsumsi lembur pekerja, dan kebutuhan tak terduga beserta struk.
+                      </p>
+                    </div>
+
+                    <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="font-semibold font-mono text-purple-700 tabular-nums">
+                        {formatRupiah(rawSummary.totalOp)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 font-semibold text-purple-600 group-hover:translate-x-1 transition-transform">
+                        <span>Buka Sub-Menu H4</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* CARD H5 */}
+                  <div
+                    onClick={() => {
+                      setActiveReportSubmenu('h5');
+                      setReportCategoryFilter('ALL');
+                    }}
+                    className="kms-card-hover bg-white p-5 rounded-2xl border border-slate-200/90 hover:border-amber-500 shadow-xs hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between md:col-span-2 lg:col-span-2"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3.5">
+                        <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                          <TrendingUp className="w-5 h-5" />
+                        </div>
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          H5 · Realisasi Eksekutif
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
+                        H5. Rekap Seluruh Pengeluaran & Realisasi Anggaran Proyek
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                        Ikhtisar eksekutif komparasi seluruh pos pengeluaran proyek (akumulasi Gaji Karyawan H2 + Biaya Transportasi H3 + Pengeluaran Operasional Lapangan H4) terhadap plafon kontrak kerja.
+                      </p>
+                    </div>
+
+                    <div className="mt-5 pt-3.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-amber-800">
+                          Realisasi Serapan: {rawSummary.realizationPercentage}%
+                        </span>
+                        <span className="text-slate-300">|</span>
+                        <span className="text-slate-600">
+                          Sisa Anggaran: <strong className="font-mono text-emerald-700">{formatRupiah(rawSummary.budgetRemaining)}</strong>
+                        </span>
+                      </div>
+                      <span className="inline-flex items-center gap-1 font-semibold text-amber-700 group-hover:translate-x-1 transition-transform">
+                        <span>Buka Sub-Menu H5</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
-                {(
-                  [
-                    { id: 'h1', code: 'H1', label: 'Rekap Gaji Per Karyawan', badge: `${allEmployeeRecaps.length} Orang` },
-                    { id: 'h2', code: 'H2', label: 'Rekap Total Gaji Seluruh Karyawan', badge: formatRupiah(rawSummary.totalNetSalary) },
-                    { id: 'h3', code: 'H3', label: 'Rekap Biaya Transportasi Proyek', badge: formatRupiah(rawSummary.totalTransport) },
-                    { id: 'h4', code: 'H4', label: 'Rekap Operasional Lapangan', badge: formatRupiah(rawSummary.totalOp) },
-                    { id: 'h5', code: 'H5', label: 'Rekap Seluruh Pengeluaran Proyek', badge: `${rawSummary.realizationPercentage}% Anggaran` },
-                  ] as const
-                ).map((tab) => {
-                  const isActive = activeReportSubmenu === tab.id;
-                  return (
+            ) : (
+              /* ========================================================== */
+              /* SUB-MENU CONTENT VIEW (H1 s/d H5)                          */
+              /* ========================================================== */
+              <div className="space-y-5 kms-fade-in">
+                {/* 1. TOP HEADER & COMPACT EXPORT TOOLBAR */}
+                <div className="glass-panel rounded-2xl p-4 sm:p-5 print:hidden space-y-4">
+                  {/* Top Navigation Row: Back to Sub-Menu Directory */}
+                  <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
                     <button
-                      key={tab.id}
                       type="button"
-                      onClick={() => {
-                        setActiveReportSubmenu(tab.id);
-                        setReportCategoryFilter('ALL');
-                      }}
-                      className={`text-left p-3 rounded-xl border transition-all flex flex-col justify-between ${
-                        isActive
-                          ? 'bg-[#EFF5FF] border-[#4693FD] ring-2 ring-[#4693FD]/20 shadow-xs'
-                          : 'bg-[#F9FAFB] border-[#EAECF0] hover:bg-white hover:border-[#D0D5DD]'
-                      }`}
+                      onClick={() => setActiveReportSubmenu(null)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer group shadow-2xs"
                     >
-                      <div className="flex items-center justify-between gap-1">
+                      <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
+                      <span>Kembali ke Daftar Sub-Menu H (H1–H5)</span>
+                    </button>
+                    <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+                      Sub-Menu Aktif: <strong className="text-slate-800">{submenuMeta[activeReportSubmenu].title}</strong>
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-[#EFF5FF] text-[#155EEF] border border-blue-200 font-mono">
+                          {submenuMeta[activeReportSubmenu].code}
+                        </span>
+                        <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                          {submenuMeta[activeReportSubmenu].title} — {project.name}
+                        </h2>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {submenuMeta[activeReportSubmenu].subtitle}
+                      </p>
+                    </div>
+
+                    {/* Primary Export Actions */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleExportCurrentSubmenuPDF()}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#D92D20] hover:bg-[#B42318] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer hover:shadow"
+                        title={`Unduh Dokumen PDF Resmi (${submenuMeta[activeReportSubmenu].code})`}
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Cetak PDF ({submenuMeta[activeReportSubmenu].code})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDirectPrint}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-all shadow-xs cursor-pointer"
+                        title="Buka dialog cetak browser langsung"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Print Langsung</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExportCurrentSubmenuExcel()}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#027A48] hover:bg-[#05603A] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer"
+                        title={`Ekspor Data ${submenuMeta[activeReportSubmenu].code} ke File Excel`}
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                        <span>Ekspor Excel (.xlsx)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Segmented Minimalist Tabs (H1 - H5) */}
+                  <div className="pt-2 border-t border-slate-100">
+                    <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-xl overflow-x-auto">
+                      <button
+                        type="button"
+                        onClick={() => setActiveReportSubmenu(null)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/60 transition-all whitespace-nowrap cursor-pointer"
+                        title="Kembali ke Daftar Sub-Menu H1–H5"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        <span>Daftar Menu H</span>
+                      </button>
+                      {(
+                        [
+                          { id: 'h1', code: 'H1', label: 'Rekap Per Karyawan', badge: `${allEmployeeRecaps.length} Org` },
+                          { id: 'h2', code: 'H2', label: 'Total Seluruh Karyawan', badge: formatRupiah(rawSummary.totalNetSalary) },
+                          { id: 'h3', code: 'H3', label: 'Biaya Transportasi', badge: formatRupiah(rawSummary.totalTransport) },
+                          { id: 'h4', code: 'H4', label: 'Operasional Lapangan', badge: formatRupiah(rawSummary.totalOp) },
+                          { id: 'h5', code: 'H5', label: 'Seluruh Pengeluaran', badge: `${rawSummary.realizationPercentage}% Anggaran` },
+                        ] as const
+                      ).map((tab) => {
+                    const isActive = activeReportSubmenu === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveReportSubmenu(tab.id);
+                          setReportCategoryFilter('ALL');
+                        }}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                          isActive
+                            ? 'bg-white text-[#155EEF] shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                        }`}
+                      >
                         <span
-                          className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
-                            isActive ? 'bg-[#155EEF] text-white' : 'bg-white text-[#344054] border border-[#D0D5DD]'
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            isActive ? 'bg-[#155EEF] text-white' : 'bg-slate-200 text-slate-700'
                           }`}
                         >
                           {tab.code}
                         </span>
-                        <span className="text-[10px] font-mono font-semibold text-[#475467] truncate">
-                          {tab.badge}
+                        <span>{tab.label}</span>
+                        <span
+                          className={`text-[11px] font-mono font-medium ${
+                            isActive ? 'text-[#155EEF]' : 'text-slate-400'
+                          }`}
+                        >
+                          · {tab.badge}
                         </span>
-                      </div>
-                      <p className={`text-xs font-bold mt-2 line-clamp-1 ${isActive ? 'text-[#155EEF]' : 'text-[#1D2939]'}`}>
-                        {tab.label}
-                      </p>
-                    </button>
-                  );
-                })}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* 2. FILTER BAR FOR REPORTS (H1 - H5) */}
-            <div className="bg-white rounded-2xl border border-[#EAECF0] p-4 shadow-xs space-y-3 print:hidden">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* 2. REFINED FILTER BAR */}
+            <div className="glass-panel rounded-2xl p-4 space-y-3 print:hidden">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-[#4693FD]" />
-                  <span className="text-xs font-bold text-[#1D2939]">Filter Periode & Kriteria Laporan</span>
-                  <span className="text-[11px] text-[#667085]">
-                    (Periode Aktif: <strong className="text-[#155EEF]">{periodDisplayLabel}</strong>)
+                  <Filter className="w-4 h-4 text-[#2563EB]" />
+                  <span className="font-semibold text-slate-800">Filter Periode & Kriteria</span>
+                  <span className="text-slate-400">|</span>
+                  <span className="text-slate-500">
+                    Periode Aktif: <strong className="text-[#155EEF] font-medium">{periodDisplayLabel}</strong>
                   </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11px] text-[#667085] mr-1">Pilihan Cepat:</span>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400 mr-1">Preset Cepat:</span>
                   <button
                     type="button"
                     onClick={() => handleQuickPeriodPreset('all')}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
                       !appliedStartDate && !appliedEndDate
-                        ? 'bg-[#EFF5FF] text-[#155EEF] border-[#4693FD]'
-                        : 'bg-[#F9FAFB] text-[#475467] border-[#EAECF0] hover:bg-[#F2F4F7]'
+                        ? 'bg-[#EFF5FF] text-[#155EEF] border border-blue-200'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    Semua Periode
+                    Semua
                   </button>
                   <button
                     type="button"
                     onClick={() => handleQuickPeriodPreset('14days')}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#F9FAFB] text-[#475467] border border-[#EAECF0] hover:bg-[#F2F4F7] transition-colors"
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
                   >
-                    2 Mingguan (14 Hari Terakhir)
+                    2 Mingguan
                   </button>
                   <button
                     type="button"
                     onClick={() => handleQuickPeriodPreset('month')}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#F9FAFB] text-[#475467] border border-[#EAECF0] hover:bg-[#F2F4F7] transition-colors"
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
                   >
                     Bulan Ini
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end pt-1">
                 <div>
-                  <label className="block text-[11px] font-semibold text-[#475467] mb-1">Tanggal Mulai</label>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">Dari Tanggal</label>
                   <input
                     type="date"
                     value={reportStartDate}
                     onChange={(e) => setReportStartDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-[#D0D5DD] rounded-xl focus:outline-none focus:border-[#4693FD]"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#2563EB]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-[#475467] mb-1">Tanggal Akhir</label>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">Sampai Tanggal</label>
                   <input
                     type="date"
                     value={reportEndDate}
                     onChange={(e) => setReportEndDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-[#D0D5DD] rounded-xl focus:outline-none focus:border-[#4693FD]"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#2563EB]"
                   />
                 </div>
 
                 {/* Role filter for H1 & H2 */}
                 {(activeReportSubmenu === 'h1' || activeReportSubmenu === 'h2') && (
                   <div>
-                    <label className="block text-[11px] font-semibold text-[#475467] mb-1">Filter Jabatan</label>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Jabatan</label>
                     <select
                       value={reportRoleFilter}
                       onChange={(e) => setReportRoleFilter(e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-[#D0D5DD] rounded-xl bg-white focus:outline-none focus:border-[#4693FD]"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#2563EB]"
                     >
                       <option value="ALL">Semua Jabatan</option>
                       <option value="Mandor">Mandor</option>
@@ -3533,16 +3857,16 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 {/* Specific employee filter for H1 */}
                 {activeReportSubmenu === 'h1' && (
                   <div>
-                    <label className="block text-[11px] font-semibold text-[#475467] mb-1">Pilih Karyawan Proyek</label>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Pilih Karyawan</label>
                     <select
                       value={reportEmployeeFilter}
                       onChange={(e) => setReportEmployeeFilter(e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-[#D0D5DD] rounded-xl bg-white focus:outline-none focus:border-[#4693FD]"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#2563EB]"
                     >
-                      <option value="ALL">Semua Karyawan ({allEmployeeRecaps.length} Orang)</option>
+                      <option value="ALL">Semua ({allEmployeeRecaps.length} Karyawan)</option>
                       {allEmployeeRecaps.map((emp) => (
                         <option key={emp.employeeId} value={emp.employeeId}>
-                          [{emp.employeeId}] {emp.employeeName} — {emp.role}
+                          [{emp.employeeId}] {emp.employeeName} ({emp.role})
                         </option>
                       ))}
                     </select>
@@ -3552,11 +3876,11 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 {/* Category filter for H3 */}
                 {activeReportSubmenu === 'h3' && (
                   <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-semibold text-[#475467] mb-1">Filter Kategori Transportasi</label>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Kategori Transportasi</label>
                     <select
                       value={reportCategoryFilter}
                       onChange={(e) => setReportCategoryFilter(e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-[#D0D5DD] rounded-xl bg-white focus:outline-none focus:border-[#4693FD]"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#2563EB]"
                     >
                       <option value="ALL">Semua Kategori Transportasi</option>
                       {transportCategories.map((cat) => (
@@ -3571,11 +3895,11 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 {/* Category filter for H4 */}
                 {activeReportSubmenu === 'h4' && (
                   <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-semibold text-[#475467] mb-1">Filter Kategori Operasional</label>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Kategori Operasional</label>
                     <select
                       value={reportCategoryFilter}
                       onChange={(e) => setReportCategoryFilter(e.target.value)}
-                      className="w-full px-3 py-2 text-xs border border-[#D0D5DD] rounded-xl bg-white focus:outline-none focus:border-[#4693FD]"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#2563EB]"
                     >
                       <option value="ALL">Semua Kategori Operasional</option>
                       {operationalCategories.map((cat) => (
@@ -3591,14 +3915,14 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   <button
                     type="button"
                     onClick={handleApplyReportFilter}
-                    className="flex-1 bg-[#4693FD] hover:bg-[#1849A9] text-white px-3 py-2 rounded-xl text-xs font-semibold transition-colors shadow-xs"
+                    className="flex-1 bg-[#2563EB] hover:bg-blue-700 text-white px-3 py-2 rounded-xl text-xs font-semibold transition-colors shadow-xs cursor-pointer"
                   >
-                    Terapkan Filter
+                    Terapkan
                   </button>
                   <button
                     type="button"
                     onClick={handleResetReportFilter}
-                    className="px-3 py-2 rounded-xl border border-[#D0D5DD] bg-white hover:bg-[#F9FAFB] text-[#475467] text-xs font-semibold transition-colors"
+                    className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
                     title="Reset Filter"
                   >
                     Reset
@@ -3644,291 +3968,296 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   {/* SUBMENU H1: REKAP GAJI PER KARYAWAN                        */}
                   {/* ========================================================== */}
                   {activeReportSubmenu === 'h1' && (
-                    <div className="mt-4 space-y-5">
-                      <div className="flex flex-wrap items-center justify-between gap-2 bg-[#F8F9FA] p-3 rounded-xl border border-[#EAECF0] print:hidden">
-                        <div className="text-xs text-[#475467]">
-                          Menampilkan <strong>{filteredEmployeeRecaps.length}</strong> karyawan proyek {project.name}.
-                          Klik <strong>Lihat Detail</strong> atau <strong>Cetak Slip Gaji</strong> pada masing-masing karyawan, atau cetak kolektif.
+                    <div className="mt-4 space-y-4">
+                      {/* Search & Filter Toolbar (Matching Reference Layout) */}
+                      <div className="glass-table rounded-2xl overflow-hidden">
+                        <div className="px-5 py-3.5 bg-slate-50/60 backdrop-blur-xs border-b border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3 print:hidden">
+                          {/* Search Input */}
+                          <div className="relative flex-1 max-w-md group">
+                            <Search className="w-4 h-4 text-slate-400 group-focus-within:text-[#2563EB] transition-colors absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="text"
+                              value={searchH1}
+                              onChange={(e) => setSearchH1(e.target.value)}
+                              placeholder="Cari nama, ID, NIK, peran, telepon..."
+                              className="w-full pl-10 pr-8 py-2 bg-white/70 hover:bg-white/90 focus:bg-white border border-slate-200/90 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 backdrop-blur-md transition-all"
+                            />
+                            {searchH1 && (
+                              <button
+                                onClick={() => setSearchH1('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Filters */}
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <div className="flex items-center gap-1.5">
+                              <Filter className="w-3.5 h-3.5 text-slate-500" />
+                              <span className="text-xs text-slate-500">Jabatan:</span>
+                              <select
+                                value={reportRoleFilter}
+                                onChange={(e) => setReportRoleFilter(e.target.value)}
+                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#2563EB]"
+                              >
+                                <option value="ALL">Semua Jabatan</option>
+                                <option value="Mandor">Mandor</option>
+                                <option value="Tukang">Tukang</option>
+                                <option value="Helper">Helper</option>
+                                <option value="Driver">Driver</option>
+                              </select>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-slate-500">Status:</span>
+                              <select
+                                value={h1StatusFilter}
+                                onChange={(e) => setH1StatusFilter(e.target.value as any)}
+                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#2563EB]"
+                              >
+                                <option value="all">Semua Status</option>
+                                <option value="active">Aktif</option>
+                                <option value="inactive">Nonaktif</option>
+                              </select>
+                            </div>
+
+                            {(searchH1 || reportRoleFilter !== 'ALL' || h1StatusFilter !== 'all') && (
+                              <button
+                                onClick={() => {
+                                  setSearchH1('');
+                                  setReportRoleFilter('ALL');
+                                  setH1StatusFilter('all');
+                                }}
+                                className="text-xs text-[#2563EB] hover:underline px-1.5 py-1 cursor-pointer font-semibold"
+                              >
+                                Reset Filter
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!filteredEmployeeRecaps.length) {
-                                showToast('error', 'Tidak ada data karyawan untuk dicetak.');
-                                return;
+
+                        {/* Bulk Action & Subtitle Strip */}
+                        <div className="px-5 py-3 bg-white border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 print:hidden text-xs">
+                          <div className="text-slate-600">
+                            Menampilkan <strong className="text-slate-900 font-semibold">{filteredEmployeeRecaps.length}</strong> karyawan proyek <strong className="text-slate-900 font-semibold">{project.name}</strong> · Periode: <strong className="text-[#155EEF] font-semibold">{periodDisplayLabel}</strong>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!filteredEmployeeRecaps.length) {
+                                  showToast('error', 'Tidak ada data karyawan untuk dicetak.');
+                                  return;
+                                }
+                                setSlipGajiModalEmployees(filteredEmployeeRecaps);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#155EEF] border border-blue-200 text-xs font-semibold transition-colors cursor-pointer"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>Preview Slip Gaji ({filteredEmployeeRecaps.length})</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                exportProjectSlipGajiPDF({
+                                  project,
+                                  employees: filteredEmployeeRecaps,
+                                  startDate: appliedStartDate || undefined,
+                                  endDate: appliedEndDate || undefined,
+                                })
                               }
-                              setSlipGajiModalEmployees(filteredEmployeeRecaps);
-                            }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EFF5FF] hover:bg-[#D0E2FF] text-[#155EEF] border border-[#D0E2FF] text-xs font-semibold transition-colors"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>Preview & Cetak Semua Slip Gaji ({filteredEmployeeRecaps.length})</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              exportProjectSlipGajiPDF({
-                                project,
-                                employees: filteredEmployeeRecaps,
-                                startDate: appliedStartDate || undefined,
-                                endDate: appliedEndDate || undefined,
-                              })
-                            }
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#155EEF] hover:bg-[#1849A9] text-white text-xs font-semibold transition-colors"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>Unduh PDF Semua Slip Gaji</span>
-                          </button>
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>Unduh Semua PDF Slip</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Directory List Table (Identical to Reference Image) */}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <tbody className="divide-y divide-slate-100 text-slate-700">
+                              {filteredEmployeeRecaps.length === 0 ? (
+                                <tr>
+                                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                                    <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                                    <p className="font-semibold text-slate-700">
+                                      Tidak ada data karyawan yang cocok dengan kriteria pencarian / filter.
+                                    </p>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                      Coba sesuaikan kata kunci pencarian atau reset filter di atas.
+                                    </p>
+                                  </td>
+                                </tr>
+                              ) : (
+                                filteredEmployeeRecaps.map((emp, idx) => {
+                                  const asgMatch = assignments.find((a) => a.employeeId === emp.employeeId);
+                                  const isEmployeeActive = emp.status !== 'inactive';
+                                  const isDriver = isDriverRole(emp.role);
+                                  const avatarClass = avatarPalettes[idx % avatarPalettes.length];
+                                  const nik = asgMatch?.employeeNik || '-';
+
+                                  const rolePillStyle =
+                                    emp.role === 'Mandor'
+                                      ? 'bg-[#EDE6DF] text-[#44403C]'
+                                      : emp.role === 'Tukang'
+                                      ? 'bg-[#E1EBF9] text-[#284B80]'
+                                      : emp.role === 'Driver'
+                                      ? 'bg-[#E3EEDF] text-[#335426]'
+                                      : 'bg-[#DCEFE9] text-[#1D5647]';
+
+                                  return (
+                                    <tr
+                                      key={emp.employeeId}
+                                      className={`hover:bg-slate-50/80 transition-colors ${
+                                        !isEmployeeActive ? 'opacity-65 bg-slate-50/30' : ''
+                                      }`}
+                                    >
+                                      {/* Col 1: Circular Avatar + Name + Subtitle (Role · ID · NIK) */}
+                                      <td className="py-3.5 px-6 whitespace-nowrap">
+                                        <div className="flex items-center gap-3.5">
+                                          <div
+                                            className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold tracking-tight shrink-0 shadow-2xs ${avatarClass}`}
+                                          >
+                                            {getInitials(emp.employeeName)}
+                                          </div>
+                                          <div className="min-w-0">
+                                            <div className="text-[13.5px] font-semibold text-slate-900 leading-snug">
+                                              {emp.employeeName}
+                                            </div>
+                                            <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5 font-mono text-[11px]">
+                                              <span>{emp.role}</span>
+                                              <span className="text-slate-300">·</span>
+                                              <span className="text-slate-600">{emp.employeeId}</span>
+                                              {nik && nik !== '-' && (
+                                                <>
+                                                  <span className="text-slate-300">·</span>
+                                                  <span className="text-slate-400">NIK: {nik}</span>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </td>
+
+                                      {/* Col 2: Jabatan Pill with Icon */}
+                                      <td className="py-3.5 px-4 whitespace-nowrap">
+                                        <span
+                                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium ${rolePillStyle}`}
+                                        >
+                                          {isDriver ? (
+                                            <Truck className="w-3.5 h-3.5 opacity-80" />
+                                          ) : (
+                                            <HardHat className="w-3.5 h-3.5 opacity-80" />
+                                          )}
+                                          <span>{emp.role}</span>
+                                        </span>
+                                      </td>
+
+                                      {/* Col 3: Lokasi Proyek */}
+                                      <td className="py-3.5 px-4 whitespace-nowrap">
+                                        <div className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                                          <span className="w-2 h-2 rounded-full shrink-0 bg-[#D97706]" />
+                                          <span>{project.location || project.name}</span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-400 font-mono pl-4 mt-0.5">
+                                          -
+                                        </div>
+                                      </td>
+
+                                      {/* Col 4: Tarif Upah Harian & Lembur */}
+                                      <td className="py-3.5 px-4 whitespace-nowrap">
+                                        <div className="text-xs font-medium text-slate-800 font-mono tabular-nums">
+                                          {formatRupiah(emp.dailyWage)} / hari
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 font-mono tabular-nums mt-0.5">
+                                          {isDriver
+                                            ? 'Lembur: Rp 0 (Driver)'
+                                            : `Lembur: ${formatRupiah(emp.overtimeHourlyWage)}/jam`}
+                                        </div>
+                                      </td>
+
+                                      {/* Col 5: Kehadiran / Hari Kerja in Period */}
+                                      <td className="py-3.5 px-4 whitespace-nowrap">
+                                        <div className="text-xs font-semibold text-slate-900 tabular-nums">
+                                          {emp.totalWorkDays} hr ({emp.fullWorkDays} Penuh, {emp.halfWorkDays} Stgh)
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 font-mono tabular-nums mt-0.5">
+                                          THP: <strong className="text-slate-800">{formatRupiah(emp.netSalary)}</strong>
+                                        </div>
+                                      </td>
+
+                                      {/* Col 6: Status Pill */}
+                                      <td className="py-3.5 px-4 whitespace-nowrap">
+                                        {isEmployeeActive ? (
+                                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#E1F3EA] text-[#166534]">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-[#15803D]" />
+                                            <span>Aktif</span>
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#EFEFEF] text-[#374151]">
+                                            <span>Nonaktif</span>
+                                          </span>
+                                        )}
+                                      </td>
+
+                                      {/* Col 7: KOLOM CETAK PDF & AKSI */}
+                                      <td className="py-3.5 px-6 text-right whitespace-nowrap">
+                                        <div className="inline-flex items-center justify-end gap-1.5">
+                                          {/* Tombol Cetak PDF Khusus Karyawan Ini */}
+                                          <button
+                                            type="button"
+                                            onClick={() => handleExportCurrentSubmenuPDF(emp)}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-[#D92D20] border border-red-200 text-xs font-semibold transition-all shadow-2xs hover:shadow cursor-pointer"
+                                            title={`Cetak Dokumen PDF Rekapitulasi Gaji Resmi untuk ${emp.employeeName}`}
+                                          >
+                                            <FileText className="w-3.5 h-3.5" />
+                                            <span>Cetak PDF</span>
+                                          </button>
+
+                                          {/* Tombol Cetak Slip Gaji */}
+                                          <button
+                                            type="button"
+                                            onClick={() => setSlipGajiModalEmployees([emp])}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#155EEF] border border-blue-200 text-xs font-semibold transition-colors cursor-pointer"
+                                            title={`Cetak Slip Gaji ${emp.employeeName}`}
+                                          >
+                                            <Receipt className="w-3.5 h-3.5" />
+                                            <span>Slip</span>
+                                          </button>
+
+                                          {/* Tombol Detail Riwayat Kehadiran & Kasbon */}
+                                          <button
+                                            type="button"
+                                            onClick={() => setSelectedH1EmployeeDetail(emp)}
+                                            className="p-1.5 text-slate-400 hover:text-[#2563EB] hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                            title="Lihat Detail Riwayat Kehadiran & Kasbon"
+                                          >
+                                            <Eye className="w-4 h-4" />
+                                          </button>
+
+                                          {/* Tombol Ekspor Excel */}
+                                          <button
+                                            type="button"
+                                            onClick={() => handleExportCurrentSubmenuExcel(emp)}
+                                            className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                                            title={`Ekspor Excel ${emp.employeeName}`}
+                                          >
+                                            <FileSpreadsheet className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
-
-                      {filteredEmployeeRecaps.length === 0 ? (
-                        <div className="p-8 text-center text-xs text-[#667085] border border-dashed border-[#D0D5DD] rounded-xl">
-                          Tidak ada data karyawan yang sesuai dengan filter pada proyek ini.
-                        </div>
-                      ) : (
-                        <div className="space-y-5">
-                          {filteredEmployeeRecaps.map((emp, idx) => {
-                            const isDriver = isDriverRole(emp.role);
-                            const sortedAtt = (emp.attendanceRecords || [])
-                              .slice()
-                              .sort((a, b) => a.date.localeCompare(b.date));
-
-                            return (
-                              <div
-                                key={emp.employeeId}
-                                className="rounded-2xl border border-[#D0D5DD] bg-white overflow-hidden shadow-2xs break-inside-avoid"
-                              >
-                                {/* Employee Card Header */}
-                                <div className="bg-[#F8F9FA] p-4 border-b border-[#EAECF0] flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                                  <div className="space-y-1">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#1D2939] text-white font-mono">
-                                        #{idx + 1} • {emp.employeeId}
-                                      </span>
-                                      <h4 className="text-base font-bold text-[#1D2939]">{emp.employeeName}</h4>
-                                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#EFF5FF] text-[#155EEF] border border-[#D0E2FF]">
-                                        {emp.role}
-                                      </span>
-                                      {isDriver && (
-                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#FEF6EE] text-[#B54708] border border-[#F9DBAF]">
-                                          Driver (Tanpa Upah Lembur)
-                                        </span>
-                                      )}
-                                      {emp.status === 'inactive' && (
-                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#FEF3F2] text-[#B42318] border border-[#FECDCA]">
-                                          Nonaktif (Riwayat Transaksi)
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#475467]">
-                                      <span>
-                                        Tarif Harian: <strong className="font-mono text-[#1D2939]">{formatRupiah(emp.dailyWage)}</strong>
-                                      </span>
-                                      <span>
-                                        Tarif Setengah Hari: <strong className="font-mono text-[#1D2939]">{formatRupiah(Math.round(emp.dailyWage / 2))}</strong>
-                                      </span>
-                                      <span>
-                                        Tarif Lembur/Jam:{' '}
-                                        <strong className="font-mono text-[#1D2939]">
-                                          {isDriver ? 'Rp 0 (Driver)' : formatRupiah(emp.overtimeHourlyWage)}
-                                        </strong>
-                                      </span>
-                                      <span>
-                                        Status Gaji: <strong className="text-[#155EEF]">{emp.paymentStatusLabel}</strong>
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {/* Individual Action Buttons */}
-                                  <div className="flex flex-wrap items-center gap-1.5 print:hidden">
-                                    <button
-                                      type="button"
-                                      onClick={() => setSelectedH1EmployeeDetail(emp)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#F2F4F7] text-[#344054] border border-[#D0D5DD] text-xs font-semibold transition-colors"
-                                    >
-                                      <Eye className="w-3.5 h-3.5 text-[#4693FD]" />
-                                      <span>Lihat Detail</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setSlipGajiModalEmployees([emp])}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#EFF5FF] hover:bg-[#D0E2FF] text-[#155EEF] border border-[#D0E2FF] text-xs font-semibold transition-colors"
-                                    >
-                                      <Receipt className="w-3.5 h-3.5" />
-                                      <span>Cetak Slip Gaji</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleExportCurrentSubmenuPDF(emp)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#FEF3F2] hover:bg-[#FEE4E2] text-[#D92D20] border border-[#FECDCA] text-xs font-semibold transition-colors"
-                                    >
-                                      <FileText className="w-3.5 h-3.5" />
-                                      <span>PDF</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleExportCurrentSubmenuExcel(emp)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#ECFDF3] hover:bg-[#D1FADF] text-[#027A48] border border-[#A6F4C5] text-xs font-semibold transition-colors"
-                                    >
-                                      <FileSpreadsheet className="w-3.5 h-3.5" />
-                                      <span>Excel</span>
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {/* Employee Summary Metrics Grid */}
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 p-4 bg-white border-b border-[#EAECF0] text-xs">
-                                  <div className="p-2.5 rounded-xl bg-[#F9FAFB] border border-[#EAECF0]">
-                                    <span className="text-[11px] text-[#667085] block">Kehadiran Kerja</span>
-                                    <p className="font-bold text-[#1D2939] mt-0.5">
-                                      {emp.fullWorkDays} Penuh • {emp.halfWorkDays} Setengah
-                                    </p>
-                                    <span className="text-[10px] text-[#667085]">
-                                      Efektif: {emp.totalWorkDays} hari | Absen: {emp.absentDays}
-                                    </span>
-                                  </div>
-
-                                  <div className="p-2.5 rounded-xl bg-[#F9FAFB] border border-[#EAECF0]">
-                                    <span className="text-[11px] text-[#667085] block">Total Gaji Pokok</span>
-                                    <p className="font-bold text-[#1D2939] font-mono mt-0.5">
-                                      {formatRupiah(emp.totalBasicSalary)}
-                                    </p>
-                                    <span className="text-[10px] text-[#667085]">
-                                      Penuh: {formatRupiah(emp.fullDaySalary)} | 1/2: {formatRupiah(emp.halfDaySalary)}
-                                    </span>
-                                  </div>
-
-                                  <div className="p-2.5 rounded-xl bg-[#FEF6EE] border border-[#F9DBAF]">
-                                    <span className="text-[11px] text-[#B54708] block">Total Lembur</span>
-                                    <p className="font-bold text-[#B54708] font-mono mt-0.5">
-                                      {formatRupiah(emp.totalOvertimePay)}
-                                    </p>
-                                    <span className="text-[10px] text-[#B54708]">
-                                      Durasi: {formatOvertimeDuration(emp.overtimeHours)}
-                                      {isDriver ? ' (Driver Rp 0)' : ''}
-                                    </span>
-                                  </div>
-
-                                  <div className="p-2.5 rounded-xl bg-[#EFF5FF] border border-[#D0E2FF]">
-                                    <span className="text-[11px] text-[#155EEF] block">Total Gaji Kotor</span>
-                                    <p className="font-bold text-[#155EEF] font-mono mt-0.5">
-                                      {formatRupiah(emp.grossSalary)}
-                                    </p>
-                                    <span className="text-[10px] text-[#155EEF]">Gaji Pokok + Upah Lembur</span>
-                                  </div>
-
-                                  <div className="p-2.5 rounded-xl bg-[#FEF3F2] border border-[#FECDCA]">
-                                    <span className="text-[11px] text-[#B42318] block">Kasbon & Potongan</span>
-                                    <p className="font-bold text-[#B42318] font-mono mt-0.5">
-                                      - {formatRupiah(emp.kasbonDeduction)}
-                                    </p>
-                                    <span className="text-[10px] text-[#B42318]">
-                                      Pinjaman: {formatRupiah(emp.kasbonInPeriod)} | Sisa: {formatRupiah(emp.remainingKasbon)}
-                                    </span>
-                                  </div>
-
-                                  <div className="p-2.5 rounded-xl bg-[#ECFDF3] border border-[#A6F4C5]">
-                                    <span className="text-[11px] text-[#027A48] font-semibold block">Gaji Bersih Diterima</span>
-                                    <p className="text-sm font-bold text-[#027A48] font-mono mt-0.5">
-                                      {formatRupiah(emp.netSalary)}
-                                    </p>
-                                    <span className="text-[10px] text-[#027A48]">Take Home Pay</span>
-                                  </div>
-                                </div>
-
-                                {/* Daily Work History Table inside H1 */}
-                                <div className="overflow-x-auto">
-                                  <table className="w-full text-left text-xs">
-                                    <thead className="bg-[#F9FAFB] text-[#475467] font-semibold border-b border-[#EAECF0]">
-                                      <tr>
-                                        <th className="py-2.5 px-3">No</th>
-                                        <th className="py-2.5 px-3">Tanggal</th>
-                                        <th className="py-2.5 px-3">Status Kehadiran</th>
-                                        <th className="py-2.5 px-3">Jam Kerja</th>
-                                        <th className="py-2.5 px-3 text-right">Upah Pokok</th>
-                                        <th className="py-2.5 px-3 text-center">Durasi Lembur</th>
-                                        <th className="py-2.5 px-3 text-right">Upah Lembur</th>
-                                        <th className="py-2.5 px-3 text-right">Kasbon Hari Itu</th>
-                                        <th className="py-2.5 px-3 text-right">Total Upah Harian</th>
-                                        <th className="py-2.5 px-3">Catatan</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
-                                      {sortedAtt.length === 0 ? (
-                                        <tr>
-                                          <td colSpan={10} className="py-4 px-3 text-center text-[#98A2B3]">
-                                            Belum ada riwayat kehadiran harian tercatat pada periode ini.
-                                          </td>
-                                        </tr>
-                                      ) : (
-                                        sortedAtt.map((att, rIdx) => {
-                                          const dayBasic =
-                                            att.status === 'Hadir'
-                                              ? att.dailyWageSnapshot || emp.dailyWage
-                                              : att.status === 'Setengah Hari'
-                                              ? Math.round((att.dailyWageSnapshot || emp.dailyWage) / 2)
-                                              : 0;
-                                          const dayOtPay = isDriver
-                                            ? 0
-                                            : att.overtimeApproved && att.overtimeHours > 0
-                                            ? Math.round(att.overtimeHours * (att.overtimeWageSnapshot || emp.overtimeHourlyWage))
-                                            : 0;
-                                          const dayKb = att.hasKasbon && att.kasbonAmount ? att.kasbonAmount : 0;
-
-                                          return (
-                                            <tr key={att.id || rIdx} className="hover:bg-[#F9FAFB]">
-                                              <td className="py-2 px-3 font-mono text-[#667085]">{rIdx + 1}</td>
-                                              <td className="py-2 px-3 font-medium text-[#1D2939]">{formatDateID(att.date)}</td>
-                                              <td className="py-2 px-3">
-                                                <span
-                                                  className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                                                    att.status === 'Hadir'
-                                                      ? 'bg-[#ECFDF3] text-[#027A48]'
-                                                      : att.status === 'Setengah Hari'
-                                                      ? 'bg-[#F0F9FF] text-[#026AA2]'
-                                                      : 'bg-[#FEF3F2] text-[#B42318]'
-                                                  }`}
-                                                >
-                                                  {att.status}
-                                                </span>
-                                              </td>
-                                              <td className="py-2 px-3 font-mono text-[11px] text-[#667085]">
-                                                {att.checkIn || '-'} - {att.checkOut || '-'}
-                                              </td>
-                                              <td className="py-2 px-3 text-right font-mono font-medium text-[#1D2939]">
-                                                {formatRupiah(dayBasic)}
-                                              </td>
-                                              <td className="py-2 px-3 text-center font-mono text-[11px] text-[#B54708]">
-                                                {att.overtimeHours > 0 ? formatOvertimeDuration(att.overtimeHours) : '-'}
-                                              </td>
-                                              <td className="py-2 px-3 text-right font-mono text-[#B54708]">
-                                                {isDriver && att.overtimeHours > 0
-                                                  ? 'Rp 0 (Driver)'
-                                                  : formatRupiah(dayOtPay)}
-                                              </td>
-                                              <td className="py-2 px-3 text-right font-mono text-[#B42318]">
-                                                {dayKb > 0 ? formatRupiah(dayKb) : '-'}
-                                              </td>
-                                              <td className="py-2 px-3 text-right font-mono font-bold text-[#155EEF]">
-                                                {formatRupiah(dayBasic + dayOtPay)}
-                                              </td>
-                                              <td className="py-2 px-3 text-[#667085] max-w-[200px] truncate">
-                                                {att.notes || att.kasbonNotes || '-'}
-                                              </td>
-                                            </tr>
-                                          );
-                                        })
-                                      )}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -3937,36 +4266,31 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   {/* ========================================================== */}
                   {activeReportSubmenu === 'h2' && (
                     <div className="mt-4 space-y-4">
-                      {/* H2 Action Bar for Cetak PDF and Print */}
-                      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#F8F9FA] p-3.5 rounded-xl border border-[#EAECF0] print:hidden shadow-xs">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-[#EFF5FF] text-[#155EEF] border border-[#D0E2FF]">
-                              H2
-                            </span>
-                            <h4 className="text-xs font-bold text-[#1D2939]">
-                              Rekapitulasi Total Penggajian Proyek ({filteredEmployeeRecaps.length} Karyawan)
-                            </h4>
-                          </div>
-                          <p className="text-[11px] text-[#667085]">
-                            Periode: <strong className="text-[#1D2939]">{periodDisplayLabel}</strong> • Cetak dokumen PDF resmi atau cetak langsung via printer browser
+                      {/* Top Action & Subtitle Bar */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80 print:hidden">
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-900 tracking-tight">
+                            Rekapitulasi Total Penggajian ({filteredEmployeeRecaps.length} Karyawan)
+                          </h4>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Periode: <strong className="text-slate-800">{periodDisplayLabel}</strong> · Format tabel rapat berstandar spreadsheet akuntansi
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
                             onClick={() => handleExportCurrentSubmenuPDF()}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#D92D20] hover:bg-[#B42318] text-white text-xs font-semibold transition-colors shadow-xs"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D92D20] hover:bg-[#B42318] text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
                             title="Unduh Dokumen PDF Rekapitulasi Total Gaji H2"
                           >
                             <FileText className="w-3.5 h-3.5" />
-                            <span>Cetak PDF Rekap H2</span>
+                            <span>Cetak PDF H2</span>
                           </button>
                           <button
                             type="button"
                             onClick={handleDirectPrint}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#1D2939] hover:bg-[#344054] text-white text-xs font-semibold transition-colors shadow-xs"
-                            title="Print Langsung Halaman / Dialog Cetak Browser"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                            title="Print Langsung Halaman Browser"
                           >
                             <Printer className="w-3.5 h-3.5" />
                             <span>Print Langsung</span>
@@ -3974,7 +4298,7 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                           <button
                             type="button"
                             onClick={() => handleExportCurrentSubmenuExcel()}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#027A48] hover:bg-[#05603A] text-white text-xs font-semibold transition-colors shadow-xs"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#027A48] hover:bg-[#05603A] text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
                             title="Ekspor Data Rekap ke Microsoft Excel"
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -3983,82 +4307,83 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                         </div>
                       </div>
 
-                      {/* H2 Top Summary Cards */}
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                        <div className="p-3 rounded-xl bg-[#F8F9FA] border border-[#EAECF0]">
-                          <span className="text-[11px] text-[#667085] block">Total Karyawan</span>
-                          <p className="text-lg font-bold text-[#1D2939] font-mono mt-0.5">{h2Totals.count} Orang</p>
-                          <span className="text-[10px] text-[#667085]">
-                            {h2Totals.fullWorkDays} Penuh • {h2Totals.halfWorkDays} Setengah
+                      {/* H2 Summary Cards Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                        <div className="p-3 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                          <span className="text-[11px] text-slate-500 block">Total Karyawan</span>
+                          <p className="text-base font-bold text-slate-900 font-mono mt-0.5">{h2Totals.count} Orang</p>
+                          <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
+                            {h2Totals.fullWorkDays} P · {h2Totals.halfWorkDays} 1/2
                           </span>
                         </div>
-                        <div className="p-3 rounded-xl bg-[#F8F9FA] border border-[#EAECF0]">
-                          <span className="text-[11px] text-[#667085] block">Total Gaji Pokok</span>
-                          <p className="text-base font-bold text-[#1D2939] font-mono mt-0.5">
+                        <div className="p-3 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                          <span className="text-[11px] text-slate-500 block">Total Gaji Pokok</span>
+                          <p className="text-base font-bold text-slate-900 font-mono mt-0.5">
                             {formatRupiah(h2Totals.totalBasicSalary)}
                           </p>
-                          <span className="text-[10px] text-[#667085]">{h2Totals.totalWorkDays} Hari Efektif</span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">{h2Totals.totalWorkDays} Hari Efektif</span>
                         </div>
-                        <div className="p-3 rounded-xl bg-[#FEF6EE] border border-[#F9DBAF]">
+                        <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200/70 shadow-2xs">
                           <span className="text-[11px] text-[#B54708] block">Total Upah Lembur</span>
                           <p className="text-base font-bold text-[#B54708] font-mono mt-0.5">
                             {formatRupiah(h2Totals.totalOvertimePay)}
                           </p>
-                          <span className="text-[10px] text-[#B54708]">{formatOvertimeDuration(h2Totals.overtimeHours)}</span>
+                          <span className="text-[10px] text-[#B54708] block mt-0.5">{formatOvertimeDuration(h2Totals.overtimeHours)}</span>
                         </div>
-                        <div className="p-3 rounded-xl bg-[#EFF5FF] border border-[#D0E2FF]">
+                        <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-200/70 shadow-2xs">
                           <span className="text-[11px] text-[#155EEF] block">Total Gaji Kotor</span>
                           <p className="text-base font-bold text-[#155EEF] font-mono mt-0.5">
                             {formatRupiah(h2Totals.grossSalary)}
                           </p>
-                          <span className="text-[10px] text-[#155EEF]">Pokok + Lembur</span>
+                          <span className="text-[10px] text-[#155EEF] block mt-0.5">Pokok + Lembur</span>
                         </div>
-                        <div className="p-3 rounded-xl bg-[#FEF3F2] border border-[#FECDCA]">
-                          <span className="text-[11px] text-[#B42318] block">Total Potongan Kasbon</span>
+                        <div className="p-3 rounded-xl bg-rose-50/60 border border-rose-200/70 shadow-2xs">
+                          <span className="text-[11px] text-[#B42318] block">Potongan Kasbon</span>
                           <p className="text-base font-bold text-[#B42318] font-mono mt-0.5">
                             - {formatRupiah(h2Totals.kasbonDeduction)}
                           </p>
-                          <span className="text-[10px] text-[#B42318]">
-                            Sisa Kasbon: {formatRupiah(h2Totals.remainingKasbon)}
+                          <span className="text-[10px] text-[#B42318] block mt-0.5 truncate">
+                            Sisa KB: {formatRupiah(h2Totals.remainingKasbon)}
                           </span>
                         </div>
-                        <div className="p-3 rounded-xl bg-[#ECFDF3] border border-[#A6F4C5]">
+                        <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80 shadow-2xs">
                           <span className="text-[11px] text-[#027A48] font-semibold block">Total Gaji Bersih</span>
                           <p className="text-base font-bold text-[#027A48] font-mono mt-0.5">
                             {formatRupiah(h2Totals.netSalary)}
                           </p>
-                          <span className="text-[10px] text-[#027A48]">Seluruh Karyawan</span>
+                          <span className="text-[10px] text-[#027A48] block mt-0.5">Seluruh Karyawan</span>
                         </div>
                       </div>
 
-                      <div className="overflow-x-auto border border-[#EAECF0] rounded-xl">
-                        <table className="w-full text-left text-xs">
-                          <thead className="bg-[#1D2939] text-white font-semibold">
-                            <tr>
-                              <th className="py-3 px-2.5">No</th>
-                              <th className="py-3 px-2.5">ID</th>
-                              <th className="py-3 px-3">Nama Karyawan</th>
-                              <th className="py-3 px-2.5">Jabatan</th>
-                              <th className="py-3 px-2 text-center">Penuh</th>
-                              <th className="py-3 px-2 text-center">1/2 Hr</th>
-                              <th className="py-3 px-2 text-center">Absen</th>
-                              <th className="py-3 px-2.5 text-right">Tarif/Hr</th>
-                              <th className="py-3 px-2.5 text-right">Total Gaji Pokok</th>
-                              <th className="py-3 px-2.5 text-center">Jam Lembur</th>
-                              <th className="py-3 px-2.5 text-right">Tarif OT</th>
-                              <th className="py-3 px-2.5 text-right">Total Upah Lembur</th>
-                              <th className="py-3 px-2.5 text-right">Total Gaji Kotor</th>
-                              <th className="py-3 px-2.5 text-right">Total Kasbon</th>
-                              <th className="py-3 px-2.5 text-right">Pot. Kasbon</th>
-                              <th className="py-3 px-2.5 text-right">Sisa Kasbon</th>
-                              <th className="py-3 px-3 text-right">Gaji Bersih</th>
-                              <th className="py-3 px-2.5 text-center print:hidden">Aksi</th>
+                      {/* High-Density Spreadsheet Table */}
+                      <div className="overflow-x-auto border border-slate-200/90 rounded-2xl bg-white shadow-2xs">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-slate-900 text-white font-semibold sticky top-0 z-10 select-none">
+                            <tr className="divide-x divide-slate-800">
+                              <th className="py-2.5 px-2.5 text-center w-10">No</th>
+                              <th className="py-2.5 px-2.5 whitespace-nowrap">ID</th>
+                              <th className="py-2.5 px-3 min-w-[130px] whitespace-nowrap">Nama Karyawan</th>
+                              <th className="py-2.5 px-2.5 whitespace-nowrap">Jabatan</th>
+                              <th className="py-2.5 px-2 text-center whitespace-nowrap">Penuh</th>
+                              <th className="py-2.5 px-2 text-center whitespace-nowrap">1/2 Hr</th>
+                              <th className="py-2.5 px-2 text-center whitespace-nowrap">Absen</th>
+                              <th className="py-2.5 px-2.5 text-right whitespace-nowrap">Tarif/Hr</th>
+                              <th className="py-2.5 px-2.5 text-right whitespace-nowrap">Total Pokok</th>
+                              <th className="py-2.5 px-2.5 text-center whitespace-nowrap">Jam OT</th>
+                              <th className="py-2.5 px-2.5 text-right whitespace-nowrap">Tarif OT</th>
+                              <th className="py-2.5 px-2.5 text-right whitespace-nowrap">Total Upah OT</th>
+                              <th className="py-2.5 px-2.5 text-right whitespace-nowrap">Gaji Kotor</th>
+                              <th className="py-2.5 px-2.5 text-right whitespace-nowrap">Pinjam KB</th>
+                              <th className="py-2.5 px-2.5 text-right whitespace-nowrap">Pot. KB</th>
+                              <th className="py-2.5 px-2.5 text-right whitespace-nowrap">Sisa KB</th>
+                              <th className="py-2.5 px-3 text-right whitespace-nowrap bg-slate-800">Gaji Bersih</th>
+                              <th className="py-2.5 px-2 text-center print:hidden w-16">Aksi</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+                          <tbody className="divide-y divide-slate-100 text-slate-700">
                             {filteredEmployeeRecaps.length === 0 ? (
                               <tr>
-                                <td colSpan={18} className="py-8 text-center text-[#667085]">
+                                <td colSpan={18} className="py-8 text-center text-slate-400">
                                   Tidak ada data rekap gaji karyawan pada periode ini.
                                 </td>
                               </tr>
@@ -4066,71 +4391,71 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                               filteredEmployeeRecaps.map((r, i) => {
                                 const isDriver = isDriverRole(r.role);
                                 return (
-                                  <tr key={r.employeeId} className="hover:bg-[#F9FAFB]">
-                                    <td className="py-2.5 px-2.5 font-mono text-[#667085]">{i + 1}</td>
-                                    <td className="py-2.5 px-2.5 font-mono text-[11px] font-semibold text-[#344054]">
+                                  <tr key={r.employeeId} className="hover:bg-slate-50 transition-colors divide-x divide-slate-100">
+                                    <td className="py-2 px-2.5 text-center font-mono text-slate-400 text-[11px]">{i + 1}</td>
+                                    <td className="py-2 px-2.5 font-mono text-[11px] font-semibold text-slate-600 whitespace-nowrap">
                                       {r.employeeId}
                                     </td>
-                                    <td className="py-2.5 px-3 font-bold text-[#1D2939]">{r.employeeName}</td>
-                                    <td className="py-2.5 px-2.5">
-                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#EFF5FF] text-[#155EEF]">
+                                    <td className="py-2 px-3 font-semibold text-slate-900 whitespace-nowrap">{r.employeeName}</td>
+                                    <td className="py-2 px-2.5 whitespace-nowrap">
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
                                         {r.role}
                                       </span>
                                     </td>
-                                    <td className="py-2.5 px-2 text-center font-mono font-semibold text-[#027A48]">
+                                    <td className="py-2 px-2 text-center font-mono tabular-nums font-semibold text-emerald-700">
                                       {r.fullWorkDays}
                                     </td>
-                                    <td className="py-2.5 px-2 text-center font-mono font-semibold text-[#026AA2]">
+                                    <td className="py-2 px-2 text-center font-mono tabular-nums font-semibold text-blue-700">
                                       {r.halfWorkDays}
                                     </td>
-                                    <td className="py-2.5 px-2 text-center font-mono text-[#B42318]">
+                                    <td className="py-2 px-2 text-center font-mono tabular-nums text-rose-600">
                                       {r.absentDays}
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-right font-mono text-[#475467]">
+                                    <td className="py-2 px-2.5 text-right font-mono tabular-nums text-slate-600 whitespace-nowrap">
                                       {formatRupiah(r.dailyWage)}
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-right font-mono font-semibold text-[#1D2939]">
+                                    <td className="py-2 px-2.5 text-right font-mono tabular-nums font-semibold text-slate-900 whitespace-nowrap">
                                       {formatRupiah(r.totalBasicSalary)}
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-center font-mono text-[11px] text-[#B54708]">
+                                    <td className="py-2 px-2.5 text-center font-mono tabular-nums text-[11px] text-[#B54708] whitespace-nowrap">
                                       {r.overtimeHours > 0 ? formatOvertimeDuration(r.overtimeHours) : '-'}
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-right font-mono text-[#667085]">
+                                    <td className="py-2 px-2.5 text-right font-mono tabular-nums text-slate-500 whitespace-nowrap">
                                       {isDriver ? 'Rp 0' : formatRupiah(r.overtimeHourlyWage)}
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-right font-mono font-semibold text-[#B54708]">
+                                    <td className="py-2 px-2.5 text-right font-mono tabular-nums font-semibold text-[#B54708] whitespace-nowrap">
                                       {formatRupiah(r.totalOvertimePay)}
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-right font-mono font-bold text-[#155EEF]">
+                                    <td className="py-2 px-2.5 text-right font-mono tabular-nums font-bold text-[#155EEF] whitespace-nowrap">
                                       {formatRupiah(r.grossSalary)}
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-right font-mono text-[#475467]">
+                                    <td className="py-2 px-2.5 text-right font-mono tabular-nums text-slate-600 whitespace-nowrap">
                                       {formatRupiah(r.kasbonInPeriod)}
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-right font-mono font-semibold text-[#B42318]">
+                                    <td className="py-2 px-2.5 text-right font-mono tabular-nums font-semibold text-rose-600 whitespace-nowrap">
                                       {r.kasbonDeduction > 0 ? `- ${formatRupiah(r.kasbonDeduction)}` : 'Rp 0'}
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-right font-mono text-[#667085]">
+                                    <td className="py-2 px-2.5 text-right font-mono tabular-nums text-slate-500 whitespace-nowrap">
                                       {formatRupiah(r.remainingKasbon)}
                                     </td>
-                                    <td className="py-2.5 px-3 text-right font-mono font-bold text-[#027A48] bg-[#ECFDF3]/40">
+                                    <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-[#027A48] bg-emerald-50/50 whitespace-nowrap">
                                       {formatRupiah(r.netSalary)}
                                     </td>
-                                    <td className="py-2.5 px-2.5 text-center print:hidden">
+                                    <td className="py-2 px-2 text-center print:hidden whitespace-nowrap">
                                       <div className="flex items-center justify-center gap-1">
                                         <button
                                           type="button"
                                           onClick={() => setSelectedH1EmployeeDetail(r)}
-                                          className="p-1 rounded hover:bg-[#EFF5FF] text-[#4693FD]"
-                                          title="Lihat Detail Harian Karyawan"
+                                          className="p-1 rounded-md hover:bg-slate-100 text-blue-600 cursor-pointer"
+                                          title="Lihat Detail Harian"
                                         >
                                           <Eye className="w-3.5 h-3.5" />
                                         </button>
                                         <button
                                           type="button"
                                           onClick={() => setSlipGajiModalEmployees([r])}
-                                          className="p-1 rounded hover:bg-[#ECFDF3] text-[#027A48]"
-                                          title="Cetak Slip Gaji Karyawan"
+                                          className="p-1 rounded-md hover:bg-emerald-50 text-emerald-600 cursor-pointer"
+                                          title="Cetak Slip Gaji"
                                         >
                                           <Printer className="w-3.5 h-3.5" />
                                         </button>
@@ -4141,41 +4466,41 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                               })
                             )}
                           </tbody>
-                          <tfoot className="bg-[#EFF5FF] font-bold text-[#1D2939] border-t-2 border-[#4693FD]">
+                          <tfoot className="bg-[#EFF5FF] font-bold text-slate-900 border-t-2 border-blue-400 divide-x divide-blue-200">
                             <tr>
                               <td colSpan={4} className="py-3 px-3 text-xs uppercase text-[#155EEF]">
-                                GRAND TOTAL ({h2Totals.count} Karyawan Proyek {project.name})
+                                GRAND TOTAL ({h2Totals.count} Karyawan)
                               </td>
-                              <td className="py-3 px-2 text-center font-mono text-[#027A48]">{h2Totals.fullWorkDays}</td>
-                              <td className="py-3 px-2 text-center font-mono text-[#026AA2]">{h2Totals.halfWorkDays}</td>
-                              <td className="py-3 px-2 text-center font-mono text-[#B42318]">{h2Totals.absentDays}</td>
+                              <td className="py-3 px-2 text-center font-mono tabular-nums text-emerald-700">{h2Totals.fullWorkDays}</td>
+                              <td className="py-3 px-2 text-center font-mono tabular-nums text-blue-700">{h2Totals.halfWorkDays}</td>
+                              <td className="py-3 px-2 text-center font-mono tabular-nums text-rose-600">{h2Totals.absentDays}</td>
                               <td className="py-3 px-2.5 text-right font-mono">-</td>
-                              <td className="py-3 px-2.5 text-right font-mono text-[#1D2939]">
+                              <td className="py-3 px-2.5 text-right font-mono tabular-nums text-slate-900 whitespace-nowrap">
                                 {formatRupiah(h2Totals.totalBasicSalary)}
                               </td>
-                              <td className="py-3 px-2.5 text-center font-mono text-[11px] text-[#B54708]">
+                              <td className="py-3 px-2.5 text-center font-mono tabular-nums text-[11px] text-[#B54708] whitespace-nowrap">
                                 {formatOvertimeDuration(h2Totals.overtimeHours)}
                               </td>
                               <td className="py-3 px-2.5 text-right font-mono">-</td>
-                              <td className="py-3 px-2.5 text-right font-mono text-[#B54708]">
+                              <td className="py-3 px-2.5 text-right font-mono tabular-nums text-[#B54708] whitespace-nowrap">
                                 {formatRupiah(h2Totals.totalOvertimePay)}
                               </td>
-                              <td className="py-3 px-2.5 text-right font-mono text-[#155EEF]">
+                              <td className="py-3 px-2.5 text-right font-mono tabular-nums text-[#155EEF] whitespace-nowrap">
                                 {formatRupiah(h2Totals.grossSalary)}
                               </td>
-                              <td className="py-3 px-2.5 text-right font-mono text-[#344054]">
+                              <td className="py-3 px-2.5 text-right font-mono tabular-nums text-slate-700 whitespace-nowrap">
                                 {formatRupiah(h2Totals.kasbonInPeriod)}
                               </td>
-                              <td className="py-3 px-2.5 text-right font-mono text-[#B42318]">
+                              <td className="py-3 px-2.5 text-right font-mono tabular-nums text-rose-600 whitespace-nowrap">
                                 - {formatRupiah(h2Totals.kasbonDeduction)}
                               </td>
-                              <td className="py-3 px-2.5 text-right font-mono text-[#475467]">
+                              <td className="py-3 px-2.5 text-right font-mono tabular-nums text-slate-600 whitespace-nowrap">
                                 {formatRupiah(h2Totals.remainingKasbon)}
                               </td>
-                              <td className="py-3 px-3 text-right font-mono text-sm text-[#027A48]">
+                              <td className="py-3 px-3 text-right font-mono tabular-nums text-sm text-[#027A48] bg-emerald-100/60 whitespace-nowrap">
                                 {formatRupiah(h2Totals.netSalary)}
                               </td>
-                              <td className="py-3 px-2.5 print:hidden"></td>
+                              <td className="py-3 px-2 print:hidden"></td>
                             </tr>
                           </tfoot>
                         </table>
@@ -4184,18 +4509,19 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   )}
 
                   {/* ========================================================== */}
+                  {/* ========================================================== */}
                   {/* SUBMENU H3: REKAP BIAYA TRANSPORTASI PROYEK                */}
                   {/* ========================================================== */}
                   {activeReportSubmenu === 'h3' && (
                     <div className="mt-4 space-y-4">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="p-3.5 rounded-xl bg-[#F0F9FF] border border-[#B9E6FE]">
-                          <span className="text-xs text-[#026AA2] font-medium block">Total Transaksi Transportasi</span>
-                          <p className="text-xl font-bold text-[#026AA2] font-mono mt-1">
+                        <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                          <span className="text-xs text-slate-500 font-medium block">Total Transaksi Transportasi</span>
+                          <p className="text-xl font-bold text-slate-900 font-mono mt-1">
                             {filteredTransportExpenses.length} Transaksi
                           </p>
                         </div>
-                        <div className="p-3.5 rounded-xl bg-[#EFF5FF] border border-[#D0E2FF] sm:col-span-2">
+                        <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/80 sm:col-span-2 shadow-2xs">
                           <span className="text-xs text-[#155EEF] font-medium block">
                             Total Biaya Transportasi Proyek ({project.name})
                           </span>
@@ -4205,54 +4531,52 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                         </div>
                       </div>
 
-                      <div className="overflow-x-auto border border-[#EAECF0] rounded-xl">
-                        <table className="w-full text-left text-xs">
-                          <thead className="bg-[#1D2939] text-white font-semibold">
-                            <tr>
-                              <th className="py-3 px-3">No</th>
-                              <th className="py-3 px-3">Nomor Transaksi</th>
-                              <th className="py-3 px-3">Tanggal</th>
-                              <th className="py-3 px-3">Proyek</th>
-                              <th className="py-3 px-3">Kategori Transportasi</th>
-                              <th className="py-3 px-3">Kendaraan / Armada</th>
-                              <th className="py-3 px-3">Tujuan / Rute</th>
-                              <th className="py-3 px-3">Penanggung Jawab</th>
-                              <th className="py-3 px-3">Keterangan</th>
-                              <th className="py-3 px-3">Metode Bayar</th>
-                              <th className="py-3 px-3 text-right">Nominal Biaya</th>
-                              <th className="py-3 px-3 text-center print:hidden">Bukti Foto</th>
+                      <div className="overflow-x-auto border border-slate-200/90 rounded-2xl bg-white shadow-2xs">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-slate-900 text-white font-semibold sticky top-0 z-10 select-none">
+                            <tr className="divide-x divide-slate-800">
+                              <th className="py-2.5 px-3 text-center w-10">No</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">No. Transaksi</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Tanggal</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Kategori</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Kendaraan / Armada</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Tujuan / Rute</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Penanggung Jawab</th>
+                              <th className="py-2.5 px-3 min-w-[140px]">Keterangan</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Metode</th>
+                              <th className="py-2.5 px-3 text-right whitespace-nowrap">Nominal Biaya</th>
+                              <th className="py-2.5 px-3 text-center print:hidden w-20">Bukti Foto</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+                          <tbody className="divide-y divide-slate-100 text-slate-700">
                             {filteredTransportExpenses.length === 0 ? (
                               <tr>
-                                <td colSpan={12} className="py-8 text-center text-[#667085]">
+                                <td colSpan={11} className="py-8 text-center text-slate-400">
                                   Tidak ada transaksi biaya transportasi pada periode ini.
                                 </td>
                               </tr>
                             ) : (
                               filteredTransportExpenses.map((exp, idx) => (
-                                <tr key={exp.id} className="hover:bg-[#F9FAFB]">
-                                  <td className="py-2.5 px-3 font-mono text-[#667085]">{idx + 1}</td>
-                                  <td className="py-2.5 px-3 font-mono font-semibold text-[#1D2939]">
+                                <tr key={exp.id} className="hover:bg-slate-50 transition-colors divide-x divide-slate-100">
+                                  <td className="py-2 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
+                                  <td className="py-2 px-3 font-mono font-semibold text-slate-800 whitespace-nowrap">
                                     {exp.expenseNumber}
                                   </td>
-                                  <td className="py-2.5 px-3">{formatDateID(exp.date)}</td>
-                                  <td className="py-2.5 px-3 font-semibold text-[#344054]">{project.name}</td>
-                                  <td className="py-2.5 px-3">
-                                    <span className="px-2 py-0.5 rounded-md bg-[#F0F9FF] text-[#026AA2] font-semibold text-[11px]">
+                                  <td className="py-2 px-3 whitespace-nowrap">{formatDateID(exp.date)}</td>
+                                  <td className="py-2 px-3 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
                                       {exp.category}
                                     </span>
                                   </td>
-                                  <td className="py-2.5 px-3">{exp.vehicleOrDriver || '-'}</td>
-                                  <td className="py-2.5 px-3">{exp.destinationOrRoute || '-'}</td>
-                                  <td className="py-2.5 px-3 font-medium text-[#1D2939]">{exp.picName || '-'}</td>
-                                  <td className="py-2.5 px-3 text-[#667085]">{exp.description || '-'}</td>
-                                  <td className="py-2.5 px-3">{exp.paymentMethod || '-'}</td>
-                                  <td className="py-2.5 px-3 text-right font-mono font-bold text-[#1D2939]">
+                                  <td className="py-2 px-3 whitespace-nowrap">{exp.vehicleOrDriver || '-'}</td>
+                                  <td className="py-2 px-3 whitespace-nowrap">{exp.destinationOrRoute || '-'}</td>
+                                  <td className="py-2 px-3 font-medium text-slate-900 whitespace-nowrap">{exp.picName || '-'}</td>
+                                  <td className="py-2 px-3 text-slate-600 max-w-[200px] truncate">{exp.description || '-'}</td>
+                                  <td className="py-2 px-3 whitespace-nowrap">{exp.paymentMethod || '-'}</td>
+                                  <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-slate-900 whitespace-nowrap">
                                     {formatRupiah(exp.amount)}
                                   </td>
-                                  <td className="py-2.5 px-3 text-center print:hidden">
+                                  <td className="py-2 px-3 text-center print:hidden whitespace-nowrap">
                                     {exp.attachments && exp.attachments.length > 0 ? (
                                       <button
                                         type="button"
@@ -4260,25 +4584,25 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                                           setViewingProofExpense(exp);
                                           setActivePhotoIndex(0);
                                         }}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EFF5FF] text-[#155EEF] hover:bg-[#D0E2FF] border border-[#D0E2FF] text-[11px] font-semibold"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#155EEF] hover:bg-blue-100 text-[11px] font-semibold transition-colors cursor-pointer"
                                       >
                                         <ImageIcon className="w-3.5 h-3.5" />
-                                        <span>Lihat ({exp.attachments.length})</span>
+                                        <span>Foto ({exp.attachments.length})</span>
                                       </button>
                                     ) : (
-                                      <span className="text-[11px] text-[#98A2B3]">Tanpa Foto</span>
+                                      <span className="text-[11px] text-slate-400">Tanpa Foto</span>
                                     )}
                                   </td>
                                 </tr>
                               ))
                             )}
                           </tbody>
-                          <tfoot className="bg-[#EFF5FF] font-bold text-[#1D2939] border-t-2 border-[#4693FD]">
+                          <tfoot className="bg-[#EFF5FF] font-bold text-slate-900 border-t-2 border-blue-400 divide-x divide-blue-200">
                             <tr>
-                              <td colSpan={10} className="py-3 px-3 text-xs uppercase text-[#155EEF]">
-                                GRAND TOTAL BIAYA TRANSPORTASI PROYEK ({filteredTransportExpenses.length} Transaksi)
+                              <td colSpan={9} className="py-3 px-3 text-xs uppercase text-[#155EEF]">
+                                GRAND TOTAL BIAYA TRANSPORTASI ({filteredTransportExpenses.length} Transaksi)
                               </td>
-                              <td className="py-3 px-3 text-right font-mono text-sm text-[#155EEF]">
+                              <td className="py-3 px-3 text-right font-mono tabular-nums text-sm text-[#155EEF] whitespace-nowrap">
                                 {formatRupiah(h3TotalAmount)}
                               </td>
                               <td className="py-3 px-3 print:hidden"></td>
@@ -4295,66 +4619,64 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   {activeReportSubmenu === 'h4' && (
                     <div className="mt-4 space-y-4">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="p-3.5 rounded-xl bg-[#FDF2FA] border border-[#FCCEEE]">
-                          <span className="text-xs text-[#C11574] font-medium block">Total Transaksi Operasional</span>
-                          <p className="text-xl font-bold text-[#C11574] font-mono mt-1">
+                        <div className="p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                          <span className="text-xs text-slate-500 font-medium block">Total Transaksi Operasional</span>
+                          <p className="text-xl font-bold text-slate-900 font-mono mt-1">
                             {filteredOperationalExpenses.length} Transaksi
                           </p>
                         </div>
-                        <div className="p-3.5 rounded-xl bg-[#EFF5FF] border border-[#D0E2FF] sm:col-span-2">
-                          <span className="text-xs text-[#155EEF] font-medium block">
+                        <div className="p-3.5 rounded-xl bg-pink-50/60 border border-pink-200/80 sm:col-span-2 shadow-2xs">
+                          <span className="text-xs text-[#C11574] font-medium block">
                             Total Pengeluaran Operasional Lapangan ({project.name})
                           </span>
-                          <p className="text-xl font-bold text-[#155EEF] font-mono mt-1">
+                          <p className="text-xl font-bold text-[#C11574] font-mono mt-1">
                             {formatRupiah(h4TotalAmount)}
                           </p>
                         </div>
                       </div>
 
-                      <div className="overflow-x-auto border border-[#EAECF0] rounded-xl">
-                        <table className="w-full text-left text-xs">
-                          <thead className="bg-[#1D2939] text-white font-semibold">
-                            <tr>
-                              <th className="py-3 px-3">No</th>
-                              <th className="py-3 px-3">Nomor Transaksi</th>
-                              <th className="py-3 px-3">Tanggal</th>
-                              <th className="py-3 px-3">Proyek</th>
-                              <th className="py-3 px-3">Kategori Operasional</th>
-                              <th className="py-3 px-3">Uraian / Kebutuhan Lapangan</th>
-                              <th className="py-3 px-3">Penanggung Jawab</th>
-                              <th className="py-3 px-3">Metode Bayar</th>
-                              <th className="py-3 px-3 text-right">Nominal Pengeluaran</th>
-                              <th className="py-3 px-3 text-center print:hidden">Bukti Foto</th>
+                      <div className="overflow-x-auto border border-slate-200/90 rounded-2xl bg-white shadow-2xs">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-slate-900 text-white font-semibold sticky top-0 z-10 select-none">
+                            <tr className="divide-x divide-slate-800">
+                              <th className="py-2.5 px-3 text-center w-10">No</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">No. Transaksi</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Tanggal</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Kategori</th>
+                              <th className="py-2.5 px-3 min-w-[140px]">Kebutuhan Lapangan</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Penanggung Jawab</th>
+                              <th className="py-2.5 px-3 whitespace-nowrap">Metode</th>
+                              <th className="py-2.5 px-3 text-right whitespace-nowrap">Nominal Biaya</th>
+                              <th className="py-2.5 px-3 text-center print:hidden w-20">Bukti Foto</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+                          <tbody className="divide-y divide-slate-100 text-slate-700">
                             {filteredOperationalExpenses.length === 0 ? (
                               <tr>
-                                <td colSpan={10} className="py-8 text-center text-[#667085]">
+                                <td colSpan={9} className="py-8 text-center text-slate-400">
                                   Tidak ada transaksi pengeluaran operasional lapangan pada periode ini.
                                 </td>
                               </tr>
                             ) : (
                               filteredOperationalExpenses.map((exp, idx) => (
-                                <tr key={exp.id} className="hover:bg-[#F9FAFB]">
-                                  <td className="py-2.5 px-3 font-mono text-[#667085]">{idx + 1}</td>
-                                  <td className="py-2.5 px-3 font-mono font-semibold text-[#1D2939]">
+                                <tr key={exp.id} className="hover:bg-slate-50 transition-colors divide-x divide-slate-100">
+                                  <td className="py-2 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
+                                  <td className="py-2 px-3 font-mono font-semibold text-slate-800 whitespace-nowrap">
                                     {exp.expenseNumber}
                                   </td>
-                                  <td className="py-2.5 px-3">{formatDateID(exp.date)}</td>
-                                  <td className="py-2.5 px-3 font-semibold text-[#344054]">{project.name}</td>
-                                  <td className="py-2.5 px-3">
-                                    <span className="px-2 py-0.5 rounded-md bg-[#FDF2FA] text-[#C11574] font-semibold text-[11px]">
+                                  <td className="py-2 px-3 whitespace-nowrap">{formatDateID(exp.date)}</td>
+                                  <td className="py-2 px-3 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-pink-50 text-[#C11574] border border-pink-200/60">
                                       {exp.category}
                                     </span>
                                   </td>
-                                  <td className="py-2.5 px-3 text-[#1D2939]">{exp.description || '-'}</td>
-                                  <td className="py-2.5 px-3 font-medium text-[#1D2939]">{exp.picName || '-'}</td>
-                                  <td className="py-2.5 px-3">{exp.paymentMethod || '-'}</td>
-                                  <td className="py-2.5 px-3 text-right font-mono font-bold text-[#1D2939]">
+                                  <td className="py-2 px-3 text-slate-900 max-w-[200px] truncate">{exp.description || '-'}</td>
+                                  <td className="py-2 px-3 font-medium text-slate-900 whitespace-nowrap">{exp.picName || '-'}</td>
+                                  <td className="py-2 px-3 whitespace-nowrap">{exp.paymentMethod || '-'}</td>
+                                  <td className="py-2 px-3 text-right font-mono tabular-nums font-bold text-slate-900 whitespace-nowrap">
                                     {formatRupiah(exp.amount)}
                                   </td>
-                                  <td className="py-2.5 px-3 text-center print:hidden">
+                                  <td className="py-2 px-3 text-center print:hidden whitespace-nowrap">
                                     {exp.attachments && exp.attachments.length > 0 ? (
                                       <button
                                         type="button"
@@ -4362,25 +4684,25 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                                           setViewingProofExpense(exp);
                                           setActivePhotoIndex(0);
                                         }}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EFF5FF] text-[#155EEF] hover:bg-[#D0E2FF] border border-[#D0E2FF] text-[11px] font-semibold"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-[#155EEF] hover:bg-blue-100 text-[11px] font-semibold transition-colors cursor-pointer"
                                       >
                                         <ImageIcon className="w-3.5 h-3.5" />
-                                        <span>Lihat ({exp.attachments.length})</span>
+                                        <span>Foto ({exp.attachments.length})</span>
                                       </button>
                                     ) : (
-                                      <span className="text-[11px] text-[#98A2B3]">Tanpa Foto</span>
+                                      <span className="text-[11px] text-slate-400">Tanpa Foto</span>
                                     )}
                                   </td>
                                 </tr>
                               ))
                             )}
                           </tbody>
-                          <tfoot className="bg-[#EFF5FF] font-bold text-[#1D2939] border-t-2 border-[#4693FD]">
+                          <tfoot className="bg-[#EFF5FF] font-bold text-slate-900 border-t-2 border-blue-400 divide-x divide-blue-200">
                             <tr>
-                              <td colSpan={8} className="py-3 px-3 text-xs uppercase text-[#155EEF]">
-                                GRAND TOTAL PENGELUARAN OPERASIONAL LAPANGAN ({filteredOperationalExpenses.length} Transaksi)
+                              <td colSpan={7} className="py-3 px-3 text-xs uppercase text-[#155EEF]">
+                                GRAND TOTAL PENGELUARAN OPERASIONAL ({filteredOperationalExpenses.length} Transaksi)
                               </td>
-                              <td className="py-3 px-3 text-right font-mono text-sm text-[#155EEF]">
+                              <td className="py-3 px-3 text-right font-mono tabular-nums text-sm text-[#155EEF] whitespace-nowrap">
                                 {formatRupiah(h4TotalAmount)}
                               </td>
                               <td className="py-3 px-3 print:hidden"></td>
@@ -4395,205 +4717,250 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                   {/* SUBMENU H5: REKAP SELURUH PENGELUARAN PROYEK               */}
                   {/* ========================================================== */}
                   {activeReportSubmenu === 'h5' && (
-                    <div className="mt-4 space-y-5">
-                      {/* 4 Highlight Realization Cards */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="bg-[#F8F9FA] p-4 rounded-xl border border-[#EAECF0]">
-                          <span className="text-xs text-[#667085] font-medium">1. Nilai Anggaran Proyek</span>
-                          <p className="text-xl font-bold text-[#1D2939] font-mono mt-1">
+                    <div className="mt-4 space-y-4">
+                      {/* 4 Modern Executive Realization Cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs transition-all hover:border-slate-300">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">1. Nilai Anggaran</span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">Kontrak</span>
+                          </div>
+                          <p className="text-lg font-bold text-slate-900 font-mono tabular-nums mt-1.5">
                             {formatRupiah(rawSummary.budget)}
                           </p>
-                          <p className="text-[11px] text-[#667085] mt-1">Plafon kontrak proyek {project.name}</p>
+                          <p className="text-[11px] text-slate-500 mt-0.5 truncate">Plafon resmi {project.name}</p>
                         </div>
 
-                        <div className="bg-[#EFF5FF] p-4 rounded-xl border border-[#D0E2FF]">
-                          <span className="text-xs text-[#155EEF] font-medium">2. Total Seluruh Pengeluaran Proyek</span>
-                          <p className="text-xl font-bold text-[#155EEF] font-mono mt-1">
+                        <div className="bg-white p-3.5 rounded-xl border border-blue-200 shadow-2xs transition-all hover:border-blue-300">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wider">2. Total Pengeluaran</span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">Aktual</span>
+                          </div>
+                          <p className="text-lg font-bold text-blue-700 font-mono tabular-nums mt-1.5">
                             {formatRupiah(rawSummary.totalProjectCost)}
                           </p>
-                          <p className="text-[11px] text-[#155EEF] mt-1">
-                            Akumulasi Gaji + Transportasi + Operasional
-                          </p>
+                          <p className="text-[11px] text-blue-600/80 mt-0.5">Gaji + Transport + Lapangan</p>
                         </div>
 
-                        <div className="bg-[#ECFDF3] p-4 rounded-xl border border-[#A6F4C5]">
-                          <span className="text-xs text-[#027A48] font-medium">3. Sisa Anggaran Proyek</span>
-                          <p className="text-xl font-bold text-[#027A48] font-mono mt-1">
+                        <div className="bg-white p-3.5 rounded-xl border border-emerald-200 shadow-2xs transition-all hover:border-emerald-300">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider">3. Sisa Anggaran</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${rawSummary.budgetRemaining >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-red-50 text-red-700 border border-red-200/60'}`}>
+                              {rawSummary.budgetRemaining >= 0 ? 'Surplus' : 'Defisit'}
+                            </span>
+                          </div>
+                          <p className={`text-lg font-bold font-mono tabular-nums mt-1.5 ${rawSummary.budgetRemaining >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                             {formatRupiah(rawSummary.budgetRemaining)}
                           </p>
-                          <p className="text-[11px] text-[#027A48] mt-1">
-                            Nilai Anggaran − Total Pengeluaran Proyek
-                          </p>
+                          <p className="text-[11px] text-emerald-600/80 mt-0.5">Anggaran − Total Pengeluaran</p>
                         </div>
 
-                        <div className="bg-[#FEF6EE] p-4 rounded-xl border border-[#F9DBAF]">
-                          <span className="text-xs text-[#B54708] font-medium">4. Persentase Realisasi Anggaran</span>
-                          <p className="text-xl font-bold text-[#B54708] font-mono mt-1">
+                        <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs transition-all hover:border-amber-300">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">4. Realisasi</span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/60">Serapan</span>
+                          </div>
+                          <p className="text-lg font-bold text-amber-800 font-mono tabular-nums mt-1.5">
                             {rawSummary.realizationPercentage}%
                           </p>
-                          <p className="text-[11px] text-[#B54708] mt-1">
-                            (Total Pengeluaran ÷ Nilai Anggaran) × 100%
-                          </p>
+                          <p className="text-[11px] text-amber-700/80 mt-0.5">Persentase terhadap anggaran</p>
                         </div>
                       </div>
 
-                      {/* Realization Progress Bar */}
-                      <div className="bg-[#F8F9FA] p-4 rounded-xl border border-[#EAECF0]">
-                        <div className="flex justify-between text-xs text-[#344054] mb-1.5 font-semibold">
-                          <span>Tingkat Penyerapan Anggaran Proyek {project.name}</span>
-                          <span className="font-mono text-[#155EEF]">
-                            {formatRupiah(rawSummary.totalProjectCost)} / {formatRupiah(rawSummary.budget)} ({rawSummary.realizationPercentage}%)
+                      {/* Realization Progress Bar Container */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200/90 shadow-2xs">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-800">Tingkat Penyerapan Anggaran Proyek</span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              rawSummary.realizationPercentage > 100 
+                                ? 'bg-red-50 text-red-700 border border-red-200'
+                                : rawSummary.realizationPercentage > 85 
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200' 
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            }`}>
+                              {rawSummary.realizationPercentage > 100 ? 'Melebihi Anggaran' : rawSummary.realizationPercentage > 85 ? 'Hampir Habis' : 'Dalam Batas Aman'}
+                            </span>
+                          </div>
+                          <span className="font-mono tabular-nums font-bold text-blue-700">
+                            {formatRupiah(rawSummary.totalProjectCost)} <span className="font-normal text-slate-400">/</span> {formatRupiah(rawSummary.budget)} ({rawSummary.realizationPercentage}%)
                           </span>
                         </div>
-                        <div className="w-full bg-[#EAECF0] h-3 rounded-full overflow-hidden">
+                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden flex">
                           <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              rawSummary.realizationPercentage > 90 ? 'bg-[#D92D20]' : 'bg-[#4693FD]'
+                            className={`h-full transition-all duration-500 ${
+                              rawSummary.realizationPercentage > 100 ? 'bg-red-600' : rawSummary.realizationPercentage > 85 ? 'bg-amber-500' : 'bg-blue-600'
                             }`}
                             style={{ width: `${Math.min(100, rawSummary.realizationPercentage)}%` }}
                           />
                         </div>
+                        <div className="mt-2.5 flex flex-wrap items-center justify-between text-[11px] text-slate-500 gap-2">
+                          <div className="flex items-center gap-4">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-blue-600" />
+                              <span>Gaji: <strong className="font-mono text-slate-700">{formatRupiah(rawSummary.totalGrossSalary)}</strong></span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-cyan-600" />
+                              <span>Transport: <strong className="font-mono text-slate-700">{formatRupiah(rawSummary.totalTransport)}</strong></span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-purple-600" />
+                              <span>Operasional: <strong className="font-mono text-slate-700">{formatRupiah(rawSummary.totalOp)}</strong></span>
+                            </span>
+                          </div>
+                          <span className="text-slate-400">Update per {formatDateID(getTodayDateString())}</span>
+                        </div>
                       </div>
 
                       {/* Detailed H5 Breakdown Table */}
-                      <div className="overflow-x-auto border border-[#EAECF0] rounded-xl">
-                        <table className="w-full text-left text-xs">
-                          <thead className="bg-[#1D2939] text-white font-semibold">
+                      <div className="overflow-x-auto border border-slate-200/90 rounded-xl bg-white shadow-2xs">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-slate-900 text-white font-semibold text-[11px] divide-x divide-slate-800">
                             <tr>
-                              <th className="py-3 px-4 w-12">No</th>
-                              <th className="py-3 px-4">Komponen Pengeluaran Proyek</th>
-                              <th className="py-3 px-4">Rincian & Keterangan Realisasi</th>
-                              <th className="py-3 px-4 text-right">Subtotal Realisasi (Rp)</th>
+                              <th className="py-2.5 px-3 w-12 text-center">No</th>
+                              <th className="py-2.5 px-3.5 min-w-[240px]">Komponen Pengeluaran Proyek</th>
+                              <th className="py-2.5 px-3.5">Rincian & Keterangan Realisasi</th>
+                              <th className="py-2.5 px-3 w-24 text-center">Porsi (%)</th>
+                              <th className="py-2.5 px-3.5 text-right w-44">Subtotal Realisasi (Rp)</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
-                            <tr>
-                              <td className="py-3 px-4 font-mono text-[#667085]">1</td>
-                              <td className="py-3 px-4 font-bold text-[#1D2939]">
+                          <tbody className="divide-y divide-slate-200 text-slate-700">
+                            <tr className="hover:bg-slate-50 transition-colors divide-x divide-slate-100">
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">1</td>
+                              <td className="py-2.5 px-3.5 font-semibold text-slate-900">
                                 Gaji Pokok Harian Karyawan Proyek (Hadir Penuh & Setengah Hari)
                               </td>
-                              <td className="py-3 px-4 text-[#475467]">
+                              <td className="py-2.5 px-3.5 text-slate-600 text-[11px]">
                                 <div>
-                                  Total <strong>{rawSummary.totalWorkDays} hari kerja efektif</strong> ({rawSummary.totalRecapEmployees} karyawan)
+                                  Total <strong className="font-mono text-slate-800">{rawSummary.totalWorkDays} hari kerja efektif</strong> ({rawSummary.totalRecapEmployees} karyawan terdaftar)
                                 </div>
-                                <div className="text-[11px] text-[#667085] mt-0.5">
-                                  • Hadir Penuh: {rawSummary.fullWorkDays} hari ({formatRupiah(rawSummary.fullDaySalary)})
-                                  <span className="ml-3">
-                                    • Setengah Hari: {rawSummary.halfWorkDays} hari ({formatRupiah(rawSummary.halfDaySalary)})
-                                  </span>
+                                <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap gap-x-3">
+                                  <span>• Hadir Penuh: <strong className="text-slate-700">{rawSummary.fullWorkDays} hari</strong> ({formatRupiah(rawSummary.fullDaySalary)})</span>
+                                  <span>• Setengah Hari: <strong className="text-slate-700">{rawSummary.halfWorkDays} hari</strong> ({formatRupiah(rawSummary.halfDaySalary)})</span>
                                 </div>
                               </td>
-                              <td className="py-3 px-4 text-right font-mono font-semibold text-[#1D2939]">
+                              <td className="py-2.5 px-3 text-center font-mono tabular-nums text-slate-500 text-[11px]">
+                                {rawSummary.totalProjectCost > 0 ? ((rawSummary.totalBasicSalary / rawSummary.totalProjectCost) * 100).toFixed(1) : '0'}%
+                              </td>
+                              <td className="py-2.5 px-3.5 text-right font-mono tabular-nums font-semibold text-slate-900">
                                 {formatRupiah(rawSummary.totalBasicSalary)}
                               </td>
                             </tr>
 
-                            <tr>
-                              <td className="py-3 px-4 font-mono text-[#667085]">2</td>
-                              <td className="py-3 px-4 font-bold text-[#1D2939]">
+                            <tr className="hover:bg-slate-50 transition-colors divide-x divide-slate-100">
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">2</td>
+                              <td className="py-2.5 px-3.5 font-semibold text-slate-900">
                                 Upah Lembur Karyawan Proyek Disetujui
                               </td>
-                              <td className="py-3 px-4 text-[#475467]">
-                                Total durasi lembur aktual: <strong>{formatOvertimeDuration(rawSummary.totalOvertimeHours)}</strong> (Driver = Rp 0 sesuai ketentuan perusahaan)
+                              <td className="py-2.5 px-3.5 text-slate-600 text-[11px]">
+                                Total durasi lembur aktual: <strong className="font-mono text-amber-700">{formatOvertimeDuration(rawSummary.totalOvertimeHours)}</strong> (Driver = Rp 0 sesuai ketentuan perusahaan)
                               </td>
-                              <td className="py-3 px-4 text-right font-mono font-semibold text-[#B54708]">
+                              <td className="py-2.5 px-3 text-center font-mono tabular-nums text-slate-500 text-[11px]">
+                                {rawSummary.totalProjectCost > 0 ? ((rawSummary.totalOvertimePay / rawSummary.totalProjectCost) * 100).toFixed(1) : '0'}%
+                              </td>
+                              <td className="py-2.5 px-3.5 text-right font-mono tabular-nums font-semibold text-amber-700">
                                 {formatRupiah(rawSummary.totalOvertimePay)}
                               </td>
                             </tr>
 
-                            <tr className="bg-[#F8F9FA]">
-                              <td className="py-3 px-4 font-mono font-bold text-[#155EEF]">1+2</td>
-                              <td className="py-3 px-4 font-bold text-[#155EEF]">
+                            <tr className="bg-blue-50/60 divide-x divide-blue-100 font-medium">
+                              <td className="py-2.5 px-3 text-center font-mono font-bold text-blue-700 text-[11px]">1+2</td>
+                              <td className="py-2.5 px-3.5 font-bold text-blue-900">
                                 Subtotal Total Gaji Karyawan Proyek (H2)
                               </td>
-                              <td className="py-3 px-4 text-[11px] text-[#475467]">
-                                <div className="flex flex-wrap gap-x-4 gap-y-1">
-                                  <span>
-                                    Sudah Dibayar: <strong className="font-mono text-[#027A48]">{formatRupiah(rawSummary.paidPayrollTotal)}</strong>
-                                  </span>
-                                  <span>
-                                    Belum Dibayar / Terhitung: <strong className="font-mono text-[#B54708]">{formatRupiah(rawSummary.unpaidPayrollTotal)}</strong>
-                                  </span>
-                                  <span>
-                                    Potongan Kasbon: <strong className="font-mono text-[#B42318]">-{formatRupiah(rawSummary.totalKasbonDeduction)}</strong>
-                                  </span>
-                                  <span>
-                                    Gaji Bersih Diterima: <strong className="font-mono text-[#027A48]">{formatRupiah(rawSummary.totalNetSalary)}</strong>
-                                  </span>
+                              <td className="py-2.5 px-3.5 text-[11px] text-slate-600">
+                                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                  <span>Sudah Dibayar: <strong className="font-mono tabular-nums text-emerald-700">{formatRupiah(rawSummary.paidPayrollTotal)}</strong></span>
+                                  <span>Belum Dibayar: <strong className="font-mono tabular-nums text-amber-700">{formatRupiah(rawSummary.unpaidPayrollTotal)}</strong></span>
+                                  <span>Potongan Kasbon: <strong className="font-mono tabular-nums text-red-700">-{formatRupiah(rawSummary.totalKasbonDeduction)}</strong></span>
+                                  <span>Gaji Bersih (THP): <strong className="font-mono tabular-nums text-emerald-700">{formatRupiah(rawSummary.totalNetSalary)}</strong></span>
                                 </div>
                               </td>
-                              <td className="py-3 px-4 text-right font-mono font-bold text-[#155EEF]">
+                              <td className="py-2.5 px-3 text-center font-mono tabular-nums font-bold text-blue-800 text-[11px]">
+                                {rawSummary.totalProjectCost > 0 ? ((rawSummary.totalGrossSalary / rawSummary.totalProjectCost) * 100).toFixed(1) : '0'}%
+                              </td>
+                              <td className="py-2.5 px-3.5 text-right font-mono tabular-nums font-bold text-blue-800">
                                 {formatRupiah(rawSummary.totalGrossSalary)}
                               </td>
                             </tr>
 
-                            <tr>
-                              <td className="py-3 px-4 font-mono text-[#667085]">3</td>
-                              <td className="py-3 px-4 font-bold text-[#1D2939]">
+                            <tr className="hover:bg-slate-50 transition-colors divide-x divide-slate-100">
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">3</td>
+                              <td className="py-2.5 px-3.5 font-semibold text-slate-900">
                                 Total Biaya Transportasi Proyek (H3)
                               </td>
-                              <td className="py-3 px-4 text-[#475467]">
-                                {allTransportExpenses.length} transaksi transportasi proyek (Bensin, Solar, Tol, Parkir, Ongkos & Sewa Kendaraan)
+                              <td className="py-2.5 px-3.5 text-slate-600 text-[11px]">
+                                <strong className="font-mono text-slate-800">{allTransportExpenses.length}</strong> transaksi transportasi terverifikasi (Bensin, Solar, Tol, Parkir, Sewa Kendaraan)
                               </td>
-                              <td className="py-3 px-4 text-right font-mono font-semibold text-[#026AA2]">
+                              <td className="py-2.5 px-3 text-center font-mono tabular-nums text-slate-500 text-[11px]">
+                                {rawSummary.totalProjectCost > 0 ? ((rawSummary.totalTransport / rawSummary.totalProjectCost) * 100).toFixed(1) : '0'}%
+                              </td>
+                              <td className="py-2.5 px-3.5 text-right font-mono tabular-nums font-semibold text-cyan-700">
                                 {formatRupiah(rawSummary.totalTransport)}
                               </td>
                             </tr>
 
-                            <tr>
-                              <td className="py-3 px-4 font-mono text-[#667085]">4</td>
-                              <td className="py-3 px-4 font-bold text-[#1D2939]">
-                                Total Biaya Pengeluaran Operasional Lapangan (H4)
+                            <tr className="hover:bg-slate-50 transition-colors divide-x divide-slate-100">
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">4</td>
+                              <td className="py-2.5 px-3.5 font-semibold text-slate-900">
+                                Total Biaya Operasional Lapangan (H4)
                               </td>
-                              <td className="py-3 px-4 text-[#475467]">
-                                {allOperationalExpenses.length} transaksi operasional lapangan (Material Kecil, Alat Kerja, Konsumsi & Kebutuhan Darurat)
+                              <td className="py-2.5 px-3.5 text-slate-600 text-[11px]">
+                                <strong className="font-mono text-slate-800">{allOperationalExpenses.length}</strong> transaksi operasional lapangan (Material Kecil, Alat Kerja, Konsumsi, Darurat)
                               </td>
-                              <td className="py-3 px-4 text-right font-mono font-semibold text-[#C11574]">
+                              <td className="py-2.5 px-3 text-center font-mono tabular-nums text-slate-500 text-[11px]">
+                                {rawSummary.totalProjectCost > 0 ? ((rawSummary.totalOp / rawSummary.totalProjectCost) * 100).toFixed(1) : '0'}%
+                              </td>
+                              <td className="py-2.5 px-3.5 text-right font-mono tabular-nums font-semibold text-purple-700">
                                 {formatRupiah(rawSummary.totalOp)}
                               </td>
                             </tr>
 
                             {rawSummary.totalOtherCost > 0 && (
-                              <tr>
-                                <td className="py-3 px-4 font-mono text-[#667085]">5</td>
-                                <td className="py-3 px-4 font-bold text-[#1D2939]">Biaya Proyek Lainnya</td>
-                                <td className="py-3 px-4 text-[#475467]">Komponen pengeluaran proyek lainnya</td>
-                                <td className="py-3 px-4 text-right font-mono font-semibold text-[#1D2939]">
+                              <tr className="hover:bg-slate-50 transition-colors divide-x divide-slate-100">
+                                <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">5</td>
+                                <td className="py-2.5 px-3.5 font-semibold text-slate-900">Biaya Proyek Lainnya</td>
+                                <td className="py-2.5 px-3.5 text-slate-600 text-[11px]">Komponen pengeluaran proyek lainnya</td>
+                                <td className="py-2.5 px-3 text-center font-mono tabular-nums text-slate-500 text-[11px]">
+                                  {rawSummary.totalProjectCost > 0 ? ((rawSummary.totalOtherCost / rawSummary.totalProjectCost) * 100).toFixed(1) : '0'}%
+                                </td>
+                                <td className="py-2.5 px-3.5 text-right font-mono tabular-nums font-semibold text-slate-900">
                                   {formatRupiah(rawSummary.totalOtherCost)}
                                 </td>
                               </tr>
                             )}
                           </tbody>
-                          <tfoot className="border-t-2 border-[#1D2939] text-xs">
-                            <tr className="bg-[#EFF5FF] font-bold text-[#155EEF]">
-                              <td colSpan={3} className="py-3 px-4 uppercase">
+                          <tfoot className="border-t-2 border-slate-900 text-xs divide-y divide-slate-200">
+                            <tr className="bg-blue-50 font-bold text-blue-900">
+                              <td colSpan={4} className="py-2.5 px-3.5 uppercase tracking-wide text-[11px]">
                                 TOTAL SELURUH PENGELUARAN PROYEK ({project.name})
                               </td>
-                              <td className="py-3 px-4 text-right font-mono text-sm">
+                              <td className="py-2.5 px-3.5 text-right font-mono tabular-nums text-sm font-bold text-blue-900">
                                 {formatRupiah(rawSummary.totalProjectCost)}
                               </td>
                             </tr>
-                            <tr className="bg-[#F9FAFB] font-bold text-[#1D2939]">
-                              <td colSpan={3} className="py-2.5 px-4 uppercase">
+                            <tr className="bg-slate-50 font-semibold text-slate-800">
+                              <td colSpan={4} className="py-2 px-3.5 uppercase tracking-wide text-[11px]">
                                 NILAI ANGGARAN KONTRAK PROYEK
                               </td>
-                              <td className="py-2.5 px-4 text-right font-mono">
+                              <td className="py-2 px-3.5 text-right font-mono tabular-nums text-slate-900">
                                 {formatRupiah(rawSummary.budget)}
                               </td>
                             </tr>
-                            <tr className="bg-[#ECFDF3] font-bold text-[#027A48]">
-                              <td colSpan={3} className="py-2.5 px-4 uppercase">
+                            <tr className="bg-emerald-50 font-bold text-emerald-900">
+                              <td colSpan={4} className="py-2 px-3.5 uppercase tracking-wide text-[11px]">
                                 SISA ANGGARAN PROYEK (Nilai Anggaran − Total Pengeluaran)
                               </td>
-                              <td className="py-2.5 px-4 text-right font-mono text-sm">
+                              <td className="py-2 px-3.5 text-right font-mono tabular-nums text-emerald-800">
                                 {formatRupiah(rawSummary.budgetRemaining)}
                               </td>
                             </tr>
-                            <tr className="bg-[#FEF6EE] font-bold text-[#B54708]">
-                              <td colSpan={3} className="py-2.5 px-4 uppercase">
+                            <tr className="bg-amber-50 font-bold text-amber-900">
+                              <td colSpan={4} className="py-2 px-3.5 uppercase tracking-wide text-[11px]">
                                 PERSENTASE REALISASI ANGGARAN ((Total Pengeluaran ÷ Nilai Anggaran) × 100%)
                               </td>
-                              <td className="py-2.5 px-4 text-right font-mono text-sm">
+                              <td className="py-2 px-3.5 text-right font-mono tabular-nums text-amber-800">
                                 {rawSummary.realizationPercentage}%
                               </td>
                             </tr>
@@ -4623,6 +4990,8 @@ export const ProjectOverviewDashboard: React.FC<ProjectOverviewDashboardProps> =
                 </div>
               </div>
             )}
+          </div>
+        )}
 
             {/* MODAL H1: LIHAT DETAIL REKAP GAJI KARYAWAN */}
             {selectedH1EmployeeDetail && (

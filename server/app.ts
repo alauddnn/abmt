@@ -87,3 +87,13 @@ const callbackHtml = `<!DOCTYPE html>
 app.get(['/auth/callback', '/auth/callback/'], (_req, res) => {
   res.send(callbackHtml);
 });
+
+// Global Express Error Handler Middleware
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Global Express Error Handler:', err);
+  const status = typeof err.status === 'number' ? err.status : typeof err.statusCode === 'number' ? err.statusCode : 500;
+  return res.status(status).json({
+    error: err?.message || 'Terjadi kesalahan saat memproses permintaan pada server.',
+  });
+});
+

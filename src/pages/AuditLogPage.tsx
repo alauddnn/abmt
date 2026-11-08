@@ -182,16 +182,16 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
   return (
     <div className="space-y-6 pb-20 kms-fade-in">
       {/* Header */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-7 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="glass-panel rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-[#2563EB] text-xs font-semibold tracking-tight">
-              PT. Asta Brata Matahari Terbit
+            <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
+              PT. ASTA BRATA MATAHARI TERBIT
             </span>
             <span className="text-slate-300">·</span>
             <span className="text-xs text-slate-500 font-medium font-mono">Keamanan & Audit Trail</span>
           </div>
-          <h1 className="text-2xl sm:text-[26px] font-semibold text-slate-900 tracking-tight mt-1">
+          <h1 className="text-2xl sm:text-[26px] font-bold text-slate-900 tracking-tight mt-1">
             Pengguna, Hak Akses & Riwayat Audit
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -200,37 +200,37 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
         </div>
 
         {/* Animated Tab Switcher */}
-        <div className="inline-flex items-center bg-slate-100/90 p-1 rounded-xl text-xs shrink-0">
+        <div className="inline-flex items-center glass-pill p-1 rounded-xl text-xs shrink-0">
           <button
             onClick={() => setActiveTab('logs')}
             className={`relative flex items-center gap-1.5 px-3.5 py-1.5 font-medium rounded-lg transition-colors cursor-pointer ${
-              activeTab === 'logs' ? 'text-slate-900' : 'text-slate-600 hover:text-slate-900'
+              activeTab === 'logs' ? 'text-slate-900 font-semibold' : 'text-slate-500 hover:text-slate-900'
             }`}
           >
             {activeTab === 'logs' && (
               <motion.span
                 layoutId="audit-tab-pill"
                 transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                className="absolute inset-0 bg-white rounded-lg shadow-xs"
+                className="absolute inset-0 bg-white rounded-lg shadow-sm"
               />
             )}
-            <History className="w-3.5 h-3.5 text-[#2563EB] relative z-10" />
+            <History className="w-3.5 h-3.5 text-[#4693FD] relative z-10" />
             <span className="relative z-10">Audit Log ({logs.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('users')}
             className={`relative flex items-center gap-1.5 px-3.5 py-1.5 font-medium rounded-lg transition-colors cursor-pointer ${
-              activeTab === 'users' ? 'text-slate-900' : 'text-slate-600 hover:text-slate-900'
+              activeTab === 'users' ? 'text-slate-900 font-semibold' : 'text-slate-500 hover:text-slate-900'
             }`}
           >
             {activeTab === 'users' && (
               <motion.span
                 layoutId="audit-tab-pill"
                 transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                className="absolute inset-0 bg-white rounded-lg shadow-xs"
+                className="absolute inset-0 bg-white rounded-lg shadow-sm"
               />
             )}
-            <Shield className="w-3.5 h-3.5 text-[#2563EB] relative z-10" />
+            <Shield className="w-3.5 h-3.5 text-[#4693FD] relative z-10" />
             <span className="relative z-10">Kelola Pengguna ({users.length})</span>
           </button>
         </div>
@@ -238,7 +238,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
 
       {/* Owner Notice */}
       {isOwner && (
-        <div className="bg-[#FEF6EE] border border-[#F9DBAF] rounded-xl p-3.5 flex items-center justify-between text-xs text-[#B54708]">
+        <div className="bg-[#FEF6EE]/90 backdrop-blur-md border border-[#F9DBAF] rounded-2xl p-4 flex items-center justify-between text-xs text-[#B54708]">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-[#B54708] shrink-0" />
             <span>
@@ -251,25 +251,25 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
       {activeTab === 'logs' ? (
         <>
           {/* Filter Bar */}
-          <div className="bg-white p-4 rounded-xl border border-[#EAECF0] shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="glass-panel p-4 sm:p-5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3">
             <div className="relative w-full md:w-80">
-              <Search className="w-4 h-4 text-[#98A2B3] absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Cari aktivitas, admin, atau detail..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3.5 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                className="w-full pl-9 pr-3.5 py-2 bg-white/70 hover:bg-white/90 focus:bg-white border border-white/80 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#4693FD]"
               />
             </div>
 
             <div className="flex items-center gap-3 w-full md:w-auto">
               <div className="flex items-center gap-2 text-xs">
-                <label className="text-[#667085] font-medium">Modul:</label>
+                <label className="text-slate-500 font-medium">Modul:</label>
                 <select
                   value={moduleFilter}
                   onChange={(e) => setModuleFilter(e.target.value)}
-                  className="bg-white border border-[#D0D5DD] rounded-lg px-2.5 py-1.5 text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                  className="bg-white/80 border border-white/80 rounded-xl px-2.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-[#4693FD]"
                 >
                   <option value="all">Semua Modul</option>
                   <option value="Karyawan">Karyawan</option>
@@ -288,16 +288,16 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
               <button
                 onClick={fetchLogs}
                 disabled={loadingLogs}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#F9FAFB] text-[#344054] text-xs font-medium rounded-lg border border-[#D0D5DD] shadow-xs transition-colors shrink-0"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white/80 hover:bg-white text-slate-700 text-xs font-semibold rounded-xl border border-white/80 shadow-xs transition-colors shrink-0"
               >
-                <RefreshCw className={`w-3.5 h-3.5 text-[#667085] ${loadingLogs ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loadingLogs ? 'animate-spin' : ''}`} />
                 <span>Segarkan</span>
               </button>
             </div>
           </div>
 
           {/* Logs Table */}
-          <div className="bg-white rounded-xl border border-[#EAECF0] shadow-xs overflow-hidden">
+          <div className="glass-table rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -372,17 +372,17 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
       ) : (
         /* Users Management Tab */
         <div className="space-y-4">
-          <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-xs flex items-center justify-between">
+          <div className="glass-panel p-5 rounded-2xl flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-[#262626]">Daftar Akun Pengguna Sistem</h3>
-              <p className="text-xs text-[#667085] mt-0.5">
+              <h3 className="text-sm font-semibold text-slate-800">Daftar Akun Pengguna Sistem</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
                 Pengguna terdaftar dengan autentikasi kata sandi terenkripsi (SHA-512 with unique salt)
               </p>
             </div>
             {isAdmin && (
               <button
                 onClick={openAddUserModal}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-medium rounded-lg shadow-xs transition-colors shrink-0"
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-semibold rounded-xl shadow-[0_4px_14px_rgba(70,147,253,0.3)] transition-all shrink-0"
               >
                 <Plus className="w-4 h-4" />
                 <span>Tambah Pengguna Baru</span>
@@ -390,7 +390,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-[#EAECF0] shadow-xs overflow-hidden">
+          <div className="glass-table rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -497,20 +497,20 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
 
       {/* Add / Edit User Modal */}
       {isUserModalOpen && (
-        <div className="kms-modal-overlay fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="kms-modal-content bg-white rounded-2xl max-w-md w-full border border-[#EAECF0] shadow-xl overflow-hidden">
-            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between">
+        <div className="kms-modal-overlay fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-white/60 flex items-center justify-between bg-white/50">
               <div>
-                <h3 className="text-base font-semibold text-[#262626]">
+                <h3 className="text-base font-semibold text-slate-800">
                   {editingUser ? `Edit Akun: ${editingUser.username}` : 'Tambah Pengguna Baru'}
                 </h3>
-                <p className="text-xs text-[#667085] mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Tentukan peran akun: Admin (akses penuh) atau Owner (baca-saja)
                 </p>
               </div>
               <button
                 onClick={() => setIsUserModalOpen(false)}
-                className="p-1.5 text-[#98A2B3] hover:text-[#262626] rounded-md transition-colors"
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -602,21 +602,21 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
 
       {/* Modal Konfirmasi Hapus Pengguna */}
       {userToDelete && (
-        <div className="kms-modal-overlay fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="kms-modal-content bg-white rounded-2xl max-w-md w-full border border-[#EAECF0] shadow-xl overflow-hidden">
-            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between bg-[#FEF3F2]">
+        <div className="kms-modal-overlay fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-rose-200/60 flex items-center justify-between bg-rose-50/70">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#FEE4E2] text-[#D92D20] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-rose-100/80 border border-rose-200/60 text-[#D92D20] flex items-center justify-center shrink-0">
                   <Trash2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-[#912018]">Hapus Akun Pengguna?</h3>
-                  <p className="text-[11px] text-[#B42318]">Konfirmasi penghapusan akses sistem</p>
+                  <h3 className="text-sm font-bold text-rose-800">Hapus Akun Pengguna?</h3>
+                  <p className="text-[11px] text-rose-600">Konfirmasi penghapusan akses sistem</p>
                 </div>
               </div>
               <button
                 onClick={() => setUserToDelete(null)}
-                className="p-1 text-[#98A2B3] hover:text-[#262626] rounded-md"
+                className="p-1.5 text-rose-400 hover:text-rose-700 rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>

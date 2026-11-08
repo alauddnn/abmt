@@ -24,6 +24,7 @@ interface AuthContextType {
   ) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   switchRoleQuick: (role: 'admin' | 'owner') => Promise<void>;
+  updateProfile: (data: { name?: string; avatarUrl?: string }) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -37,6 +38,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => ({ success: false }),
   logout: async () => {},
   switchRoleQuick: async () => {},
+  updateProfile: async () => ({ success: false }),
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -185,6 +187,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await login(username, password, role);
   };
 
+  const updateProfile = async (data: { name?: string; avatarUrl?: string }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await api.updateProfile(data);
+      if (res.success && res.user) {
+        setUser((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            name: res.user.name,
+            avatarUrl: res.user.avatarUrl,
+          };
+        });
+        return { success: true };
+      }
+      return { success: false, error: 'Gagal memperbarui profil.' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Terjadi kesalahan saat memperbarui profil.' };
+    }
+  };
+
   const normalizedRole = ((user?.role || '') as string).toLowerCase();
   const isAdmin = normalizedRole.includes('admin');
   const isOwner = normalizedRole.includes('owner') || normalizedRole.includes('petugas');
@@ -203,6 +225,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         logout,
         switchRoleQuick,
+        updateProfile,
       }}
     >
       {children}

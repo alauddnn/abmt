@@ -3,16 +3,22 @@ import { Menu, ChevronRight, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext.js';
 
+import { UserProfileDropdown } from './UserProfileDropdown.js';
+
 interface HeaderProps {
   onToggleMobileMenu: () => void;
   title: string;
   category?: string;
+  onSelectTab: (tab: string) => void;
+  onOpenProfileModal: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   onToggleMobileMenu,
   title,
   category = 'Operasional',
+  onSelectTab,
+  onOpenProfileModal,
 }) => {
   const { user, isAdmin, logout } = useAuth();
 
@@ -25,7 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   });
 
   return (
-    <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/80 h-16 shrink-0 transition-colors">
+    <header className="sticky top-0 z-20 bg-white/75 backdrop-blur-2xl border-b border-white/80 h-16 shrink-0 transition-colors shadow-[0_4px_24px_rgba(15,23,42,0.03)]">
       <div className="h-full px-4 sm:px-6 lg:px-10 max-w-[1440px] mx-auto flex items-center justify-between gap-4">
         {/* Left: Mobile Toggle, Animated Breadcrumb & Title */}
         <div className="flex items-center gap-3 min-w-0">
@@ -60,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
           </AnimatePresence>
         </div>
 
-        {/* Right: Date, Role Badge, Avatar & Logout */}
+        {/* Right: Date, Profile Dropdown & Logout */}
         <div className="flex items-center gap-3 shrink-0">
           {/* Current Date */}
           <span className="hidden md:inline-block text-xs text-slate-500 font-medium tabular-nums">
@@ -69,32 +75,35 @@ export const Header: React.FC<HeaderProps> = ({
 
           <span className="hidden md:inline-block h-4 w-[1px] bg-slate-200" />
 
-          {/* Active Role Status Badge */}
-          {isAdmin ? (
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#EFF5FF] text-[#155EEF] border border-blue-200/80">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB] animate-pulse" />
-              ADMIN
-            </span>
-          ) : (
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#FEF6EE] text-[#B54708] border border-amber-200/80">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#B54708]" />
-              OWNER (BACA)
-            </span>
-          )}
-
-          {/* User Profile Avatar */}
-          <div className="flex items-center gap-2 pl-0.5">
-            <div
-              className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-semibold transition-transform duration-200 hover:scale-105 ${
-                isAdmin
-                  ? 'bg-[#EFF5FF] text-[#2563EB] border-[#D0E2FF]'
-                  : 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]'
-              }`}
-              title={`${user?.name || 'Pengguna'} (${isAdmin ? 'ADMIN' : 'OWNER'})`}
-            >
-              {isAdmin ? 'AD' : 'OW'}
-            </div>
-          </div>
+          {/* User Profile Avatar with Popup Menu */}
+          <UserProfileDropdown
+            onSelectTab={onSelectTab}
+            onOpenProfileModal={onOpenProfileModal}
+            align="top-right"
+            trigger={({ toggle, avatarUrl, initials, name }) => (
+              <button
+                type="button"
+                onClick={toggle}
+                className="flex items-center gap-2 pl-0.5 p-1 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer group"
+                title={`${name} - Klik untuk menu profil & pengaturan`}
+                aria-label="Menu Profil"
+              >
+                <div
+                  className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-semibold overflow-hidden transition-transform duration-200 group-hover:scale-105 shadow-2xs ${
+                    isAdmin
+                      ? 'bg-[#EFF5FF] text-[#2563EB] border-[#D0E2FF]'
+                      : 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]'
+                  }`}
+                >
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span>{initials}</span>
+                  )}
+                </div>
+              </button>
+            )}
+          />
 
           {/* Logout Button */}
           <button

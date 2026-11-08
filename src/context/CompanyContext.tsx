@@ -23,9 +23,11 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const refreshSettings = useCallback(async () => {
     try {
       const data = await api.getSettings();
-      setSettings(data);
+      if (data) {
+        setSettings(data);
+      }
     } catch (err) {
-      console.error('Failed to load company settings:', err);
+      console.warn('Notice loading company settings:', err);
     } finally {
       setLoading(false);
     }

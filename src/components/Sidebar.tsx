@@ -15,9 +15,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useCompany } from '../context/CompanyContext.js';
 import { useAuth } from '../context/AuthContext.js';
 
+import { UserProfileDropdown } from './UserProfileDropdown.js';
+
 interface SidebarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
+  onOpenProfileModal: () => void;
   onOpenTestCases?: () => void;
 }
 
@@ -32,7 +35,7 @@ interface MenuGroup {
   items: MenuItem[];
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, onOpenProfileModal }) => {
   const { settings } = useCompany();
   const { user, isAdmin, logout } = useAuth();
 
@@ -71,13 +74,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
         { id: 'expenses', label: 'Biaya Operasional', icon: Receipt },
       ],
     },
-    {
-      group: 'PENGATURAN',
-      items: [
-        { id: 'settings', label: 'Pengaturan Perusahaan', icon: Settings },
-        { id: 'audit-logs', label: 'Pengguna & Keamanan', icon: ShieldCheck },
-      ],
-    },
   ];
 
   return (
@@ -85,11 +81,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
       initial={false}
       animate={{ width: isCollapsed ? 76 : 252 }}
       transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-      className="hidden lg:flex lg:flex-col bg-white border-r border-slate-200/90 text-slate-700 min-h-screen shrink-0 select-none relative z-30 shadow-[1px_0_3px_rgba(15,23,42,0.02)]"
+      className="hidden lg:flex lg:flex-col bg-white/70 backdrop-blur-2xl border-r border-white/80 text-slate-700 min-h-screen shrink-0 select-none relative z-30 shadow-[2px_0_24px_rgba(15,23,42,0.03)]"
     >
       {/* Brand & Company Header + Collapse Toggle */}
       <div
-        className={`h-16 border-b border-slate-200/80 flex items-center ${
+        className={`h-16 border-b border-white/70 bg-white/40 backdrop-blur-md flex items-center ${
           isCollapsed ? 'justify-center px-2' : 'justify-between px-4'
         } gap-2.5`}
       >
@@ -200,7 +196,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
                         stiffness: 420,
                         damping: 34,
                       }}
-                      className="absolute inset-0 bg-[#EFF5FF] border border-blue-200/60 rounded-xl z-0"
+                      className="absolute inset-0 bg-[#EFF5FF]/85 backdrop-blur-xs border border-blue-200/70 rounded-xl z-0 shadow-2xs"
                     >
                       <span className="absolute left-0 top-2 bottom-2 w-1 bg-[#2563EB] rounded-r-full" />
                     </motion.div>
@@ -239,61 +235,84 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
         ))}
       </div>
 
-      {/* User Profile Footer */}
-      <div
-        className={`p-3 border-t border-slate-200/80 bg-slate-50/60 flex items-center ${
-          isCollapsed ? 'flex-col gap-2 justify-center' : 'justify-between gap-2.5'
-        }`}
-      >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div
-            className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-semibold shrink-0 transition-transform duration-200 hover:scale-105 ${
-              isAdmin
-                ? 'bg-[#EFF5FF] text-[#2563EB] border-[#D0E2FF]'
-                : 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]'
-            }`}
-            title={user?.name || (isAdmin ? 'Administrator' : 'Owner')}
-          >
-            {isAdmin ? 'AD' : 'OW'}
-          </div>
-
-          <AnimatePresence initial={false}>
-            {!isCollapsed && (
-              <motion.div
-                initial={{ opacity: 0, x: -4 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -4 }}
-                transition={{ duration: 0.16 }}
-                className="min-w-0"
+      {/* User Profile Footer with Popup Menu */}
+      <div className="p-3 border-t border-white/70 bg-white/40 backdrop-blur-md">
+        <UserProfileDropdown
+          onSelectTab={onSelectTab}
+          onOpenProfileModal={onOpenProfileModal}
+          align="bottom-left"
+          trigger={({ toggle, avatarUrl, initials, name }) => (
+            <div
+              className={`flex items-center ${
+                isCollapsed ? 'justify-center' : 'justify-between'
+              } gap-2 w-full`}
+            >
+              <button
+                type="button"
+                onClick={toggle}
+                className={`flex items-center gap-2.5 min-w-0 p-1 rounded-xl hover:bg-slate-200/60 transition-colors text-left cursor-pointer group ${
+                  isCollapsed ? 'justify-center w-full' : 'flex-1'
+                }`}
+                title="Buka Menu Profil & Pengaturan"
+                aria-label="Buka Menu Profil & Pengaturan"
               >
-                <p className="text-xs font-semibold text-slate-900 truncate leading-tight">
-                  {user?.name || (isAdmin ? 'Administrator' : 'Owner')}
-                </p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  {isAdmin ? (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#155EEF]">
-                      <Shield className="w-2.5 h-2.5" />
-                      ADMIN
-                    </span>
+                <div
+                  className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-semibold shrink-0 transition-transform duration-200 group-hover:scale-105 overflow-hidden ${
+                    isAdmin
+                      ? 'bg-[#EFF5FF] text-[#2563EB] border-[#D0E2FF]'
+                      : 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]'
+                  }`}
+                >
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
                   ) : (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#B54708]">
-                      <Briefcase className="w-2.5 h-2.5" />
-                      OWNER (BACA)
-                    </span>
+                    <span>{initials}</span>
                   )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
 
-        <button
-          onClick={logout}
-          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-          title="Keluar dari akun"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
+                <AnimatePresence initial={false}>
+                  {!isCollapsed && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -4 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -4 }}
+                      transition={{ duration: 0.16 }}
+                      className="min-w-0 flex-1"
+                    >
+                      <p className="text-xs font-semibold text-slate-900 truncate leading-tight group-hover:text-[#2563EB] transition-colors">
+                        {name}
+                      </p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {isAdmin ? (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#155EEF]">
+                            <Shield className="w-2.5 h-2.5" />
+                            ADMIN
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#B54708]">
+                            <Briefcase className="w-2.5 h-2.5" />
+                            OWNER (BACA)
+                          </span>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </button>
+
+              {!isCollapsed && (
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                  title="Keluar dari akun"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
+        />
       </div>
     </motion.aside>
   );

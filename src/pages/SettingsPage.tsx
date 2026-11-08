@@ -132,18 +132,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
   return (
     <div className="space-y-6 pb-20 kms-fade-in">
       {/* Header */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-7 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="glass-panel rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-[#2563EB] text-xs font-semibold tracking-tight">
-              PT. Asta Brata Matahari Terbit
+            <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
+              PT. ASTA BRATA MATAHARI TERBIT
             </span>
             <span className="text-slate-300">·</span>
             <span className="text-xs text-slate-500 font-medium font-mono">
               Konfigurasi Sistem
             </span>
           </div>
-          <h1 className="text-2xl sm:text-[26px] font-semibold text-slate-900 tracking-tight mt-1">
+          <h1 className="text-2xl sm:text-[26px] font-bold text-slate-900 tracking-tight mt-1">
             Pengaturan Perusahaan & Tarif Operasional
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -156,7 +156,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
 
       {/* Owner Notice */}
       {isOwner && (
-        <div className="bg-[#FEF6EE] border border-[#F9DBAF] rounded-2xl p-4 flex items-start gap-3 text-xs text-[#B54708]">
+        <div className="bg-[#FEF6EE]/90 backdrop-blur-md border border-[#F9DBAF] rounded-2xl p-4 flex items-start gap-3 text-xs text-[#B54708]">
           <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-[#B54708]" />
           <div>
             <p className="font-semibold text-sm">Mode Baca-Saja (Akun Owner)</p>
@@ -169,7 +169,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Section 1: Profil Perusahaan */}
-        <div className="kms-card-hover bg-white p-6 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] space-y-4">
+        <div className="glass-card p-6 rounded-2xl space-y-4">
           <div className="flex items-center gap-2 text-[#262626] font-semibold text-sm pb-3 border-b border-[#EAECF0]">
             <Building className="w-4 h-4 text-[#4693FD]" />
             <span>1. Profil Perusahaan Kontraktor</span>
@@ -228,14 +228,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
         </div>
 
         {/* Section 2: Personil Kunci Lapangan */}
-        <div className="kms-card-hover bg-white p-6 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] space-y-4">
-          <div className="flex items-center gap-2 text-[#262626] font-semibold text-sm pb-3 border-b border-[#EAECF0]">
+        <div className="glass-card p-6 rounded-2xl space-y-4">
+          <div className="flex items-center gap-2 text-slate-800 font-semibold text-sm pb-3 border-b border-white/60">
             <User className="w-4 h-4 text-[#4693FD]" />
             <span>2. Personil Kunci Lapangan (Owner & Asisten)</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 bg-[#F9FAFB] rounded-lg border border-[#EAECF0] space-y-2">
+            <div className="p-4 bg-white/50 rounded-xl border border-white/60 space-y-2">
               <div className="flex items-center gap-2 text-[#4693FD] font-semibold">
                 <User className="w-4 h-4" />
                 <span>Nama Lengkap Owner / Pimpinan Proyek</span>
@@ -246,12 +246,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
                 disabled={!isAdmin}
                 value={form.ownerName}
                 onChange={(e) => setForm({ ...form, ownerName: e.target.value })}
-                className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg text-xs font-medium text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                className="w-full px-3 py-1.5 bg-white disabled:bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-[#4693FD]"
               />
-              <p className="text-[11px] text-[#667085]">Penerima rekap biaya operasional kategori Owner</p>
+              <p className="text-[11px] text-slate-500">Penerima rekap biaya operasional kategori Owner</p>
             </div>
 
-            <div className="p-4 bg-[#F9FAFB] rounded-lg border border-[#EAECF0] space-y-2">
+            <div className="p-4 bg-white/50 rounded-xl border border-white/60 space-y-2">
               <div className="flex items-center gap-2 text-[#D99A23] font-semibold">
                 <UserCheck className="w-4 h-4" />
                 <span>Nama Lengkap Asisten Lapangan</span>
@@ -262,17 +262,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
                 disabled={!isAdmin}
                 value={form.assistantName}
                 onChange={(e) => setForm({ ...form, assistantName: e.target.value })}
-                className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg text-xs font-medium text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                className="w-full px-3 py-1.5 bg-white disabled:bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-[#4693FD]"
               />
-              <p className="text-[11px] text-[#667085]">Penerima rekap biaya operasional kategori Asisten</p>
+              <p className="text-[11px] text-slate-500">Penerima rekap biaya operasional kategori Asisten</p>
             </div>
           </div>
         </div>
 
         {/* Section 3: Jam Kerja & Tarif Upah */}
-        <div className="kms-card-hover bg-white p-6 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#EAECF0]">
-            <div className="flex items-center gap-2 text-[#262626] font-semibold text-sm">
+        <div className="glass-card p-6 rounded-2xl space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-white/60">
+            <div className="flex items-center gap-2 text-slate-800 font-semibold text-sm">
               <DollarSign className="w-4 h-4 text-[#16A36A]" />
               <span>3. Jam Kerja Standar & Tarif Upah</span>
             </div>
@@ -280,7 +280,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
               <button
                 type="button"
                 onClick={resetDefaultRates}
-                className="flex items-center gap-1 text-xs text-[#4693FD] hover:text-[#357ee8] font-medium"
+                className="flex items-center gap-1 text-xs text-[#4693FD] hover:text-[#357ee8] font-semibold"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset Tarif Standar</span>
@@ -500,18 +500,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
         </div>
 
         {/* Akses & Manajemen Akun Tim IT */}
-        <div className="bg-white rounded-xl border border-[#EAECF0] shadow-xs p-6 space-y-4">
+        <div className="glass-card rounded-2xl p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#EFF8FF] text-[#175CD3] flex items-center justify-center shrink-0 mt-0.5">
+              <div className="w-10 h-10 rounded-xl bg-blue-50/80 border border-blue-200/60 text-[#175CD3] flex items-center justify-center shrink-0 mt-0.5">
                 <Users className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-semibold text-[#101828] text-sm flex items-center gap-2">
+                <h3 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
                   <span>Manajemen Pengguna & Keamanan Sistem (Tim IT)</span>
-                  <span className="text-[10px] bg-[#EEF4FF] text-[#3538CD] px-2 py-0.5 rounded font-mono font-medium">RBAC Aktif</span>
+                  <span className="text-[10px] bg-blue-50/80 text-[#3538CD] border border-blue-200/60 px-2 py-0.5 rounded-full font-mono font-semibold">RBAC Aktif</span>
                 </h3>
-                <p className="text-xs text-[#667085] mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Kelola hak akses pengguna, reset kata sandi akun Staf/Mandor/Admin, dan pantau log audit aktivitas di panel Keamanan & Tim IT.
                 </p>
               </div>
@@ -520,22 +520,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
               <button
                 type="button"
                 onClick={() => onNavigate('audit-logs')}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#F8F9FC] hover:bg-[#EEF2F6] text-[#1D2939] border border-[#D0D5DD] text-xs font-semibold rounded-lg shadow-xs transition-colors shrink-0"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white/80 hover:bg-white text-slate-700 border border-white/80 text-xs font-semibold rounded-xl shadow-xs transition-colors shrink-0"
               >
                 <KeyRound className="w-3.5 h-3.5 text-[#175CD3]" />
                 <span>Buka Panel IT & Reset Sandi</span>
-                <ArrowRight className="w-3.5 h-3.5 text-[#667085]" />
+                <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
               </button>
             )}
           </div>
-          <div className="p-3.5 bg-[#F9FAFB] rounded-lg border border-[#EAECF0] text-xs text-[#475467] flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="p-3.5 bg-white/50 rounded-xl border border-white/60 text-xs text-slate-600 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div className="space-y-1">
-              <p className="font-medium text-[#1D2939]">Akun Default Sistem:</p>
-              <p>• <strong className="font-mono text-[#101828]">admin</strong> (Role: Owner / Administrator) — Akses penuh modul RAB, Keuangan, Invoice, & Pengaturan</p>
-              <p>• <strong className="font-mono text-[#101828]">mandor</strong> (Role: Staf Lapangan) — Akses operasional lapangan, absensi tukang, dan progress fisik</p>
+              <p className="font-semibold text-slate-800">Akun Default Sistem:</p>
+              <p>• <strong className="font-mono text-slate-900">admin</strong> (Role: Owner / Administrator) — Akses penuh modul RAB, Keuangan, Invoice, & Pengaturan</p>
+              <p>• <strong className="font-mono text-slate-900">mandor</strong> (Role: Staf Lapangan) — Akses operasional lapangan, absensi tukang, dan progress fisik</p>
             </div>
             <div className="text-left md:text-right">
-              <span className="inline-block px-2.5 py-1 bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] rounded-md text-[11px] font-medium">
+              <span className="inline-block px-2.5 py-1 bg-emerald-50/80 text-emerald-700 border border-emerald-200/80 rounded-lg text-[11px] font-medium">
                 ✓ Sesuai Spesifikasi Tanpa Google OAuth
               </span>
             </div>
@@ -548,7 +548,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 px-5 py-2 bg-[#4693FD] hover:bg-[#357ee8] disabled:opacity-50 text-white font-medium text-xs rounded-lg shadow-xs transition-colors"
+              className="flex items-center gap-2 px-6 py-2.5 bg-[#4693FD] hover:bg-[#357ee8] disabled:opacity-50 text-white font-semibold text-xs rounded-xl shadow-[0_4px_14px_rgba(70,147,253,0.3)] transition-all"
             >
               <Save className="w-4 h-4" />
               <span>{saving ? 'Menyimpan...' : 'Simpan Seluruh Pengaturan'}</span>

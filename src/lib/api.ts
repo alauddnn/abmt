@@ -130,6 +130,12 @@ export const api = {
 
   getMe: () => request<{ user: UserSession }>('/auth/me'),
 
+  updateProfile: (data: { name?: string; avatarUrl?: string }) =>
+    request<{ success: boolean; user: UserSession; message: string }>('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
   // Users Management
   getUsers: () => request<AppUser[]>('/users'),
   createUser: (data: { username: string; email?: string; name: string; role: 'admin' | 'owner'; password: string }) =>

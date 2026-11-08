@@ -149,7 +149,14 @@ export function getUserFromReq(req: Request): { id?: string; name: string; role:
 }
 
 // Strict authenticator without unauthenticated fallback
-export function getAuthenticatedUser(req: Request): { id?: string; name: string; role: 'admin' | 'owner'; username?: string } | null {
+export function getAuthenticatedUser(req: Request): {
+  id?: string;
+  name: string;
+  role: 'admin' | 'owner';
+  username?: string;
+  email?: string;
+  avatarUrl?: string;
+} | null {
   const authHeader = req.headers['authorization'];
   let token =
     (authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null) ||
@@ -167,11 +174,17 @@ export function getAuthenticatedUser(req: Request): { id?: string; name: string;
   if (token) {
     const session = sessionManager.getSession(token);
     if (session) {
+      const db = dbManager.getDb();
+      const dbUser = db.users.find((u) => (session.userId && u.id === session.userId) || (session.username && u.username.toLowerCase() === session.username.toLowerCase()));
+      const avatarUrl = session.avatarUrl !== undefined ? session.avatarUrl : dbUser?.avatarUrl;
+      const name = session.name || dbUser?.name || 'Administrator Proyek';
       return {
         id: session.userId,
-        name: session.name,
+        name,
         role: session.role,
         username: session.username,
+        email: session.email,
+        avatarUrl,
       };
     }
   }
@@ -197,14 +210,15 @@ export function getAuthenticatedUser(req: Request): { id?: string; name: string;
 
 // Global authorization middleware: All mutating HTTP methods require role 'admin'
 router.use((req: Request, res: Response, next) => {
-  // Allow public auth endpoints
+  // Allow public auth endpoints and user self-profile update
   if (
     req.path === '/auth/login' ||
     req.path === '/auth/google-login' ||
     req.path === '/auth/turnstile/verify' ||
     req.path === '/auth/logout' ||
     req.path === '/auth/seed' ||
-    req.path === '/auth/callback'
+    req.path === '/auth/callback' ||
+    req.path === '/auth/profile'
   ) {
     return next();
   }
@@ -355,6 +369,7 @@ router.post('/auth/google-login', async (req: Request, res: Response) => {
       email: authorizedUser.email,
       name: authorizedUser.name || name || cleanEmail,
       role: authorizedUser.role,
+      avatarUrl: authorizedUser.avatarUrl,
     },
   });
 });
@@ -493,6 +508,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
       email: targetUser.email,
       name: targetUser.name,
       role: targetUser.role,
+      avatarUrl: targetUser.avatarUrl,
     },
   });
 });
@@ -514,6 +530,106 @@ router.get('/auth/me', (req: Request, res: Response) => {
   return res.json({ user });
 });
 
+router.put('/auth/profile', async (req: Request, res: Response) => {
+  const authUser = getAuthenticatedUser(req);
+  if (!authUser) {
+    return res.status(401).json({ error: 'Sesi tidak valid atau telah berakhir. Harap login kembali.' });
+  }
+
+  const { name, avatarUrl } = req.body;
+  const newName = typeof name === 'string' && name.trim() ? name.trim() : authUser.name;
+  let newAvatarUrl = typeof avatarUrl === 'string' ? avatarUrl : undefined;
+
+  // If newAvatarUrl is base64, attempt uploading to Supabase Storage if available
+  if (newAvatarUrl && newAvatarUrl.startsWith('data:image/')) {
+    try {
+      const base64Clean = newAvatarUrl.includes(';base64,') ? newAvatarUrl.split(';base64,')[1] : newAvatarUrl;
+      const buffer = Buffer.from(base64Clean, 'base64');
+      if (buffer.length > 0 && buffer.length <= 5 * 1024 * 1024 && isSupabaseStorageAvailable()) {
+        const uploadRes = await uploadToStorage(
+          buffer,
+          `avatar_${authUser.id || authUser.username || 'user'}.jpg`,
+          'image/jpeg',
+          `avatars`
+        );
+        if (uploadRes.signedUrl) {
+          newAvatarUrl = uploadRes.signedUrl;
+        }
+      }
+    } catch (err: any) {
+      console.warn('Notice uploading avatar buffer to Supabase Storage:', err.message);
+    }
+  }
+
+  let targetUserId = authUser.id;
+  const db = dbManager.getDb();
+  let localUser = db.users.find((u) => (authUser.id && u.id === authUser.id) || (authUser.username && u.username.toLowerCase() === authUser.username.toLowerCase()));
+
+  if (isPostgresConfigured) {
+    try {
+      let pgUser = authUser.id ? await pgService.getUserByIdentifier(authUser.id) : null;
+      if (!pgUser && authUser.username) {
+        pgUser = await pgService.getUserByIdentifier(authUser.username);
+      }
+      if (pgUser) {
+        targetUserId = pgUser.id;
+        const updatedPgUser = await pgService.updateUser(pgUser.id, {
+          name: newName,
+          avatarUrl: newAvatarUrl === '' ? undefined : newAvatarUrl,
+        });
+        if (updatedPgUser.avatarUrl) {
+          newAvatarUrl = updatedPgUser.avatarUrl;
+        }
+      }
+    } catch (err: any) {
+      console.warn('Notice updating profile in Postgres:', err.message);
+    }
+  }
+
+  if (localUser) {
+    targetUserId = localUser.id;
+    dbManager.mutate((database) => {
+      const u = database.users.find((x) => x.id === localUser!.id);
+      if (u) {
+        u.name = newName;
+        u.avatarUrl = newAvatarUrl === '' ? undefined : newAvatarUrl;
+      }
+    });
+  }
+
+  // Synchronize active in-memory sessions
+  if (targetUserId || authUser.username) {
+    sessionManager.updateSessionUser(targetUserId || authUser.username || '', {
+      name: newName,
+      avatarUrl: newAvatarUrl === '' ? undefined : newAvatarUrl,
+    });
+  }
+
+  invalidateEffectiveDbCache();
+
+  // Log to audit log
+  dbManager.addAuditLog(
+    newName,
+    authUser.role,
+    'Ubah Profil',
+    'Pengguna',
+    `Pengguna ${authUser.username || authUser.name} memperbarui profil dan foto profil.`
+  );
+
+  return res.json({
+    success: true,
+    user: {
+      id: targetUserId || authUser.id,
+      username: authUser.username || '',
+      email: authUser.email,
+      name: newName,
+      role: authUser.role,
+      avatarUrl: newAvatarUrl === '' ? undefined : newAvatarUrl,
+    },
+    message: 'Profil dan foto profil berhasil diperbarui.',
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 1B. USER ACCOUNTS MANAGEMENT (ADMIN ONLY FOR MUTATIONS)
 // ---------------------------------------------------------------------------
@@ -522,12 +638,13 @@ router.get('/users', async (_req: Request, res: Response) => {
     try {
       const pgUsers = await pgService.getUsers();
       return res.json(
-        pgUsers.map(({ id, username, email, name, role, createdAt }) => ({
+        pgUsers.map(({ id, username, email, name, role, avatarUrl, createdAt }) => ({
           id,
           username,
           email,
           name,
           role,
+          avatarUrl,
           createdAt,
         }))
       );
@@ -536,12 +653,13 @@ router.get('/users', async (_req: Request, res: Response) => {
     }
   }
   const db = dbManager.getDb();
-  const safeUsers = db.users.map(({ id, username, email, name, role, createdAt }) => ({
+  const safeUsers = db.users.map(({ id, username, email, name, role, avatarUrl, createdAt }) => ({
     id,
     username,
     email,
     name,
     role,
+    avatarUrl,
     createdAt,
   }));
   return res.json(safeUsers);
@@ -1625,16 +1743,21 @@ router.get('/projects/:id/recap', async (req: Request, res: Response) => {
 // 2. COMPANY SETTINGS
 // ---------------------------------------------------------------------------
 router.get('/settings', async (_req: Request, res: Response) => {
-  if (isPostgresConfigured) {
-    try {
-      const settings = await pgService.getSettings();
-      return res.json(settings);
-    } catch (err: any) {
-      return res.status(500).json({ error: 'Gagal mengambil pengaturan dari PostgreSQL: ' + err.message });
+  try {
+    if (isPostgresConfigured) {
+      try {
+        const settings = await pgService.getSettings();
+        if (settings) return res.json(settings);
+      } catch (err: any) {
+        console.warn('Notice fetching settings from PostgreSQL, falling back to local DB:', err.message);
+      }
     }
+    const db = dbManager.getDb();
+    return res.json(db.settings);
+  } catch (err: any) {
+    console.error('Error fetching settings:', err);
+    return res.json(dbManager.getDb().settings);
   }
-  const db = dbManager.getDb();
-  return res.json(db.settings);
 });
 
 router.put('/settings', async (req: Request, res: Response) => {
@@ -4009,270 +4132,285 @@ router.get('/expenses/storage-status', async (_req: Request, res: Response) => {
 // 9. DASHBOARD STATS & FINANCIAL CALCULATIONS
 // ---------------------------------------------------------------------------
 router.get('/dashboard/stats', async (req: Request, res: Response) => {
-  const { period, startDate, endDate } = req.query;
-  const db = await getEffectiveDb();
+  try {
+    const { period, startDate, endDate } = req.query;
+    const db = await getEffectiveDb();
 
-  // Determine date bounds
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+    // Determine date bounds
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
 
-  let rangeStart = '1970-01-01';
-  let rangeEnd = '2099-12-31';
+    let rangeStart = '1970-01-01';
+    let rangeEnd = '2099-12-31';
 
-  if (period === 'today') {
-    rangeStart = todayStr;
-    rangeEnd = todayStr;
-  } else if (period === 'this_week') {
-    // Current Monday to Sunday
-    const d = new Date(now);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(d.setDate(diff));
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    rangeStart = monday.toISOString().split('T')[0];
-    rangeEnd = sunday.toISOString().split('T')[0];
-  } else if (period === 'this_month') {
-    const y = now.getFullYear();
-    const m = now.getMonth();
-    rangeStart = new Date(y, m, 1).toISOString().split('T')[0];
-    rangeEnd = new Date(y, m + 1, 0).toISOString().split('T')[0];
-  } else if (period === 'last_month') {
-    const y = now.getFullYear();
-    const m = now.getMonth() - 1;
-    rangeStart = new Date(y, m, 1).toISOString().split('T')[0];
-    rangeEnd = new Date(y, m + 1, 0).toISOString().split('T')[0];
-  } else if (period === 'this_year') {
-    const y = now.getFullYear();
-    rangeStart = `${y}-01-01`;
-    rangeEnd = `${y}-12-31`;
-  } else if (period === 'custom' && startDate && endDate) {
-    rangeStart = String(startDate);
-    rangeEnd = String(endDate);
+    if (period === 'today') {
+      rangeStart = todayStr;
+      rangeEnd = todayStr;
+    } else if (period === 'this_week') {
+      // Current Monday to Sunday
+      const d = new Date(now);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(d.setDate(diff));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      rangeStart = monday.toISOString().split('T')[0];
+      rangeEnd = sunday.toISOString().split('T')[0];
+    } else if (period === 'this_month') {
+      const y = now.getFullYear();
+      const m = now.getMonth();
+      rangeStart = new Date(y, m, 1).toISOString().split('T')[0];
+      rangeEnd = new Date(y, m + 1, 0).toISOString().split('T')[0];
+    } else if (period === 'last_month') {
+      const y = now.getFullYear();
+      const m = now.getMonth() - 1;
+      rangeStart = new Date(y, m, 1).toISOString().split('T')[0];
+      rangeEnd = new Date(y, m + 1, 0).toISOString().split('T')[0];
+    } else if (period === 'this_year') {
+      const y = now.getFullYear();
+      rangeStart = `${y}-01-01`;
+      rangeEnd = `${y}-12-31`;
+    } else if (period === 'custom') {
+      if (startDate) rangeStart = String(startDate);
+      if (endDate) rangeEnd = String(endDate);
+    }
+
+    // 1. Total Gaji Karyawan (Pokok) from attendance in period (including Setengah Hari = 50%)
+    const attendanceInPeriod = (db.attendance || []).filter(
+      (a) => a && a.date && a.date >= rangeStart && a.date <= rangeEnd
+    );
+    const totalGajiPokok = attendanceInPeriod.reduce((sum, a) => {
+      return sum + calcBasicPayByStatus(a.status, a.dailyWageSnapshot);
+    }, 0);
+
+    // 2. Total Upah Lembur (Disetujui) in period (Ketentuan perusahaan: Driver lembur = Rp0)
+    const overtimeInPeriod = (db.overtime || []).filter(
+      (o) => o && o.date && o.date >= rangeStart && o.date <= rangeEnd && o.status === 'Disetujui'
+    );
+    const totalUpahLembur = overtimeInPeriod.reduce((sum, o) => sum + (isDriverRole(o.employeeRole) ? 0 : (o.totalPay || 0)), 0);
+
+    // 3. Total Kasbon yang Belum Dipotong (Seluruh sisa kasbon disetujui / aktif)
+    // Piutang kasbon aktif perusahaan
+    const activeKasbons = (db.kasbon || []).filter(
+      (k) => k && (k.status === 'Disetujui' || k.status === 'Dipotong sebagian') && (k.remainingAmount || 0) > 0
+    );
+    const totalKasbonBelumDipotong = activeKasbons.reduce((sum, k) => sum + (k.remainingAmount || 0), 0);
+
+    // Kasbon baru yang dicairkan dalam periode ini
+    const kasbonDisetujuiDalamPeriode = (db.kasbon || []).filter(
+      (k) =>
+        k &&
+        k.requestDate &&
+        k.requestDate >= rangeStart &&
+        k.requestDate <= rangeEnd &&
+        (k.status === 'Disetujui' || k.status === 'Dipotong sebagian' || k.status === 'Lunas')
+    );
+    const totalKasbonDicairkanPeriode = kasbonDisetujuiDalamPeriode.reduce((sum, k) => sum + (k.amount || 0), 0);
+
+    // 4 & 5. Biaya Operasional Owner & Asisten in period
+    const expensesInPeriod = (db.operationalExpenses || []).filter(
+      (e) => e && e.date && e.date >= rangeStart && e.date <= rangeEnd
+    );
+
+    const ownerExpenses = expensesInPeriod.filter((e) => e.personType === 'Owner');
+    const asistenExpenses = expensesInPeriod.filter((e) => e.personType === 'Asisten');
+
+    const totalBiayaOwner = ownerExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const totalBiayaAsisten = asistenExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+
+    // Category breakdown for Owner
+    const ownerBensin = ownerExpenses.filter((e) => e.category === 'Bensin').reduce((s, e) => s + (e.amount || 0), 0);
+    const ownerRokok = ownerExpenses.filter((e) => e.category === 'Rokok').reduce((s, e) => s + (e.amount || 0), 0);
+    const ownerEToll = ownerExpenses.filter((e) => e.category === 'E-Toll').reduce((s, e) => s + (e.amount || 0), 0);
+    const ownerMakan = ownerExpenses.filter((e) => e.category === 'Makan').reduce((s, e) => s + (e.amount || 0), 0);
+
+    // Category breakdown for Asisten
+    const asistenBensin = asistenExpenses.filter((e) => e.category === 'Bensin').reduce((s, e) => s + (e.amount || 0), 0);
+    const asistenRokok = asistenExpenses.filter((e) => e.category === 'Rokok').reduce((s, e) => s + (e.amount || 0), 0);
+    const asistenEToll = asistenExpenses.filter((e) => e.category === 'E-Toll').reduce((s, e) => s + (e.amount || 0), 0);
+    const asistenMakan = asistenExpenses.filter((e) => e.category === 'Makan').reduce((s, e) => s + (e.amount || 0), 0);
+
+    // 6 - 9. Total category expenses (Combined Owner + Asisten)
+    const totalBensin = ownerBensin + asistenBensin;
+    const totalRokok = ownerRokok + asistenRokok;
+    const totalEToll = ownerEToll + asistenEToll;
+    const totalMakan = ownerMakan + asistenMakan;
+
+    // 10. Total Keseluruhan Pengeluaran Operasional = Gaji Pokok + Lembur Disetujui + Biaya Owner + Biaya Asisten
+    const totalPengeluaranOperasional = totalGajiPokok + totalUpahLembur + totalBiayaOwner + totalBiayaAsisten;
+
+    // 11. Total Gaji Bersih yang Sudah Dibayarkan in period
+    const paymentsInPeriod = (db.salaryPayments || []).filter(
+      (p) => p && p.paymentDate && p.paymentDate >= rangeStart && p.paymentDate <= rangeEnd && p.status === 'Sudah dibayar'
+    );
+    const totalGajiBersihDibayarkan = paymentsInPeriod.reduce((sum, p) => sum + (p.netSalary || 0), 0);
+
+    // Total Kas Keluar Riil = Gaji Bersih Dibayar + Biaya Owner + Biaya Asisten + Kasbon Baru Dicairkan
+    const totalKasKeluarRiil = totalGajiBersihDibayarkan + totalBiayaOwner + totalBiayaAsisten + totalKasbonDicairkanPeriode;
+
+    // 12. Jumlah Karyawan Aktif
+    const activeEmployees = (db.employees || []).filter((e) => e && e.status === 'active');
+    const jumlahKaryawanAktif = activeEmployees.length;
+
+    // 13. Total Hari Kerja Karyawan
+    const totalHariKerja = Number(
+      attendanceInPeriod
+        .reduce((sum, a) => sum + (a.status === 'Hadir' ? 1 : a.status === 'Setengah Hari' ? 0.5 : 0), 0)
+        .toFixed(2)
+    );
+
+    // 14 & 15. Daily and Monthly trend chart data
+    const dailyMap: Record<string, { date: string; gaji: number; lembur: number; owner: number; asisten: number; total: number }> = {};
+    attendanceInPeriod.forEach((a) => {
+      const dKey = a.date || todayStr;
+      if (!dailyMap[dKey]) {
+        dailyMap[dKey] = { date: dKey, gaji: 0, lembur: 0, owner: 0, asisten: 0, total: 0 };
+      }
+      const basicPay = calcBasicPayByStatus(a.status, a.dailyWageSnapshot);
+      if (basicPay > 0) {
+        dailyMap[dKey].gaji += basicPay;
+        dailyMap[dKey].total += basicPay;
+      }
+    });
+
+    overtimeInPeriod.forEach((o) => {
+      const dKey = o.date || todayStr;
+      if (!dailyMap[dKey]) {
+        dailyMap[dKey] = { date: dKey, gaji: 0, lembur: 0, owner: 0, asisten: 0, total: 0 };
+      }
+      const effectiveOtPay = isDriverRole(o.employeeRole) ? 0 : (o.totalPay || 0);
+      dailyMap[dKey].lembur += effectiveOtPay;
+      dailyMap[dKey].total += effectiveOtPay;
+    });
+
+    expensesInPeriod.forEach((e) => {
+      const dKey = e.date || todayStr;
+      if (!dailyMap[dKey]) {
+        dailyMap[dKey] = { date: dKey, gaji: 0, lembur: 0, owner: 0, asisten: 0, total: 0 };
+      }
+      const amt = e.amount || 0;
+      if (e.personType === 'Owner') {
+        dailyMap[dKey].owner += amt;
+      } else {
+        dailyMap[dKey].asisten += amt;
+      }
+      dailyMap[dKey].total += amt;
+    });
+
+    const dailyTrend = Object.values(dailyMap).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+    // Build recentTransactions directly so DashboardPage doesn't need 3 separate full-table fetches
+    const recentTxs: Array<{
+      id: string;
+      date: string;
+      description: string;
+      category: string;
+      amount: number;
+      status: string;
+      statusType: 'success' | 'warning' | 'danger' | 'info';
+      targetTab: string;
+    }> = [];
+
+    (db.operationalExpenses || []).slice(0, 5).forEach((e: any) => {
+      const txDate = e.date || todayStr;
+      const desc = e.description || '';
+      recentTxs.push({
+        id: e.id || `EXP-${Date.now()}`,
+        date: txDate,
+        description: `${e.personType || 'Operasional'}: ${desc}`,
+        category: `Biaya ${e.category || ''}`,
+        amount: e.amount || 0,
+        status: 'Tercatat',
+        statusType: 'info',
+        targetTab: desc.includes('Proyek') ? 'projects' : 'expenses',
+      });
+    });
+
+    (db.kasbon || []).slice(0, 5).forEach((k: any) => {
+      const txDate = k.requestDate || k.date || todayStr;
+      recentTxs.push({
+        id: k.id || `KB-${Date.now()}`,
+        date: txDate,
+        description: `Kasbon: ${k.employeeName || 'Karyawan'} (${k.reason || '-'})`,
+        category: 'Kasbon',
+        amount: k.amount || 0,
+        status: k.status || 'Disetujui',
+        statusType:
+          k.status === 'Disetujui' || k.status === 'Lunas'
+            ? 'success'
+            : k.status === 'Ditolak'
+            ? 'danger'
+            : 'warning',
+        targetTab: 'projects',
+      });
+    });
+
+    (db.salaryPayments || []).slice(0, 5).forEach((p: any) => {
+      const txDate = p.paymentDate || p.date || todayStr;
+      recentTxs.push({
+        id: p.id || `PAY-${Date.now()}`,
+        date: txDate,
+        description: `Gaji: ${p.employeeName || 'Karyawan'} (${p.periodStart || ''} s/d ${p.periodEnd || ''})`,
+        category: 'Gaji 2-Mingguan',
+        amount: p.netSalary || 0,
+        status: p.status || 'Sudah dibayar',
+        statusType: p.status === 'Sudah dibayar' ? 'success' : 'warning',
+        targetTab: 'payroll',
+      });
+    });
+
+    recentTxs.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+    return res.json({
+      periodInfo: {
+        period: period || 'this_month',
+        rangeStart,
+        rangeEnd,
+      },
+      metrics: {
+        // 15 requested items:
+        totalGajiPokok,
+        totalUpahLembur,
+        totalKasbonBelumDipotong,
+        totalBiayaOwner,
+        totalBiayaAsisten,
+        totalBensin,
+        totalRokok,
+        totalEToll,
+        totalMakan,
+        totalPengeluaranOperasional,
+        totalGajiBersihDibayarkan,
+        jumlahKaryawanAktif,
+        totalHariKerja,
+        // Owner breakdown
+        ownerBreakdown: {
+          bensin: ownerBensin,
+          rokok: ownerRokok,
+          eToll: ownerEToll,
+          makan: ownerMakan,
+          total: totalBiayaOwner,
+        },
+        // Asisten breakdown
+        asistenBreakdown: {
+          bensin: asistenBensin,
+          rokok: asistenRokok,
+          eToll: asistenEToll,
+          makan: asistenMakan,
+          total: totalBiayaAsisten,
+        },
+        // Additional financial integrity items
+        totalKasbonDicairkanPeriode,
+        totalKasKeluarRiil,
+        totalGajiKotorAkrual: totalGajiPokok + totalUpahLembur,
+        unpaidSalaryEstimate: Math.max(0, totalGajiPokok + totalUpahLembur - totalGajiBersihDibayarkan),
+      },
+      dailyTrend,
+      recentTransactions: recentTxs.slice(0, 7),
+    });
+  } catch (err: any) {
+    console.error('Error fetching dashboard stats:', err);
+    return res.status(500).json({ error: err.message || 'Gagal mengambil data ringkasan dashboard' });
   }
-
-  // 1. Total Gaji Karyawan (Pokok) from attendance in period (including Setengah Hari = 50%)
-  const attendanceInPeriod = db.attendance.filter(
-    (a) => a.date >= rangeStart && a.date <= rangeEnd
-  );
-  const totalGajiPokok = attendanceInPeriod.reduce((sum, a) => {
-    return sum + calcBasicPayByStatus(a.status, a.dailyWageSnapshot);
-  }, 0);
-
-  // 2. Total Upah Lembur (Disetujui) in period (Ketentuan perusahaan: Driver lembur = Rp0)
-  const overtimeInPeriod = db.overtime.filter(
-    (o) => o.date >= rangeStart && o.date <= rangeEnd && o.status === 'Disetujui'
-  );
-  const totalUpahLembur = overtimeInPeriod.reduce((sum, o) => sum + (isDriverRole(o.employeeRole) ? 0 : o.totalPay), 0);
-
-  // 3. Total Kasbon yang Belum Dipotong (Seluruh sisa kasbon disetujui / aktif)
-  // Piutang kasbon aktif perusahaan
-  const activeKasbons = db.kasbon.filter(
-    (k) => (k.status === 'Disetujui' || k.status === 'Dipotong sebagian') && k.remainingAmount > 0
-  );
-  const totalKasbonBelumDipotong = activeKasbons.reduce((sum, k) => sum + k.remainingAmount, 0);
-
-  // Kasbon baru yang dicairkan dalam periode ini
-  const kasbonDisetujuiDalamPeriode = db.kasbon.filter(
-    (k) =>
-      k.requestDate >= rangeStart &&
-      k.requestDate <= rangeEnd &&
-      (k.status === 'Disetujui' || k.status === 'Dipotong sebagian' || k.status === 'Lunas')
-  );
-  const totalKasbonDicairkanPeriode = kasbonDisetujuiDalamPeriode.reduce((sum, k) => sum + k.amount, 0);
-
-  // 4 & 5. Biaya Operasional Owner & Asisten in period
-  const expensesInPeriod = db.operationalExpenses.filter(
-    (e) => e.date >= rangeStart && e.date <= rangeEnd
-  );
-
-  const ownerExpenses = expensesInPeriod.filter((e) => e.personType === 'Owner');
-  const asistenExpenses = expensesInPeriod.filter((e) => e.personType === 'Asisten');
-
-  const totalBiayaOwner = ownerExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const totalBiayaAsisten = asistenExpenses.reduce((sum, e) => sum + e.amount, 0);
-
-  // Category breakdown for Owner
-  const ownerBensin = ownerExpenses.filter((e) => e.category === 'Bensin').reduce((s, e) => s + e.amount, 0);
-  const ownerRokok = ownerExpenses.filter((e) => e.category === 'Rokok').reduce((s, e) => s + e.amount, 0);
-  const ownerEToll = ownerExpenses.filter((e) => e.category === 'E-Toll').reduce((s, e) => s + e.amount, 0);
-  const ownerMakan = ownerExpenses.filter((e) => e.category === 'Makan').reduce((s, e) => s + e.amount, 0);
-
-  // Category breakdown for Asisten
-  const asistenBensin = asistenExpenses.filter((e) => e.category === 'Bensin').reduce((s, e) => s + e.amount, 0);
-  const asistenRokok = asistenExpenses.filter((e) => e.category === 'Rokok').reduce((s, e) => s + e.amount, 0);
-  const asistenEToll = asistenExpenses.filter((e) => e.category === 'E-Toll').reduce((s, e) => s + e.amount, 0);
-  const asistenMakan = asistenExpenses.filter((e) => e.category === 'Makan').reduce((s, e) => s + e.amount, 0);
-
-  // 6 - 9. Total category expenses (Combined Owner + Asisten)
-  const totalBensin = ownerBensin + asistenBensin;
-  const totalRokok = ownerRokok + asistenRokok;
-  const totalEToll = ownerEToll + asistenEToll;
-  const totalMakan = ownerMakan + asistenMakan;
-
-  // 10. Total Keseluruhan Pengeluaran Operasional = Gaji Pokok + Lembur Disetujui + Biaya Owner + Biaya Asisten
-  const totalPengeluaranOperasional = totalGajiPokok + totalUpahLembur + totalBiayaOwner + totalBiayaAsisten;
-
-  // 11. Total Gaji Bersih yang Sudah Dibayarkan in period
-  const paymentsInPeriod = db.salaryPayments.filter(
-    (p) => p.paymentDate >= rangeStart && p.paymentDate <= rangeEnd && p.status === 'Sudah dibayar'
-  );
-  const totalGajiBersihDibayarkan = paymentsInPeriod.reduce((sum, p) => sum + p.netSalary, 0);
-
-  // Total Kas Keluar Riil = Gaji Bersih Dibayar + Biaya Owner + Biaya Asisten + Kasbon Baru Dicairkan
-  const totalKasKeluarRiil = totalGajiBersihDibayarkan + totalBiayaOwner + totalBiayaAsisten + totalKasbonDicairkanPeriode;
-
-  // 12. Jumlah Karyawan Aktif
-  const activeEmployees = db.employees.filter((e) => e.status === 'active');
-  const jumlahKaryawanAktif = activeEmployees.length;
-
-  // 13. Total Hari Kerja Karyawan
-  const totalHariKerja = Number(
-    attendanceInPeriod
-      .reduce((sum, a) => sum + (a.status === 'Hadir' ? 1 : a.status === 'Setengah Hari' ? 0.5 : 0), 0)
-      .toFixed(2)
-  );
-
-  // 14 & 15. Daily and Monthly trend chart data
-  const dailyMap: Record<string, { date: string; gaji: number; lembur: number; owner: number; asisten: number; total: number }> = {};
-  attendanceInPeriod.forEach((a) => {
-    if (!dailyMap[a.date]) {
-      dailyMap[a.date] = { date: a.date, gaji: 0, lembur: 0, owner: 0, asisten: 0, total: 0 };
-    }
-    const basicPay = calcBasicPayByStatus(a.status, a.dailyWageSnapshot);
-    if (basicPay > 0) {
-      dailyMap[a.date].gaji += basicPay;
-      dailyMap[a.date].total += basicPay;
-    }
-  });
-
-  overtimeInPeriod.forEach((o) => {
-    if (!dailyMap[o.date]) {
-      dailyMap[o.date] = { date: o.date, gaji: 0, lembur: 0, owner: 0, asisten: 0, total: 0 };
-    }
-    const effectiveOtPay = isDriverRole(o.employeeRole) ? 0 : o.totalPay;
-    dailyMap[o.date].lembur += effectiveOtPay;
-    dailyMap[o.date].total += effectiveOtPay;
-  });
-
-  expensesInPeriod.forEach((e) => {
-    if (!dailyMap[e.date]) {
-      dailyMap[e.date] = { date: e.date, gaji: 0, lembur: 0, owner: 0, asisten: 0, total: 0 };
-    }
-    if (e.personType === 'Owner') {
-      dailyMap[e.date].owner += e.amount;
-    } else {
-      dailyMap[e.date].asisten += e.amount;
-    }
-    dailyMap[e.date].total += e.amount;
-  });
-
-  const dailyTrend = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
-
-  // Build recentTransactions directly so DashboardPage doesn't need 3 separate full-table fetches
-  const recentTxs: Array<{
-    id: string;
-    date: string;
-    description: string;
-    category: string;
-    amount: number;
-    status: string;
-    statusType: 'success' | 'warning' | 'danger' | 'info';
-    targetTab: string;
-  }> = [];
-
-  db.operationalExpenses.slice(0, 5).forEach((e: any) => {
-    recentTxs.push({
-      id: e.id,
-      date: e.date,
-      description: `${e.personType}: ${e.description}`,
-      category: `Biaya ${e.category}`,
-      amount: e.amount,
-      status: 'Tercatat',
-      statusType: 'info',
-      targetTab: e.description.includes('Proyek') ? 'projects' : 'expenses',
-    });
-  });
-
-  db.kasbon.slice(0, 5).forEach((k: any) => {
-    recentTxs.push({
-      id: k.id,
-      date: k.requestDate,
-      description: `Kasbon: ${k.employeeName} (${k.reason})`,
-      category: 'Kasbon',
-      amount: k.amount,
-      status: k.status,
-      statusType:
-        k.status === 'Disetujui' || k.status === 'Lunas'
-          ? 'success'
-          : k.status === 'Ditolak'
-          ? 'danger'
-          : 'warning',
-      targetTab: 'projects',
-    });
-  });
-
-  db.salaryPayments.slice(0, 5).forEach((p: any) => {
-    recentTxs.push({
-      id: p.id,
-      date: p.paymentDate,
-      description: `Gaji: ${p.employeeName} (${p.periodStart} s/d ${p.periodEnd})`,
-      category: 'Gaji 2-Mingguan',
-      amount: p.netSalary,
-      status: p.status,
-      statusType: p.status === 'Sudah dibayar' ? 'success' : 'warning',
-      targetTab: 'payroll',
-    });
-  });
-
-  recentTxs.sort((a, b) => b.date.localeCompare(a.date));
-
-  return res.json({
-    periodInfo: {
-      period: period || 'this_month',
-      rangeStart,
-      rangeEnd,
-    },
-    metrics: {
-      // 15 requested items:
-      totalGajiPokok,
-      totalUpahLembur,
-      totalKasbonBelumDipotong,
-      totalBiayaOwner,
-      totalBiayaAsisten,
-      totalBensin,
-      totalRokok,
-      totalEToll,
-      totalMakan,
-      totalPengeluaranOperasional,
-      totalGajiBersihDibayarkan,
-      jumlahKaryawanAktif,
-      totalHariKerja,
-      // Owner breakdown
-      ownerBreakdown: {
-        bensin: ownerBensin,
-        rokok: ownerRokok,
-        eToll: ownerEToll,
-        makan: ownerMakan,
-        total: totalBiayaOwner,
-      },
-      // Asisten breakdown
-      asistenBreakdown: {
-        bensin: asistenBensin,
-        rokok: asistenRokok,
-        eToll: asistenEToll,
-        makan: asistenMakan,
-        total: totalBiayaAsisten,
-      },
-      // Additional financial integrity items
-      totalKasbonDicairkanPeriode,
-      totalKasKeluarRiil,
-      totalGajiKotorAkrual: totalGajiPokok + totalUpahLembur,
-      unpaidSalaryEstimate: Math.max(0, totalGajiPokok + totalUpahLembur - totalGajiBersihDibayarkan),
-    },
-    dailyTrend,
-    recentTransactions: recentTxs.slice(0, 7),
-  });
 });
 
 // ---------------------------------------------------------------------------

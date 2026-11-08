@@ -429,22 +429,22 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
   return (
     <div className="space-y-6 pb-20 kms-fade-in">
       {/* Top Header */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-7 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="glass-panel rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[#2563EB] text-xs font-semibold tracking-tight">
-              PT. Asta Brata Matahari Terbit
+            <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
+              PT. ASTA BRATA MATAHARI TERBIT
             </span>
             <span className="text-slate-300">·</span>
             <span className="text-xs text-slate-500 font-medium font-mono">
               Bensin, Rokok, E-Toll, Makan
             </span>
             <span className="text-slate-300">·</span>
-            <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200/80 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+            <span className="text-[10px] bg-emerald-50/80 text-emerald-700 border border-emerald-200/80 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
               <ShieldCheck className="w-3 h-3" /> Supabase Storage Private
             </span>
           </div>
-          <h1 className="text-2xl sm:text-[26px] font-semibold text-slate-900 tracking-tight mt-1">
+          <h1 className="text-2xl sm:text-[26px] font-bold text-slate-900 tracking-tight mt-1">
             Biaya Operasional
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
@@ -457,16 +457,16 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <button
               onClick={() => openCreateModal('Owner')}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-semibold rounded-xl shadow-xs hover:shadow-md transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-semibold rounded-xl shadow-[0_4px_14px_rgba(70,147,253,0.3)] transition-all cursor-pointer"
             >
               <User className="w-4 h-4" />
               <span>+ Biaya Owner</span>
             </button>
             <button
               onClick={() => openCreateModal('Asisten')}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-2xs transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-white/80 hover:bg-white text-slate-700 text-xs font-semibold rounded-xl border border-white/80 shadow-xs transition-all cursor-pointer"
             >
-              <UserCheck className="w-4 h-4 text-[#2563EB]" />
+              <UserCheck className="w-4 h-4 text-[#4693FD]" />
               <span>+ Biaya Asisten</span>
             </button>
           </div>
@@ -478,10 +478,10 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
         {/* REKAP OWNER */}
         <div
           onClick={() => setActiveTab('owner')}
-          className={`kms-card-hover p-6 rounded-2xl border transition-all cursor-pointer ${
+          className={`glass-card p-6 rounded-2xl transition-all cursor-pointer ${
             activeTab === 'owner'
-              ? 'bg-white border-2 border-[#2563EB] shadow-[0_4px_16px_-4px_rgba(37,99,235,0.12)]'
-              : 'bg-white border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)]'
+              ? 'ring-2 ring-[#4693FD] shadow-[0_8px_24px_rgba(70,147,253,0.18)]'
+              : ''
           }`}
         >
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -531,10 +531,10 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
         {/* REKAP ASISTEN */}
         <div
           onClick={() => setActiveTab('asisten')}
-          className={`kms-card-hover p-6 rounded-2xl border transition-all cursor-pointer ${
+          className={`glass-card p-6 rounded-2xl transition-all cursor-pointer ${
             activeTab === 'asisten'
-              ? 'bg-white border-2 border-[#2563EB] shadow-[0_4px_16px_-4px_rgba(37,99,235,0.12)]'
-              : 'bg-white border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)]'
+              ? 'ring-2 ring-[#4693FD] shadow-[0_8px_24px_rgba(70,147,253,0.18)]'
+              : ''
           }`}
         >
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -583,10 +583,10 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
       </div>
 
       {/* Tab Selector & Filter Toolbar */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-t-0 border-b border-slate-100">
+      <div className="glass-panel p-5 rounded-2xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-t-0 border-b border-white/60">
           {/* Animated Tabs */}
-          <div className="inline-flex items-center bg-slate-100/90 p-1 rounded-xl text-xs">
+          <div className="inline-flex items-center glass-pill p-1 rounded-xl text-xs">
             {[
               { id: 'owner' as const, label: `Pengeluaran Owner (${ownerExpenses.length})` },
               { id: 'asisten' as const, label: `Pengeluaran Asisten (${asistenExpenses.length})` },
@@ -598,14 +598,14 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
                   key={t.id}
                   onClick={() => setActiveTab(t.id)}
                   className={`relative px-3.5 py-1.5 font-medium rounded-lg transition-colors cursor-pointer ${
-                    isSelected ? 'text-slate-900' : 'text-slate-600 hover:text-slate-900'
+                    isSelected ? 'text-slate-900 font-semibold' : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
                   {isSelected && (
                     <motion.span
                       layoutId="expenses-tab-pill"
                       transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                      className="absolute inset-0 bg-white rounded-lg shadow-xs"
+                      className="absolute inset-0 bg-white rounded-lg shadow-sm"
                     />
                   )}
                   <span className="relative z-10">{t.label}</span>
@@ -621,27 +621,27 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
+              className="bg-white/80 border border-white/80 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-[#4693FD] focus:ring-2 focus:ring-[#4693FD]/15"
             />
             <span className="text-slate-400">–</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
+              className="bg-white/80 border border-white/80 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-[#4693FD] focus:ring-2 focus:ring-[#4693FD]/15"
             />
           </div>
         </div>
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
           <div className="relative w-full md:w-80 group">
-            <Search className="w-4 h-4 text-slate-400 group-focus-within:text-[#2563EB] transition-colors absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-slate-400 group-focus-within:text-[#4693FD] transition-colors absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Cari transaksi atau keterangan..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-8 py-2 bg-slate-50/70 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-3 focus:ring-[#2563EB]/12 transition-all"
+              className="w-full pl-10 pr-8 py-2 bg-white/60 hover:bg-white/80 focus:bg-white border border-white/80 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#4693FD] focus:ring-3 focus:ring-[#4693FD]/12 transition-all"
             />
             {search && (
               <button
@@ -661,8 +661,8 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
                 onClick={() => setCategoryFilter(cat)}
                 className={`px-3 py-1.5 rounded-xl font-medium text-xs border transition-all cursor-pointer ${
                   categoryFilter === cat
-                    ? 'bg-[#EFF5FF] text-[#2563EB] border-blue-200 shadow-2xs'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    ? 'bg-blue-50/80 text-[#155EEF] border-blue-200/80 shadow-xs font-semibold'
+                    : 'bg-white/70 text-slate-600 border-white/80 hover:bg-white'
                 }`}
               >
                 {cat === 'all' ? 'Semua Kategori' : cat}
@@ -673,7 +673,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
       </div>
 
       {/* Expenses Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] overflow-hidden">
+      <div className="glass-table rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
@@ -814,16 +814,16 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
 
       {/* Create / Edit Modal */}
       {isModalOpen && (
-        <div className="kms-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-[2px]">
-          <div className="kms-modal-content bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden max-h-[92vh] flex flex-col">
-            <div className="px-6 py-4 bg-white text-[#262626] border-b border-[#EAECF0] flex items-center justify-between shrink-0">
+        <div className="kms-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
+          <div className="glass-modal rounded-2xl max-w-lg w-full overflow-hidden max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95">
+            <div className="px-6 py-4 bg-white/50 text-slate-800 border-b border-white/60 flex items-center justify-between shrink-0">
               <div>
                 <h3 className="font-semibold text-sm">
                   {editingExpense
                     ? `Edit Pengeluaran: ${editingExpense.transactionNumber}`
                     : `Catat Pengeluaran Operasional ${form.personType}`}
                 </h3>
-                <p className="text-[11px] text-[#667085]">
+                <p className="text-[11px] text-slate-500">
                   {editingExpense
                     ? 'Perbarui rincian transaksi atau foto bukti'
                     : 'Pencatatan biaya harian proyek lengkap dengan bukti'}
@@ -831,7 +831,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-[#667085] hover:text-[#262626] p-1 rounded-md hover:bg-[#F2F4F7]"
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-white/60 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1311,21 +1311,21 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
 
       {/* Modal Konfirmasi Hapus Transaksi Pengeluaran */}
       {expenseToDelete && (
-        <div className="kms-modal-overlay fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="kms-modal-content bg-white rounded-2xl max-w-md w-full border border-[#EAECF0] shadow-xl overflow-hidden">
-            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between bg-[#FEF3F2]">
+        <div className="kms-modal-overlay fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-rose-200/60 flex items-center justify-between bg-rose-50/70">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#FEE4E2] text-[#D92D20] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-rose-100/80 border border-rose-200/60 text-[#D92D20] flex items-center justify-center shrink-0">
                   <Trash2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-[#912018]">Hapus Transaksi Pengeluaran?</h3>
-                  <p className="text-[11px] text-[#B42318]">Konfirmasi penghapusan catatan pengeluaran</p>
+                  <h3 className="text-sm font-bold text-rose-800">Hapus Transaksi Pengeluaran?</h3>
+                  <p className="text-[11px] text-rose-600">Konfirmasi penghapusan catatan pengeluaran</p>
                 </div>
               </div>
               <button
                 onClick={() => setExpenseToDelete(null)}
-                className="p-1 text-[#98A2B3] hover:text-[#262626] rounded-md"
+                className="p-1.5 text-rose-400 hover:text-rose-700 rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>

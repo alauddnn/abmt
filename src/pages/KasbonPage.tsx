@@ -434,19 +434,19 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
   return (
     <div className="space-y-6 pb-20">
       {/* Header */}
-      <div className="bg-white rounded-2xl border border-[#EAECF0] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="glass-panel rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
               PT. ASTA BRATA MATAHARI TERBIT
             </span>
-            <span className="text-[#D0D5DD]">·</span>
-            <span className="text-xs text-[#667085] font-medium">Modul Mandiri Kasbon Karyawan</span>
+            <span className="text-slate-300">·</span>
+            <span className="text-xs text-slate-500 font-medium">Modul Mandiri Kasbon Karyawan</span>
           </div>
-          <h1 className="text-2xl font-bold text-[#1D2939] tracking-tight mt-1">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight mt-1">
             Kasbon Karyawan Proyek
           </h1>
-          <p className="text-xs text-[#667085] mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Kelola pengajuan kasbon berdasarkan proyek dan karyawan, bukti pendukung, pencatatan pelunasan manual, serta riwayat kasbon masing-masing karyawan.
           </p>
         </div>
@@ -455,7 +455,7 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
           <button
             type="button"
             onClick={handleOpenCreateModal}
-            className="bg-[#4693FD] hover:bg-[#1849A9] text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs shrink-0"
+            className="bg-[#4693FD] hover:bg-[#357ee8] text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-[0_4px_14px_rgba(70,147,253,0.3)] shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>+ Input Pengajuan Kasbon</span>
@@ -465,58 +465,58 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
 
       {/* 3 Kartu Ringkasan Utama: Total Kasbon, Total Pembayaran, Sisa Kasbon */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-[#EAECF0] shadow-xs">
+        <div className="glass-card p-5 rounded-2xl">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#667085]">Total Kasbon</span>
-            <div className="w-8 h-8 rounded-lg bg-[#EFF5FF] text-[#4693FD] flex items-center justify-center">
+            <span className="text-xs font-semibold text-slate-500">Total Kasbon</span>
+            <div className="w-8 h-8 rounded-lg bg-blue-50/80 border border-blue-200/60 text-[#4693FD] flex items-center justify-center">
               <Wallet className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold font-mono text-[#1D2939] mt-2 tabular-nums">
+          <p className="text-2xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
             {formatRupiah(totalKasbon)}
           </p>
-          <span className="text-[11px] text-[#667085] mt-1 block">
+          <span className="text-[11px] text-slate-500 mt-1 block">
             {validKasbons.length} pengajuan kasbon tercatat
           </span>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-[#EAECF0] shadow-xs">
+        <div className="glass-card p-5 rounded-2xl">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#667085]">Total Pembayaran / Pelunasan</span>
-            <div className="w-8 h-8 rounded-lg bg-[#ECFDF3] text-[#12B76A] flex items-center justify-center">
+            <span className="text-xs font-semibold text-slate-500">Total Pembayaran / Pelunasan</span>
+            <div className="w-8 h-8 rounded-lg bg-emerald-50/80 border border-emerald-200/60 text-emerald-600 flex items-center justify-center">
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold font-mono text-[#027A48] mt-2 tabular-nums">
+          <p className="text-2xl font-bold font-mono text-emerald-600 mt-2 tabular-nums">
             {formatRupiah(totalPembayaran)}
           </p>
-          <span className="text-[11px] text-[#667085] mt-1 block">
+          <span className="text-[11px] text-slate-500 mt-1 block">
             Akumulasi pembayaran kasbon karyawan
           </span>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-[#EAECF0] shadow-xs">
+        <div className="glass-card p-5 rounded-2xl">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#667085]">Sisa Kasbon</span>
-            <div className="w-8 h-8 rounded-lg bg-[#FEF3F2] text-[#F04438] flex items-center justify-center">
+            <span className="text-xs font-semibold text-slate-500">Sisa Kasbon</span>
+            <div className="w-8 h-8 rounded-lg bg-rose-50/80 border border-rose-200/60 text-rose-600 flex items-center justify-center">
               <AlertCircle className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold font-mono text-[#B42318] mt-2 tabular-nums">
+          <p className="text-2xl font-bold font-mono text-rose-600 mt-2 tabular-nums">
             {formatRupiah(sisaKasbon)}
           </p>
-          <span className="text-[11px] text-[#667085] mt-1 block">
+          <span className="text-[11px] text-slate-500 mt-1 block">
             Sisa kasbon yang belum dilunasi
           </span>
         </div>
       </div>
 
       {/* Main Content Card */}
-      <div className="bg-white rounded-2xl border border-[#EAECF0] shadow-xs overflow-hidden">
+      <div className="glass-table rounded-2xl overflow-hidden">
         {/* Top Bar with View Switch */}
-        <div className="p-4 border-b border-[#EAECF0] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="p-4 border-b border-white/60 bg-white/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold text-[#1D2939]">Data & Riwayat Kasbon Karyawan</h2>
+            <h2 className="text-sm font-bold text-slate-900">Data & Riwayat Kasbon Karyawan</h2>
             <p className="text-xs text-[#667085]">
               Filter berdasarkan proyek, nama karyawan, rentang tanggal, atau status pelunasan
             </p>
@@ -962,16 +962,16 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
 
       {/* MODAL 1: INPUT PENGAJUAN KASBON BARU */}
       {isAdmin && isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full border border-[#EAECF0] overflow-hidden my-8">
-            <div className="px-5 py-4 bg-[#F8F9FA] border-b border-[#EAECF0] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md overflow-y-auto animate-in fade-in">
+          <div className="glass-modal rounded-2xl max-w-lg w-full overflow-hidden my-8 animate-in fade-in zoom-in-95">
+            <div className="px-5 py-4 bg-white/50 border-b border-white/60 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#EFF5FF] text-[#155EEF] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-blue-50/80 border border-blue-200/60 text-[#155EEF] flex items-center justify-center">
                   <Wallet className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-[#1D2939]">Input Pengajuan Kasbon Karyawan</h3>
-                  <p className="text-[11px] text-[#667085]">Pilih proyek, karyawan, nominal, alasan, dan bukti pendukung</p>
+                  <h3 className="font-bold text-sm text-slate-800">Input Pengajuan Kasbon Karyawan</h3>
+                  <p className="text-[11px] text-slate-500">Pilih proyek, karyawan, nominal, alasan, dan bukti pendukung</p>
                 </div>
               </div>
               <button
@@ -1210,16 +1210,16 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
 
       {/* MODAL 2: PENCATATAN PEMBAYARAN / PELUNASAN MANUAL */}
       {isAdmin && kasbonToPay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full border border-[#EAECF0] overflow-hidden">
-            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between bg-[#F8F9FA]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
+          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-white/60 flex items-center justify-between bg-white/50">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#ECFDF3] text-[#027A48] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50/80 border border-emerald-200/60 text-[#027A48] flex items-center justify-center">
                   <Wallet className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-[#1D2939]">Catat Pembayaran / Pelunasan Kasbon</h3>
-                  <p className="text-[11px] text-[#667085]">
+                  <h3 className="text-sm font-bold text-slate-800">Catat Pembayaran / Pelunasan Kasbon</h3>
+                  <p className="text-[11px] text-slate-500">
                     {kasbonToPay.kasbonNumber} · {kasbonToPay.employeeName}
                   </p>
                 </div>
@@ -1358,17 +1358,17 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
 
       {/* MODAL 3: DETAIL & RIWAYAT PEMBAYARAN KASBON */}
       {detailKasbon && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full border border-[#EAECF0] overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="p-5 border-b border-[#EAECF0] flex items-center justify-between bg-[#F8F9FA]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
+          <div className="glass-modal rounded-2xl max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-white/60 flex items-center justify-between bg-white/50">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-[#155EEF] bg-[#EFF5FF] px-2 py-0.5 rounded border border-[#D0E2FF]">
+                  <span className="font-mono text-xs font-bold text-[#155EEF] bg-blue-50/80 px-2 py-0.5 rounded border border-blue-200/60">
                     {detailKasbon.kasbonNumber}
                   </span>
-                  <h3 className="text-base font-bold text-[#1D2939]">{detailKasbon.employeeName}</h3>
+                  <h3 className="text-base font-bold text-slate-800">{detailKasbon.employeeName}</h3>
                 </div>
-                <p className="text-xs text-[#667085] mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   ID: {detailKasbon.employeeId} · Jabatan: {detailKasbon.employeeRole} · Proyek:{' '}
                   {detailKasbon.projectName ||
                     projects.find((p) => p.id === detailKasbon.projectId)?.name ||
@@ -1504,16 +1504,16 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
 
       {/* MODAL 4: KONFIRMASI HAPUS KASBON */}
       {isAdmin && kasbonToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full border border-[#EAECF0] overflow-hidden">
-            <div className="p-5 bg-[#FEF3F2] border-b border-[#FECDCA] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
+          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 bg-rose-50/70 border-b border-rose-200/50 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#FEE4E2] text-[#D92D20] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-rose-100/80 border border-rose-200/60 text-[#D92D20] flex items-center justify-center">
                   <Trash2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-[#912018]">Hapus Data Kasbon?</h3>
-                  <p className="text-[11px] text-[#B42318]">{kasbonToDelete.kasbonNumber}</p>
+                  <h3 className="text-sm font-bold text-rose-800">Hapus Data Kasbon?</h3>
+                  <p className="text-[11px] text-rose-600">{kasbonToDelete.kasbonNumber}</p>
                 </div>
               </div>
               <button

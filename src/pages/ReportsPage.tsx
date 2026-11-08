@@ -144,19 +144,19 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ showToast }) => {
   return (
     <div className="space-y-6 pb-20">
       {/* Header */}
-      <div className="print:hidden bg-white rounded-xl border border-[#EAECF0] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="print:hidden glass-panel rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
-              PT. Asta Brata Matahari Terbit
+              PT. ASTA BRATA MATAHARI TERBIT
             </span>
-            <span className="text-[#D0D5DD]">·</span>
-            <span className="text-xs text-[#667085] font-medium font-mono">13 Laporan Lengkap (A s/d M)</span>
+            <span className="text-slate-300">·</span>
+            <span className="text-xs text-slate-500 font-medium font-mono">13 Laporan Lengkap (A s/d M)</span>
           </div>
-          <h1 className="text-2xl font-semibold text-[#262626] tracking-tight mt-1">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight mt-1">
             Laporan & Rekap Keuangan Operasional
           </h1>
-          <p className="text-xs text-[#667085] mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Filter sesuai rentang tanggal, ekspor ke Excel (.xlsx) / CSV, atau cetak sebagai dokumen resmi.
           </p>
         </div>
@@ -165,21 +165,21 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ showToast }) => {
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <button
             onClick={handleDownloadExcel}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#16A36A] hover:bg-[#138a59] text-white text-xs font-medium rounded-lg shadow-xs transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#16A36A] hover:bg-[#138a59] text-white text-xs font-semibold rounded-xl shadow-xs transition-colors"
           >
             <FileSpreadsheet className="w-4 h-4" />
             <span>Ekspor Excel (.xlsx)</span>
           </button>
           <button
             onClick={handleDownloadCSV}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-[#F9FAFB] text-[#344054] text-xs font-medium rounded-lg border border-[#D0D5DD] shadow-xs transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-white/80 hover:bg-white text-slate-700 text-xs font-semibold rounded-xl border border-white/80 shadow-xs transition-colors"
           >
-            <Download className="w-4 h-4 text-[#667085]" />
+            <Download className="w-4 h-4 text-slate-500" />
             <span>Ekspor CSV</span>
           </button>
           <button
             onClick={handlePrint}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-medium rounded-lg shadow-xs transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-semibold rounded-xl shadow-[0_4px_14px_rgba(70,147,253,0.3)] transition-all"
           >
             <Printer className="w-4 h-4" />
             <span>Cetak / PDF</span>
@@ -188,9 +188,9 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ showToast }) => {
       </div>
 
       {/* Report Selection & Period Filters */}
-      <div className="print:hidden bg-white p-5 rounded-xl border border-[#EAECF0] shadow-xs space-y-4">
+      <div className="print:hidden glass-panel p-5 rounded-2xl space-y-4">
         <div>
-          <label className="block text-xs font-semibold text-[#262626] uppercase tracking-wider mb-2.5">
+          <label className="block text-xs font-semibold text-slate-800 uppercase tracking-wider mb-2.5">
             Pilih Jenis Laporan Operasional (A - M):
           </label>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -198,10 +198,10 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ showToast }) => {
               <button
                 key={opt.id}
                 onClick={() => setSelectedReport(opt.id)}
-                className={`text-left px-3 py-2 rounded-lg text-xs transition-colors border ${
+                className={`text-left px-3.5 py-2.5 rounded-xl text-xs transition-all border ${
                   selectedReport === opt.id
-                    ? 'bg-[#EFF5FF] text-[#4693FD] border-[#4693FD] font-medium'
-                    : 'bg-white text-[#344054] border-[#EAECF0] hover:bg-[#F9FAFB]'
+                    ? 'bg-blue-50/80 text-[#155EEF] border-blue-200/80 font-semibold shadow-xs'
+                    : 'bg-white/70 text-slate-700 border-white/80 hover:bg-white'
                 }`}
               >
                 {opt.label}
@@ -211,9 +211,9 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ showToast }) => {
         </div>
 
         {/* Date Filter Bar */}
-        <div className="pt-3 border-t border-[#EAECF0] flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="pt-3 border-t border-white/60 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-3">
-            <span className="font-medium text-[#344054] flex items-center gap-1.5">
+            <span className="font-medium text-slate-700 flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-[#4693FD]" />
               Filter Periode:
             </span>
@@ -222,32 +222,32 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ showToast }) => {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="bg-white border border-[#D0D5DD] rounded-lg px-2.5 py-1 text-xs text-[#262626] font-mono focus:outline-none focus:border-[#4693FD]"
+                className="bg-white/80 border border-white/80 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-[#4693FD]"
               />
-              <span className="text-[#667085]">s/d</span>
+              <span className="text-slate-400">s/d</span>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="bg-white border border-[#D0D5DD] rounded-lg px-2.5 py-1 text-xs text-[#262626] font-mono focus:outline-none focus:border-[#4693FD]"
+                className="bg-white/80 border border-white/80 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-[#4693FD]"
               />
             </div>
             <button
               onClick={fetchReport}
-              className="px-3 py-1 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-medium rounded-lg shadow-xs transition-colors"
+              className="px-3.5 py-1.5 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
             >
               Terapkan
             </button>
           </div>
 
-          <span className="text-xs text-[#667085] font-mono">
+          <span className="text-xs text-slate-500 font-mono">
             {formatDateID(startDate)} - {formatDateID(endDate)}
           </span>
         </div>
       </div>
 
       {/* Printable Report Document Card */}
-      <div className="bg-white rounded-xl border border-[#EAECF0] shadow-xs p-8" id="report-printable">
+      <div className="glass-panel rounded-2xl p-8" id="report-printable">
         {/* Official Kop Surat */}
         <OfficialKopSurat className="mb-5" />
 

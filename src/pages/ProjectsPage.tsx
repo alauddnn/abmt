@@ -252,7 +252,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
           {/* Header */}
           <motion.div
             variants={itemVariants}
-            className="bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-7 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-5"
+            className="glass-panel rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-5"
           >
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
@@ -372,10 +372,10 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
           {/* Filter Bar & Projects Table Container */}
           <motion.div
             variants={itemVariants}
-            className="bg-white rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] overflow-hidden"
+            className="glass-table rounded-2xl overflow-hidden"
           >
             {/* Toolbar */}
-            <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="p-5 sm:p-6 border-b border-slate-100/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
               {/* Animated Search Input */}
               <div className="relative w-full md:w-96 group">
                 <Search className="w-4 h-4 text-slate-400 group-focus-within:text-[#2563EB] transition-colors absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -384,7 +384,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                   placeholder="Cari nama proyek, klien, kode, atau lokasi..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-9 py-2 bg-slate-50/70 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-3 focus:ring-[#2563EB]/12 transition-all"
+                  className="w-full pl-10 pr-9 py-2 bg-white/70 hover:bg-white/90 focus:bg-white border border-slate-200/90 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-3 focus:ring-[#2563EB]/15 backdrop-blur-md transition-all"
                 />
                 <AnimatePresence>
                   {search && (
@@ -406,7 +406,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
               {/* Animated Status Filter Tabs */}
               <div className="flex items-center gap-2.5 text-xs w-full md:w-auto justify-between md:justify-end">
                 <span className="text-slate-500 font-medium">Filter Status:</span>
-                <div className="inline-flex items-center bg-slate-100/90 p-1 rounded-xl">
+                <div className="inline-flex items-center bg-slate-200/50 backdrop-blur-sm p-1 rounded-xl border border-white/60">
                   {['all', 'Berjalan', 'Persiapan', 'Selesai'].map((s) => {
                     const isSelected = statusFilter === s;
                     return (
@@ -423,7 +423,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                           <motion.span
                             layoutId="project-status-filter-pill"
                             transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                            className="absolute inset-0 bg-white rounded-lg shadow-xs"
+                            className="absolute inset-0 bg-white/90 rounded-lg shadow-xs border border-white/80"
                           />
                         )}
                         <span className="relative z-10">{s === 'all' ? 'Semua' : s}</span>
@@ -438,7 +438,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50/80 text-slate-600 font-medium border-b border-slate-200/80">
+                  <tr className="bg-slate-50/60 backdrop-blur-xs text-slate-600 font-medium border-b border-slate-200/80">
                     <th className="py-3.5 px-6">Kode Proyek</th>
                     <th className="py-3.5 px-6">Nama Proyek</th>
                     <th className="py-3.5 px-6">Klien / Pemilik</th>
@@ -581,7 +581,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.18 }}
                 onClick={() => setIsModalOpen(false)}
-                className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+                className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
               >
                 <motion.div
                   key="project-modal-panel"
@@ -590,9 +590,9 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                   exit={{ opacity: 0, scale: 0.96, y: 10 }}
                   transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                   onClick={(e) => e.stopPropagation()}
-                  className="bg-white rounded-2xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden my-8"
+                  className="glass-modal rounded-2xl max-w-xl w-full overflow-hidden my-8"
                 >
-                  <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+                  <div className="px-6 py-5 border-b border-white/70 flex items-center justify-between bg-white/40 backdrop-blur-sm">
                     <div>
                       <div className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
                         <span>Portofolio Proyek</span>
@@ -802,7 +802,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.18 }}
                 onClick={() => !deletingProject && setProjectToDelete(null)}
-                className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+                className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4"
               >
                 <motion.div
                   key="delete-project-panel"
@@ -811,9 +811,9 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                   exit={{ opacity: 0, scale: 0.96, y: 8 }}
                   transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                   onClick={(e) => e.stopPropagation()}
-                  className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden"
+                  className="glass-modal rounded-2xl max-w-md w-full overflow-hidden"
                 >
-                  <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-rose-50/70">
+                  <div className="p-5 border-b border-rose-200/60 flex items-center justify-between bg-rose-50/70 backdrop-blur-xs">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
                         <Trash2 className="w-5 h-5" />

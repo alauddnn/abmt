@@ -21,6 +21,7 @@ const ReportsPage = lazy(() => import('./pages/ReportsPage.js').then((m) => ({ d
 const SettingsPage = lazy(() => import('./pages/SettingsPage.js').then((m) => ({ default: m.SettingsPage })));
 const AuditLogPage = lazy(() => import('./pages/AuditLogPage.js').then((m) => ({ default: m.AuditLogPage })));
 const TestCasesModal = lazy(() => import('./components/TestCasesModal.js').then((m) => ({ default: m.TestCasesModal })));
+const ProfileModal = lazy(() => import('./components/ProfileModal.js').then((m) => ({ default: m.ProfileModal })));
 
 function PageSkeleton() {
   return (
@@ -40,6 +41,7 @@ function MainLayout() {
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
   const [isTestModalOpen, setIsTestModalOpen] = useState<boolean>(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
@@ -93,6 +95,7 @@ function MainLayout() {
       <Sidebar
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
+        onOpenProfileModal={() => setIsProfileModalOpen(true)}
         onOpenTestCases={() => setIsTestModalOpen(true)}
       />
 
@@ -102,6 +105,8 @@ function MainLayout() {
           onToggleMobileMenu={() => setIsMobileNavOpen(true)}
           title={pageTitles[currentTab] || 'Manajemen Operasional'}
           category={pageCategories[currentTab] || 'Operasional'}
+          onSelectTab={setCurrentTab}
+          onOpenProfileModal={() => setIsProfileModalOpen(true)}
         />
 
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8 max-w-[1440px] w-full mx-auto">
@@ -188,11 +193,23 @@ function MainLayout() {
         onClose={() => setIsMobileNavOpen(false)}
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
+        onOpenProfileModal={() => setIsProfileModalOpen(true)}
         onOpenTestCases={() => setIsTestModalOpen(true)}
       />
 
       {/* Global Notifications */}
       <ToastContainer toasts={toasts} onDismiss={handleDismissToast} />
+
+      {/* User Profile Modal for Photo Upload and Name Change */}
+      {isProfileModalOpen && (
+        <Suspense fallback={null}>
+          <ProfileModal
+            isOpen={isProfileModalOpen}
+            onClose={() => setIsProfileModalOpen(false)}
+            showToast={showToast}
+          />
+        </Suspense>
+      )}
 
       {/* 8 Test Cases Verification Modal (Section 16) */}
       {isTestModalOpen && (

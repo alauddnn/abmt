@@ -188,39 +188,43 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
   return (
     <div className="space-y-6 pb-20">
       {/* Top Header */}
-      <div className="bg-white rounded-xl border border-[#EAECF0] p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="glass-panel rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
-              PT. Asta Brata Matahari Terbit
+              PT. ASTA BRATA MATAHARI TERBIT
             </span>
-            <span className="text-[#D0D5DD]">·</span>
-            <span className="text-xs text-[#667085] font-medium font-mono">
+            <span className="text-slate-300">·</span>
+            <span className="text-xs text-slate-500 font-medium font-mono">
               Formula: Gaji Bersih = (Pokok + Lembur Disetujui) - Kasbon Disetujui
             </span>
           </div>
-          <h1 className="text-2xl font-semibold text-[#262626] tracking-tight mt-1">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight mt-1">
             Pembayaran Gaji Dua Mingguan
           </h1>
-          <p className="text-xs text-[#667085] mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Akumulasi hari kerja, lembur disetujui, pemotongan kasbon otomatis tanpa duplikasi, dan cetak slip gaji.
           </p>
         </div>
 
         {/* Tab switch */}
-        <div className="flex items-center bg-[#F2F4F7] p-0.5 rounded-lg text-xs border border-[#EAECF0] shrink-0">
+        <div className="flex items-center glass-pill p-1 rounded-xl text-xs shrink-0">
           <button
             onClick={() => setActiveTab('generate')}
-            className={`px-3 py-1.5 font-medium rounded-md transition-colors ${
-              activeTab === 'generate' ? 'bg-white text-[#262626] shadow-xs' : 'text-[#667085] hover:text-[#262626]'
+            className={`px-3.5 py-1.5 font-semibold rounded-lg transition-all ${
+              activeTab === 'generate'
+                ? 'bg-white text-[#155EEF] shadow-sm'
+                : 'text-slate-500 hover:text-slate-900'
             }`}
           >
             Kalkulasi & Pembayaran
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`px-3 py-1.5 font-medium rounded-md transition-colors ${
-              activeTab === 'history' ? 'bg-white text-[#262626] shadow-xs' : 'text-[#667085] hover:text-[#262626]'
+            className={`px-3.5 py-1.5 font-semibold rounded-lg transition-all ${
+              activeTab === 'history'
+                ? 'bg-white text-[#155EEF] shadow-sm'
+                : 'text-slate-500 hover:text-slate-900'
             }`}
           >
             Riwayat Pembayaran ({paymentsHistory.length})
@@ -231,15 +235,15 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
       {activeTab === 'generate' ? (
         <>
           {/* Period Selector Card */}
-          <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-xs">
+          <div className="glass-card p-5 rounded-2xl">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#EFF5FF] text-[#4693FD] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-blue-50/80 border border-blue-200/60 text-[#4693FD] flex items-center justify-center shrink-0">
                   <Calendar className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-xs text-[#262626]">Pilih Rentang Periode Dua Mingguan</h3>
-                  <p className="text-[11px] text-[#667085]">Pilih rentang absensi kerja karyawan yang akan diproses penggajiannya</p>
+                  <h3 className="font-semibold text-xs text-slate-800">Pilih Rentang Periode Dua Mingguan</h3>
+                  <p className="text-[11px] text-slate-500">Pilih rentang absensi kerja karyawan yang akan diproses penggajiannya</p>
                 </div>
               </div>
 
@@ -265,7 +269,7 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
                 <button
                   onClick={loadPreview}
                   disabled={loadingPreview}
-                  className="px-3.5 py-1.5 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-medium rounded-lg shadow-xs transition-colors"
+                  className="px-3.5 py-1.5 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-semibold rounded-lg shadow-[0_4px_14px_rgba(70,147,253,0.3)] transition-all"
                 >
                   {loadingPreview ? 'Menghitung...' : 'Hitung Ulang'}
                 </button>
@@ -275,30 +279,30 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
 
           {/* Quick Metrics */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-xs">
-              <span className="text-xs font-medium text-[#667085]">Total Gaji Kotor Periode Ini</span>
-              <p className="text-2xl font-semibold text-[#262626] tracking-tight mt-1 tabular-nums">{formatRupiah(totalGrossInPreview)}</p>
-              <span className="text-[11px] text-[#667085] mt-0.5 block">Akumulasi gaji pokok + seluruh lembur disetujui</span>
+            <div className="glass-card p-5 rounded-2xl">
+              <span className="text-xs font-semibold text-slate-500">Total Gaji Kotor Periode Ini</span>
+              <p className="text-2xl font-bold font-mono text-slate-900 tracking-tight mt-1 tabular-nums">{formatRupiah(totalGrossInPreview)}</p>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">Akumulasi gaji pokok + seluruh lembur disetujui</span>
             </div>
 
-            <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-xs">
-              <span className="text-xs font-medium text-[#667085]">Total Pemotongan Kasbon</span>
-              <p className="text-2xl font-semibold text-[#D64545] tracking-tight mt-1 tabular-nums">{formatRupiah(totalKasbonInPreview)}</p>
-              <span className="text-[11px] text-[#667085] mt-0.5 block">Dipotong otomatis dari saldo kasbon karyawan yang aktif</span>
+            <div className="glass-card p-5 rounded-2xl">
+              <span className="text-xs font-semibold text-slate-500">Total Pemotongan Kasbon</span>
+              <p className="text-2xl font-bold font-mono text-rose-600 tracking-tight mt-1 tabular-nums">{formatRupiah(totalKasbonInPreview)}</p>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">Dipotong otomatis dari saldo kasbon karyawan yang aktif</span>
             </div>
 
-            <div className="bg-white p-5 rounded-xl border border-[#EAECF0] shadow-xs">
-              <span className="text-xs font-medium text-[#667085]">Total Gaji Bersih Diterima</span>
-              <p className="text-2xl font-semibold text-[#16A36A] tracking-tight mt-1 tabular-nums">{formatRupiah(totalNetInPreview)}</p>
-              <span className="text-[11px] text-[#667085] mt-0.5 block">Total kewajiban kas bersih yang dibayarkan perusahaan</span>
+            <div className="glass-card p-5 rounded-2xl">
+              <span className="text-xs font-semibold text-slate-500">Total Gaji Bersih Diterima</span>
+              <p className="text-2xl font-bold font-mono text-emerald-600 tracking-tight mt-1 tabular-nums">{formatRupiah(totalNetInPreview)}</p>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">Total kewajiban kas bersih yang dibayarkan perusahaan</span>
             </div>
           </div>
 
           {/* Preview Table */}
-          <div className="bg-white rounded-xl border border-[#EAECF0] shadow-xs overflow-hidden">
-            <div className="p-4 bg-white border-b border-[#EAECF0] flex items-center justify-between">
+          <div className="glass-table rounded-2xl overflow-hidden">
+            <div className="p-4 bg-white/40 border-b border-white/60 flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-xs text-[#262626]">
+                <h3 className="font-semibold text-xs text-slate-800">
                   Kalkulasi Penggajian Periode {formatDateID(periodStart)} s/d {formatDateID(periodEnd)}
                 </h3>
                 <p className="text-[11px] text-[#667085] mt-0.5">
@@ -469,12 +473,12 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
         </>
       ) : (
         /* History Tab */
-        <div className="bg-white rounded-xl border border-[#EAECF0] shadow-xs overflow-hidden">
-          <div className="p-4 border-b border-[#EAECF0] flex items-center justify-between">
-            <h3 className="font-semibold text-xs text-[#262626]">
+        <div className="glass-table rounded-2xl overflow-hidden">
+          <div className="p-4 border-b border-white/60 bg-white/40 flex items-center justify-between">
+            <h3 className="font-semibold text-xs text-slate-800">
               Riwayat Pembayaran Gaji Karyawan ({paymentsHistory.length} Transaksi)
             </h3>
-            <span className="text-xs text-[#667085]">Tercatat dalam sistem akuntansi</span>
+            <span className="text-xs text-slate-500">Tercatat dalam sistem akuntansi</span>
           </div>
 
           <div className="overflow-x-auto">
@@ -599,18 +603,18 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
 
       {/* Process Payment Dialog */}
       {processingEmp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-[2px]">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full border border-[#EAECF0] overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="px-6 py-4 bg-white text-[#262626] border-b border-[#EAECF0] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
+          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="px-6 py-4 bg-white/50 border-b border-white/60 flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-sm">Proses Pembayaran Gaji Karyawan</h3>
-                <p className="text-[11px] text-[#667085]">
+                <h3 className="font-semibold text-sm text-slate-800">Proses Pembayaran Gaji Karyawan</h3>
+                <p className="text-[11px] text-slate-500">
                   {processingEmp.employeeName || processingEmp.name} ({processingEmp.employeeRole || processingEmp.role})
                 </p>
               </div>
               <button
                 onClick={() => setProcessingEmp(null)}
-                className="text-[#667085] hover:text-[#262626] p-1 rounded-md hover:bg-[#F2F4F7]"
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-white/60 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -736,13 +740,13 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
 
       {/* Cancel Payment Dialog */}
       {cancellingPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-[2px]">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full border border-[#EAECF0] overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="px-6 py-4 bg-white text-[#262626] border-b border-[#EAECF0] flex items-center justify-between">
-              <h3 className="font-semibold text-sm">Batalkan Pembayaran Gaji</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
+          <div className="glass-modal rounded-2xl max-w-sm w-full overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="px-6 py-4 bg-white/50 border-b border-white/60 flex items-center justify-between">
+              <h3 className="font-semibold text-sm text-slate-800">Batalkan Pembayaran Gaji</h3>
               <button
                 onClick={() => setCancellingPayment(null)}
-                className="text-[#667085] hover:text-[#262626] p-1 rounded-md hover:bg-[#F2F4F7]"
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-white/60 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>

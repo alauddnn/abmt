@@ -13,12 +13,14 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useCompany } from '../context/CompanyContext.js';
 import { useAuth } from '../context/AuthContext.js';
+import { UserProfileDropdown } from './UserProfileDropdown.js';
 
 interface MobileNavProps {
   isOpen: boolean;
   onClose: () => void;
   currentTab: string;
   onSelectTab: (tab: string) => void;
+  onOpenProfileModal: () => void;
   onOpenTestCases?: () => void;
 }
 
@@ -38,6 +40,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   onClose,
   currentTab,
   onSelectTab,
+  onOpenProfileModal,
 }) => {
   const { settings } = useCompany();
   const { isAdmin, user, logout } = useAuth();
@@ -61,21 +64,12 @@ export const MobileNav: React.FC<MobileNavProps> = ({
         { id: 'expenses', label: 'Biaya Operasional', icon: Receipt },
       ],
     },
-    {
-      group: 'PENGATURAN',
-      items: [
-        { id: 'settings', label: 'Pengaturan Perusahaan', icon: Settings },
-        { id: 'audit-logs', label: 'Pengguna & Keamanan', icon: ShieldCheck },
-      ],
-    },
   ];
 
   const bottomItems = [
     { id: 'dashboard', label: 'Dasbor', icon: LayoutDashboard },
     { id: 'projects', label: 'Proyek', icon: FolderKanban },
     { id: 'expenses', label: 'Biaya', icon: Receipt },
-    { id: 'settings', label: 'Pengaturan', icon: Settings },
-    { id: 'audit-logs', label: 'Keamanan', icon: ShieldCheck },
   ];
 
   const handleSelect = (id: string) => {
@@ -96,7 +90,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               onClick={onClose}
-              className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[2px] lg:hidden"
+              className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-md lg:hidden"
             />
 
             {/* Slide-out Drawer */}
@@ -106,9 +100,9 @@ export const MobileNav: React.FC<MobileNavProps> = ({
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-              className="fixed inset-y-0 left-0 z-50 w-72 bg-white text-slate-700 border-r border-slate-200 lg:hidden flex flex-col shadow-2xl"
+              className="fixed inset-y-0 left-0 z-50 w-72 bg-white/80 backdrop-blur-2xl text-slate-700 border-r border-white/80 lg:hidden flex flex-col shadow-2xl"
             >
-              <div className="h-16 px-4 border-b border-slate-200/80 flex items-center justify-between">
+              <div className="h-16 px-4 border-b border-white/70 bg-white/40 backdrop-blur-md flex items-center justify-between">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 p-0.5 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
                     <img
@@ -176,19 +170,31 @@ export const MobileNav: React.FC<MobileNavProps> = ({
 
               <div className="p-3 border-t border-slate-200/80 bg-slate-50/60">
                 <div className="flex items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenProfileModal();
+                    }}
+                    className="flex items-center gap-2 min-w-0 flex-1 p-1 rounded-xl hover:bg-slate-200/60 transition-colors text-left cursor-pointer"
+                    title="Ubah Foto & Profil"
+                  >
                     <div
-                      className={`w-8 h-8 rounded-full border flex items-center justify-center font-semibold text-xs shrink-0 ${
+                      className={`w-9 h-9 rounded-full border flex items-center justify-center font-semibold text-xs shrink-0 overflow-hidden ${
                         isAdmin
                           ? 'bg-[#EFF5FF] text-[#2563EB] border-[#D0E2FF]'
                           : 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]'
                       }`}
                     >
-                      {isAdmin ? 'AD' : 'OW'}
+                      {user?.avatarUrl ? (
+                        <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span>{user?.name ? user.name.split(' ').map((p: string) => p[0]).join('').substring(0, 2).toUpperCase() : (isAdmin ? 'AD' : 'OW')}</span>
+                      )}
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-semibold text-slate-900 truncate">{user?.name}</p>
-                      <div className="flex items-center gap-1">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-slate-900 truncate leading-snug">{user?.name}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
                         {isAdmin ? (
                           <span className="text-[10px] text-[#155EEF] font-semibold flex items-center gap-0.5">
                             <Shield className="w-2.5 h-2.5" /> ADMIN
@@ -198,16 +204,17 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                             <Briefcase className="w-2.5 h-2.5" /> OWNER
                           </span>
                         )}
+                        <span className="text-[10px] text-blue-600 font-medium">· Edit</span>
                       </div>
                     </div>
-                  </div>
+                  </button>
 
                   <button
                     onClick={() => {
                       onClose();
                       logout();
                     }}
-                    className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                     title="Keluar"
                   >
                     <LogOut className="w-4 h-4" />
@@ -220,7 +227,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
       </AnimatePresence>
 
       {/* Bottom Bar on Mobile with Animated Active Indicator */}
-      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-2 py-1.5 flex items-center justify-around shadow-[0_-2px_10px_rgba(15,23,42,0.03)]">
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/80 backdrop-blur-2xl border-t border-white/80 px-2 py-1.5 flex items-center justify-around shadow-[0_-4px_20px_rgba(15,23,42,0.04)]">
         {bottomItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
@@ -244,6 +251,23 @@ export const MobileNav: React.FC<MobileNavProps> = ({
             </button>
           );
         })}
+
+        {/* Profile trigger on bottom bar */}
+        <button
+          type="button"
+          onClick={onOpenProfileModal}
+          className="relative flex flex-col items-center py-1 px-3 rounded-xl text-[10px] font-medium text-slate-500 hover:text-slate-900 transition-colors"
+          title="Ubah Foto Profil"
+        >
+          <div className="w-5 h-5 rounded-full overflow-hidden border border-slate-300 flex items-center justify-center bg-slate-100">
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-[9px] font-bold text-slate-600">{isAdmin ? 'AD' : 'OW'}</span>
+            )}
+          </div>
+          <span className="mt-0.5">Profil</span>
+        </button>
       </div>
     </>
   );

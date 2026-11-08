@@ -276,6 +276,7 @@ export interface UserSession {
   name: string;
   role: 'admin' | 'owner' | 'Administrator' | 'Petugas';
   token?: string;
+  avatarUrl?: string;
 }
 
 export interface AppUser {
@@ -284,6 +285,7 @@ export interface AppUser {
   email: string;
   name: string;
   role: 'admin' | 'owner';
+  avatarUrl?: string;
   createdAt: string;
 }
 
