@@ -1620,6 +1620,43 @@ router.post('/projects/:id/kasbon/:kasbonId/pay', async (req: Request, res: Resp
   return res.status(400).json({ error: 'Koneksi database PostgreSQL Supabase diperlukan' });
 });
 
+router.post('/projects/:id/kasbon/:kasbonId/restore', async (req: Request, res: Response) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak mengeluarkan data dari Arsip Pelunasan' });
+  }
+
+  const { kasbonId } = req.params;
+  const { reason } = req.body || {};
+  if (isPostgresConfigured) {
+    try {
+      const updated = await pgService.restoreKasbonFromArchive(kasbonId, reason, user.name, user.role);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+  return res.status(400).json({ error: 'Koneksi database PostgreSQL Supabase diperlukan' });
+});
+
+router.post('/projects/:id/kasbon/:kasbonId/archive', async (req: Request, res: Response) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak mengarsipkan data kasbon' });
+  }
+
+  const { kasbonId } = req.params;
+  if (isPostgresConfigured) {
+    try {
+      const updated = await pgService.archiveSettledKasbon(kasbonId, user.name, user.role);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+  return res.status(400).json({ error: 'Koneksi database PostgreSQL Supabase diperlukan' });
+});
+
 router.delete('/projects/:id/kasbon/:kasbonId/attachments/:attachmentId', async (req: Request, res: Response) => {
   const user = getUserFromReq(req);
   if (user.role !== 'admin') {
@@ -3096,20 +3133,25 @@ router.post('/kasbon/:id/pay', async (req: Request, res: Response) => {
 
     const newDeducted = kb.deductedAmount + payAmount;
     const newRemaining = Math.max(0, kb.amount - newDeducted);
-    const newStatus = newRemaining === 0 ? 'Lunas' : 'Dipotong sebagian';
+    const isNowLunas = newRemaining === 0;
+    const newStatus = isNowLunas ? 'Lunas' : 'Dipotong sebagian';
 
     database.kasbon[idx] = {
       ...kb,
       deductedAmount: newDeducted,
       remainingAmount: newRemaining,
       status: newStatus,
+      isArchived: isNowLunas ? true : kb.isArchived,
+      paidOffDate: isNowLunas ? pDate : kb.paidOffDate,
       payments: [newPayment, ...(kb.payments || [])],
       auditTrail: [
         ...kb.auditTrail,
         {
           timestamp: new Date().toISOString(),
           user: user.name,
-          action: `Pembayaran manual kasbon sebesar Rp ${payAmount.toLocaleString('id-ID')} via ${pMethod}. Sisa: Rp ${newRemaining.toLocaleString('id-ID')}`,
+          action: isNowLunas
+            ? `Pelunasan penuh kasbon sebesar Rp ${payAmount.toLocaleString('id-ID')} via ${pMethod}. Status LUNAS dan dipindahkan ke Arsip Pelunasan.`
+            : `Pembayaran sebagian kasbon sebesar Rp ${payAmount.toLocaleString('id-ID')} via ${pMethod}. Sisa: Rp ${newRemaining.toLocaleString('id-ID')}`,
         },
       ],
     };
@@ -3119,6 +3161,120 @@ router.post('/kasbon/:id/pay', async (req: Request, res: Response) => {
   if (errorMessage) {
     return res.status(400).json({ error: errorMessage });
   }
+
+  return res.json(updated);
+});
+
+// Keluarkan Kasbon dari Arsip Pelunasan (Pulihkan ke Kasbon Aktif) - ADMIN ONLY
+router.post('/kasbon/:id/restore', async (req: Request, res: Response) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak mengeluarkan data dari Arsip Pelunasan' });
+  }
+
+  const { id } = req.params;
+  const { reason } = req.body || {};
+  if (isPostgresConfigured) {
+    try {
+      const updated = await pgService.restoreKasbonFromArchive(id, reason, user.name, user.role);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  const noteText = (reason || 'Dipulihkan oleh Admin ke daftar Kasbon Aktif').trim();
+  let errorMessage: string | null = null;
+  const updated = dbManager.mutate((database) => {
+    const idx = database.kasbon.findIndex((k) => k.id === id);
+    if (idx === -1) {
+      errorMessage = 'Data kasbon tidak ditemukan';
+      return null;
+    }
+    const kb = database.kasbon[idx];
+    database.kasbon[idx] = {
+      ...kb,
+      isArchived: false,
+      restoredAt: new Date().toISOString(),
+      auditTrail: [
+        ...kb.auditTrail,
+        {
+          timestamp: new Date().toISOString(),
+          user: user.name,
+          action: `Data kasbon dikeluarkan dari Arsip Pelunasan (Dipulihkan ke Kasbon Aktif). Alasan: ${noteText}. Riwayat pembayaran tetap utuh.`,
+        },
+      ],
+    };
+    return database.kasbon[idx];
+  });
+
+  if (errorMessage) {
+    return res.status(400).json({ error: errorMessage });
+  }
+
+  dbManager.addAuditLog(
+    user.name,
+    user.role,
+    'Pulihkan Kasbon dari Arsip',
+    'Kasbon',
+    `Mengeluarkan kasbon ${(updated as KasbonRecord).kasbonNumber} dari Arsip Pelunasan (${noteText})`
+  );
+
+  return res.json(updated);
+});
+
+// Pindahkan Kasbon Lunas Kembali ke Arsip Pelunasan - ADMIN ONLY
+router.post('/kasbon/:id/archive', async (req: Request, res: Response) => {
+  const user = getUserFromReq(req);
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Akses ditolak: Hanya Administrator yang berhak mengarsipkan data kasbon' });
+  }
+
+  const { id } = req.params;
+  if (isPostgresConfigured) {
+    try {
+      const updated = await pgService.archiveSettledKasbon(id, user.name, user.role);
+      return res.json(updated);
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  let errorMessage: string | null = null;
+  const updated = dbManager.mutate((database) => {
+    const idx = database.kasbon.findIndex((k) => k.id === id);
+    if (idx === -1) {
+      errorMessage = 'Data kasbon tidak ditemukan';
+      return null;
+    }
+    const kb = database.kasbon[idx];
+    if (kb.remainingAmount > 0) {
+      errorMessage = 'Kasbon masih memiliki sisa kewajiban dan belum dapat dipindahkan ke Arsip Pelunasan';
+      return null;
+    }
+    database.kasbon[idx] = {
+      ...kb,
+      status: 'Lunas',
+      isArchived: true,
+      paidOffDate: kb.paidOffDate || new Date().toISOString().split('T')[0],
+      archivedAt: new Date().toISOString(),
+      restoredAt: undefined,
+      auditTrail: [
+        ...kb.auditTrail,
+        {
+          timestamp: new Date().toISOString(),
+          user: user.name,
+          action: 'Kasbon yang telah lunas dipindahkan kembali ke Arsip Pelunasan.',
+        },
+      ],
+    };
+    return database.kasbon[idx];
+  });
+
+  if (errorMessage) {
+    return res.status(400).json({ error: errorMessage });
+  }
+
   return res.json(updated);
 });
 

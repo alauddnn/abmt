@@ -135,6 +135,10 @@ export interface KasbonRecord {
   attachmentMimeType?: string;
   attachments?: OperationalExpenseAttachment[];
   payments?: KasbonPayment[];
+  isArchived?: boolean;
+  paidOffDate?: string;
+  archivedAt?: string;
+  restoredAt?: string;
   auditTrail: Array<{ timestamp: string; user: string; action: string }>;
 }
 

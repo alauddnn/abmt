@@ -156,7 +156,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
 
       {/* Owner Notice */}
       {isOwner && (
-        <div className="bg-[#FEF6EE]/90 backdrop-blur-md border border-[#F9DBAF] rounded-2xl p-4 flex items-start gap-3 text-xs text-[#B54708]">
+        <div className="bg-[#FEF6EE] border border-[#F9DBAF] rounded-2xl p-4 flex items-start gap-3 text-xs text-[#B54708]">
           <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-[#B54708]" />
           <div>
             <p className="font-semibold text-sm">Mode Baca-Saja (Akun Owner)</p>
@@ -229,13 +229,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
 
         {/* Section 2: Personil Kunci Lapangan */}
         <div className="glass-card p-6 rounded-2xl space-y-4">
-          <div className="flex items-center gap-2 text-slate-800 font-semibold text-sm pb-3 border-b border-white/60">
+          <div className="flex items-center gap-2 text-slate-800 font-semibold text-sm pb-3 border-b border-slate-200">
             <User className="w-4 h-4 text-[#4693FD]" />
             <span>2. Personil Kunci Lapangan (Owner & Asisten)</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 bg-white/50 rounded-xl border border-white/60 space-y-2">
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
               <div className="flex items-center gap-2 text-[#4693FD] font-semibold">
                 <User className="w-4 h-4" />
                 <span>Nama Lengkap Owner / Pimpinan Proyek</span>
@@ -246,12 +246,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
                 disabled={!isAdmin}
                 value={form.ownerName}
                 onChange={(e) => setForm({ ...form, ownerName: e.target.value })}
-                className="w-full px-3 py-1.5 bg-white disabled:bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-[#4693FD]"
+                className="w-full px-3 py-2 bg-white disabled:bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-[#4693FD]"
               />
               <p className="text-[11px] text-slate-500">Penerima rekap biaya operasional kategori Owner</p>
             </div>
 
-            <div className="p-4 bg-white/50 rounded-xl border border-white/60 space-y-2">
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
               <div className="flex items-center gap-2 text-[#D99A23] font-semibold">
                 <UserCheck className="w-4 h-4" />
                 <span>Nama Lengkap Asisten Lapangan</span>
@@ -262,7 +262,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
                 disabled={!isAdmin}
                 value={form.assistantName}
                 onChange={(e) => setForm({ ...form, assistantName: e.target.value })}
-                className="w-full px-3 py-1.5 bg-white disabled:bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-[#4693FD]"
+                className="w-full px-3 py-2 bg-white disabled:bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-[#4693FD]"
               />
               <p className="text-[11px] text-slate-500">Penerima rekap biaya operasional kategori Asisten</p>
             </div>
@@ -271,7 +271,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
 
         {/* Section 3: Jam Kerja & Tarif Upah */}
         <div className="glass-card p-6 rounded-2xl space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-white/60">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <div className="flex items-center gap-2 text-slate-800 font-semibold text-sm">
               <DollarSign className="w-4 h-4 text-[#16A36A]" />
               <span>3. Jam Kerja Standar & Tarif Upah</span>
@@ -520,7 +520,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
               <button
                 type="button"
                 onClick={() => onNavigate('audit-logs')}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white/80 hover:bg-white text-slate-700 border border-white/80 text-xs font-semibold rounded-xl shadow-xs transition-colors shrink-0"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold rounded-xl shadow-2xs transition-colors shrink-0"
               >
                 <KeyRound className="w-3.5 h-3.5 text-[#175CD3]" />
                 <span>Buka Panel IT & Reset Sandi</span>
@@ -528,7 +528,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ showToast, onNavigat
               </button>
             )}
           </div>
-          <div className="p-3.5 bg-white/50 rounded-xl border border-white/60 text-xs text-slate-600 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div className="space-y-1">
               <p className="font-semibold text-slate-800">Akun Default Sistem:</p>
               <p>• <strong className="font-mono text-slate-900">admin</strong> (Role: Owner / Administrator) — Akses penuh modul RAB, Keuangan, Invoice, & Pengaturan</p>

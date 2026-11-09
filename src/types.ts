@@ -119,6 +119,10 @@ export interface KasbonRecord {
   amount: number;
   reason: string;
   status: 'Menunggu persetujuan' | 'Disetujui' | 'Ditolak' | 'Dipotong sebagian' | 'Dibayar sebagian' | 'Lunas' | string;
+  isArchived?: boolean;
+  paidOffDate?: string;
+  archivedAt?: string;
+  restoredAt?: string;
   deductedAmount: number;
   remainingAmount: number;
   targetPaymentPeriod?: string;

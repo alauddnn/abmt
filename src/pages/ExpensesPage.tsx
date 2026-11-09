@@ -583,10 +583,10 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
       </div>
 
       {/* Tab Selector & Filter Toolbar */}
-      <div className="glass-panel p-5 rounded-2xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-t-0 border-b border-white/60">
+      <div className="glass-panel p-4 sm:p-5 rounded-2xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
           {/* Animated Tabs */}
-          <div className="inline-flex items-center glass-pill p-1 rounded-xl text-xs">
+          <div className="inline-flex flex-wrap items-center bg-slate-100 border border-slate-200 p-1 rounded-xl text-xs gap-1">
             {[
               { id: 'owner' as const, label: `Pengeluaran Owner (${ownerExpenses.length})` },
               { id: 'asisten' as const, label: `Pengeluaran Asisten (${asistenExpenses.length})` },
@@ -597,15 +597,15 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
                 <button
                   key={t.id}
                   onClick={() => setActiveTab(t.id)}
-                  className={`relative px-3.5 py-1.5 font-medium rounded-lg transition-colors cursor-pointer ${
-                    isSelected ? 'text-slate-900 font-semibold' : 'text-slate-500 hover:text-slate-900'
+                  className={`relative px-3 py-1.5 font-medium rounded-lg transition-colors cursor-pointer ${
+                    isSelected ? 'text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   {isSelected && (
                     <motion.span
                       layoutId="expenses-tab-pill"
                       transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                      className="absolute inset-0 bg-white rounded-lg shadow-sm"
+                      className="absolute inset-0 bg-white rounded-lg shadow-xs border border-slate-200/80"
                     />
                   )}
                   <span className="relative z-10">{t.label}</span>
@@ -615,33 +615,33 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
           </div>
 
           {/* Quick Date Range */}
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-slate-500 font-medium">Rentang:</span>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="bg-white/80 border border-white/80 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-[#4693FD] focus:ring-2 focus:ring-[#4693FD]/15"
+              className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
             />
             <span className="text-slate-400">–</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="bg-white/80 border border-white/80 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-[#4693FD] focus:ring-2 focus:ring-[#4693FD]/15"
+              className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
             />
           </div>
         </div>
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
           <div className="relative w-full md:w-80 group">
-            <Search className="w-4 h-4 text-slate-400 group-focus-within:text-[#4693FD] transition-colors absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-slate-400 group-focus-within:text-[#2563EB] transition-colors absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder="Cari transaksi atau keterangan..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-8 py-2 bg-white/60 hover:bg-white/80 focus:bg-white border border-white/80 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#4693FD] focus:ring-3 focus:ring-[#4693FD]/12 transition-all"
+              className="w-full pl-10 pr-8 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-3 focus:ring-[#2563EB]/12 transition-all"
             />
             {search && (
               <button
@@ -654,15 +654,15 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto">
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
             {['all', 'Bensin', 'Rokok', 'E-Toll', 'Makan'].map((cat) => (
               <button
                 key={cat}
                 onClick={() => setCategoryFilter(cat)}
-                className={`px-3 py-1.5 rounded-xl font-medium text-xs border transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl font-medium text-xs border transition-all cursor-pointer whitespace-nowrap ${
                   categoryFilter === cat
-                    ? 'bg-blue-50/80 text-[#155EEF] border-blue-200/80 shadow-xs font-semibold'
-                    : 'bg-white/70 text-slate-600 border-white/80 hover:bg-white'
+                    ? 'bg-blue-50 text-[#155EEF] border-blue-200 shadow-2xs font-semibold'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                 }`}
               >
                 {cat === 'all' ? 'Semua Kategori' : cat}
@@ -677,7 +677,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200/80">
+              <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                 <th className="py-3.5 px-4">No. Transaksi</th>
                 <th className="py-3.5 px-4">Tanggal</th>
                 <th className="py-3.5 px-4">Personil</th>
@@ -814,16 +814,16 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
 
       {/* Create / Edit Modal */}
       {isModalOpen && (
-        <div className="kms-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
-          <div className="glass-modal rounded-2xl max-w-lg w-full overflow-hidden max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95">
-            <div className="px-6 py-4 bg-white/50 text-slate-800 border-b border-white/60 flex items-center justify-between shrink-0">
+        <div className="kms-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 animate-in fade-in">
+          <div className="bg-white border border-slate-200 shadow-xl rounded-2xl max-w-[600px] w-[calc(100%-24px)] sm:w-full overflow-hidden max-h-[90dvh] sm:max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95">
+            <div className="px-5 sm:px-6 py-4 bg-slate-50 text-slate-800 border-b border-slate-200 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="font-semibold text-sm">
+                <h3 className="font-semibold text-sm text-slate-900">
                   {editingExpense
                     ? `Edit Pengeluaran: ${editingExpense.transactionNumber}`
                     : `Catat Pengeluaran Operasional ${form.personType}`}
                 </h3>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 mt-0.5">
                   {editingExpense
                     ? 'Perbarui rincian transaksi atau foto bukti'
                     : 'Pencatatan biaya harian proyek lengkap dengan bukti'}
@@ -831,283 +831,285 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-white/60 transition-colors"
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200/60 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="p-6 space-y-4 text-xs overflow-y-auto">
-              {/* Penerima & Nama */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-[#344054] mb-1">Penerima Biaya *</label>
-                  <select
-                    value={form.personType}
-                    onChange={(e) => {
-                      const t = e.target.value as 'Owner' | 'Asisten';
-                      setForm({
-                        ...form,
-                        personType: t,
-                        personName: t === 'Owner' ? settings?.ownerName || 'Bpk. Bambang' : settings?.assistantName || 'Ahmad Fauzi',
-                      });
-                    }}
-                    className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                  >
-                    <option value="Owner">Owner</option>
-                    <option value="Asisten">Asisten</option>
-                  </select>
+            <form onSubmit={handleSave} className="flex flex-col flex-1 overflow-hidden text-xs">
+              <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
+                {/* Penerima & Nama */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1.5">Penerima Biaya *</label>
+                    <select
+                      value={form.personType}
+                      onChange={(e) => {
+                        const t = e.target.value as 'Owner' | 'Asisten';
+                        setForm({
+                          ...form,
+                          personType: t,
+                          personName: t === 'Owner' ? settings?.ownerName || 'Bpk. Bambang' : settings?.assistantName || 'Ahmad Fauzi',
+                        });
+                      }}
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    >
+                      <option value="Owner">Owner</option>
+                      <option value="Asisten">Asisten</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1.5">Nama Personil *</label>
+                    <input
+                      type="text"
+                      required
+                      value={form.personName}
+                      onChange={(e) => setForm({ ...form, personName: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    />
+                  </div>
                 </div>
 
+                {/* Tanggal & Kategori */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1.5">Tanggal *</label>
+                    <input
+                      type="date"
+                      required
+                      value={form.date}
+                      onChange={(e) => setForm({ ...form, date: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1.5">Kategori Pengeluaran *</label>
+                    <select
+                      value={form.category}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          category: e.target.value as OperationalExpense['category'],
+                        })
+                      }
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    >
+                      <option value="Bensin">Bensin</option>
+                      <option value="Rokok">Rokok</option>
+                      <option value="E-Toll">E-Toll</option>
+                      <option value="Makan">Makan</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Nominal & Metode Bayar */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1.5">Nominal (IDR) *</label>
+                    <input
+                      type="number"
+                      step={1000}
+                      min={1000}
+                      required
+                      value={form.amount}
+                      onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl font-mono text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1.5">Metode Bayar *</label>
+                    <select
+                      value={form.paymentMethod}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          paymentMethod: e.target.value as OperationalExpense['paymentMethod'],
+                        })
+                      }
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    >
+                      <option value="Tunai">Tunai</option>
+                      <option value="Transfer Bank">Transfer Bank</option>
+                      <option value="E-Wallet">E-Wallet</option>
+                      <option value="Flazz / TapCash">Flazz / TapCash</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Keterangan */}
                 <div>
-                  <label className="block font-medium text-[#344054] mb-1">Nama Personil *</label>
+                  <label className="block font-medium text-[#344054] mb-1.5">Keterangan Biaya *</label>
                   <input
                     type="text"
                     required
-                    value={form.personName}
-                    onChange={(e) => setForm({ ...form, personName: e.target.value })}
-                    className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                  />
-                </div>
-              </div>
-
-              {/* Tanggal & Kategori */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-[#344054] mb-1">Tanggal *</label>
-                  <input
-                    type="date"
-                    required
-                    value={form.date}
-                    onChange={(e) => setForm({ ...form, date: e.target.value })}
-                    className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    placeholder="Contoh: Isi bensin mobil operasional proyek pikap..."
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                   />
                 </div>
 
+                {/* Catatan Tambahan */}
                 <div>
-                  <label className="block font-medium text-[#344054] mb-1">Kategori Pengeluaran *</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        category: e.target.value as OperationalExpense['category'],
-                      })
-                    }
-                    className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                  >
-                    <option value="Bensin">Bensin</option>
-                    <option value="Rokok">Rokok</option>
-                    <option value="E-Toll">E-Toll</option>
-                    <option value="Makan">Makan</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Nominal & Metode Bayar */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-[#344054] mb-1">Nominal (IDR) *</label>
-                  <input
-                    type="number"
-                    step={1000}
-                    min={1000}
-                    required
-                    value={form.amount}
-                    onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
-                    className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg font-mono text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                  <label className="block font-medium text-[#344054] mb-1.5">Catatan Tambahan</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Catatan struk, nomor gerbang toll, atau lokasi..."
+                    value={form.notes}
+                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                   />
                 </div>
 
-                <div>
-                  <label className="block font-medium text-[#344054] mb-1">Metode Bayar *</label>
-                  <select
-                    value={form.paymentMethod}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        paymentMethod: e.target.value as OperationalExpense['paymentMethod'],
-                      })
-                    }
-                    className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                  >
-                    <option value="Tunai">Tunai</option>
-                    <option value="Transfer Bank">Transfer Bank</option>
-                    <option value="E-Wallet">E-Wallet</option>
-                    <option value="Flazz / TapCash">Flazz / TapCash</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Keterangan */}
-              <div>
-                <label className="block font-medium text-[#344054] mb-1">Keterangan Biaya *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Isi bensin mobil operasional proyek pikap..."
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                />
-              </div>
-
-              {/* Catatan Tambahan */}
-              <div>
-                <label className="block font-medium text-[#344054] mb-1">Catatan Tambahan</label>
-                <textarea
-                  rows={2}
-                  placeholder="Catatan struk, nomor gerbang toll, atau lokasi..."
-                  value={form.notes}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                />
-              </div>
-
-              {/* SECTION: FOTO BUKTI PENGELUARAN */}
-              <div className="pt-2 border-t border-[#EAECF0] space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block font-semibold text-[#101828] text-xs">
-                      Foto Bukti Pengeluaran
-                    </label>
-                    <p className="text-[11px] text-[#667085]">
-                      Struk bensin, struk makan, kuitansi, atau e-toll (Opsional, maks. 5 MB/foto)
-                    </p>
+                {/* SECTION: FOTO BUKTI PENGELUARAN */}
+                <div className="pt-3 border-t border-[#EAECF0] space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <label className="block font-semibold text-[#101828] text-xs">
+                        Foto Bukti Pengeluaran
+                      </label>
+                      <p className="text-[11px] text-[#667085]">
+                        Struk bensin, struk makan, kuitansi, atau e-toll (Opsional, maks. 5 MB/foto)
+                      </p>
+                    </div>
+                    <span className="text-[10px] bg-[#F2F4F7] text-[#475467] px-2 py-0.5 rounded font-mono font-medium shrink-0">
+                      JPG, PNG, WebP
+                    </span>
                   </div>
-                  <span className="text-[10px] bg-[#F2F4F7] text-[#475467] px-2 py-0.5 rounded font-mono font-medium">
-                    JPG, PNG, WebP
-                  </span>
-                </div>
 
-                {/* Upload Buttons: Camera & Device Gallery */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => cameraInputRef.current?.click()}
-                    className="flex items-center justify-center gap-1.5 py-2 px-3 bg-[#F8F9FC] hover:bg-[#EEF2F6] text-[#344054] border border-[#D0D5DD] rounded-lg font-medium text-xs transition-colors"
-                  >
-                    <Camera className="w-4 h-4 text-[#4693FD]" />
-                    <span>Ambil Kamera HP</span>
-                  </button>
+                  {/* Upload Buttons: Camera & Device Gallery */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#F8F9FC] hover:bg-[#EEF2F6] text-[#344054] border border-[#D0D5DD] rounded-xl font-medium text-xs transition-colors"
+                    >
+                      <Camera className="w-4 h-4 text-[#4693FD]" />
+                      <span>Ambil Kamera HP</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => galleryInputRef.current?.click()}
-                    className="flex items-center justify-center gap-1.5 py-2 px-3 bg-[#F8F9FC] hover:bg-[#EEF2F6] text-[#344054] border border-[#D0D5DD] rounded-lg font-medium text-xs transition-colors"
-                  >
-                    <Upload className="w-4 h-4 text-[#16A36A]" />
-                    <span>Pilih dari Galeri</span>
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#F8F9FC] hover:bg-[#EEF2F6] text-[#344054] border border-[#D0D5DD] rounded-xl font-medium text-xs transition-colors"
+                    >
+                      <Upload className="w-4 h-4 text-[#16A36A]" />
+                      <span>Pilih dari Galeri</span>
+                    </button>
+                  </div>
 
-                {/* Existing Attachments in Edit Mode */}
-                {editingExpense && existingAttachments.length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="font-medium text-[#344054] text-[11px]">
-                      Foto Tersimpan Saat Ini ({attachmentsToKeep.length} aktif):
-                    </p>
+                  {/* Existing Attachments in Edit Mode */}
+                  {editingExpense && existingAttachments.length > 0 && (
                     <div className="space-y-1.5">
-                      {existingAttachments.map((att) => {
-                        const isKept = attachmentsToKeep.includes(att.id);
-                        return (
-                          <div
-                            key={att.id}
-                            className={`flex items-center justify-between p-2 rounded-lg border text-xs transition-all ${
-                              isKept
-                                ? 'bg-white border-[#EAECF0]'
-                                : 'bg-[#FEF3F2] border-[#FECDCA] opacity-60 line-through'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 overflow-hidden">
-                              <img
-                                src={getPhotoViewUrl(att.id)}
-                                alt={att.fileName}
-                                className="w-9 h-9 object-cover rounded border border-[#EAECF0] shrink-0"
-                                onError={(e) => {
-                                  (e.target as any).style.display = 'none';
-                                }}
-                              />
-                              <div className="overflow-hidden">
-                                <p className="font-medium text-[#101828] truncate text-[11px]">{att.fileName}</p>
-                                <p className="text-[10px] text-[#667085]">{formatFileSize(att.fileSize)}</p>
+                      <p className="font-medium text-[#344054] text-[11px]">
+                        Foto Tersimpan Saat Ini ({attachmentsToKeep.length} aktif):
+                      </p>
+                      <div className="space-y-1.5">
+                        {existingAttachments.map((att) => {
+                          const isKept = attachmentsToKeep.includes(att.id);
+                          return (
+                            <div
+                              key={att.id}
+                              className={`flex items-center justify-between p-2 rounded-lg border text-xs transition-all ${
+                                isKept
+                                  ? 'bg-white border-[#EAECF0]'
+                                  : 'bg-[#FEF3F2] border-[#FECDCA] opacity-60 line-through'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <img
+                                  src={getPhotoViewUrl(att.id)}
+                                  alt={att.fileName}
+                                  className="w-9 h-9 object-cover rounded border border-[#EAECF0] shrink-0"
+                                  onError={(e) => {
+                                    (e.target as any).style.display = 'none';
+                                  }}
+                                />
+                                <div className="overflow-hidden">
+                                  <p className="font-medium text-[#101828] truncate text-[11px]">{att.fileName}</p>
+                                  <p className="text-[10px] text-[#667085]">{formatFileSize(att.fileSize)}</p>
+                                </div>
                               </div>
+                              {isKept ? (
+                                <button
+                                  type="button"
+                                  onClick={() => removeExistingAttachment(att.id)}
+                                  className="p-1 text-[#98A2B3] hover:text-[#D64545] rounded hover:bg-[#FEE4E2] transition-colors"
+                                  title="Hapus foto ini saat menyimpan"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setAttachmentsToKeep((prev) => [...prev, att.id])}
+                                  className="text-[11px] text-[#4693FD] hover:underline font-medium"
+                                >
+                                  Batal Hapus
+                                </button>
+                              )}
                             </div>
-                            {isKept ? (
-                              <button
-                                type="button"
-                                onClick={() => removeExistingAttachment(att.id)}
-                                className="p-1 text-[#98A2B3] hover:text-[#D64545] rounded hover:bg-[#FEE4E2] transition-colors"
-                                title="Hapus foto ini saat menyimpan"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setAttachmentsToKeep((prev) => [...prev, att.id])}
-                                className="text-[11px] text-[#4693FD] hover:underline font-medium"
-                              >
-                                Batal Hapus
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Previews of Newly Selected Photos */}
-                {newPhotos.length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="font-medium text-[#344054] text-[11px]">
-                      Foto Baru yang Akan Disimpan ({newPhotos.length}):
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {newPhotos.map((photo) => (
-                        <div
-                          key={photo.id}
-                          className="relative group p-2 bg-[#F9FAFB] rounded-lg border border-[#EAECF0] flex items-center gap-2 overflow-hidden"
-                        >
-                          <img
-                            src={photo.previewUrl}
-                            alt={photo.fileName}
-                            className="w-10 h-10 object-cover rounded border border-[#D0D5DD] shrink-0"
-                          />
-                          <div className="overflow-hidden pr-5">
-                            <p className="font-medium text-[#101828] truncate text-[11px]">{photo.fileName}</p>
-                            <p className="text-[10px] text-[#667085]">{formatFileSize(photo.size)}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeNewPhoto(photo.id)}
-                            className="absolute top-1.5 right-1.5 p-1 bg-white hover:bg-[#FEE4E2] text-[#667085] hover:text-[#D64545] rounded-full border border-[#D0D5DD] shadow-2xs transition-colors"
-                            title="Batal lampirkan foto ini"
+                  {/* Previews of Newly Selected Photos */}
+                  {newPhotos.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="font-medium text-[#344054] text-[11px]">
+                        Foto Baru yang Akan Disimpan ({newPhotos.length}):
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {newPhotos.map((photo) => (
+                          <div
+                            key={photo.id}
+                            className="relative group p-2 bg-[#F9FAFB] rounded-lg border border-[#EAECF0] flex items-center gap-2 overflow-hidden"
                           >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
+                            <img
+                              src={photo.previewUrl}
+                              alt={photo.fileName}
+                              className="w-10 h-10 object-cover rounded border border-[#D0D5DD] shrink-0"
+                            />
+                            <div className="overflow-hidden pr-5">
+                              <p className="font-medium text-[#101828] truncate text-[11px]">{photo.fileName}</p>
+                              <p className="text-[10px] text-[#667085]">{formatFileSize(photo.size)}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeNewPhoto(photo.id)}
+                              className="absolute top-1.5 right-1.5 p-1 bg-white hover:bg-[#FEE4E2] text-[#667085] hover:text-[#D64545] rounded-full border border-[#D0D5DD] shadow-2xs transition-colors"
+                              title="Batal lampirkan foto ini"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* Submit / Cancel Buttons */}
-              <div className="pt-3 border-t border-[#EAECF0] flex items-center justify-end gap-2.5 shrink-0">
+              <div className="px-5 sm:px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   disabled={saving}
                   onClick={() => setIsModalOpen(false)}
-                  className="px-3.5 py-1.5 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-lg border border-[#D0D5DD] text-xs transition-colors"
+                  className="px-4 py-2 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-xl border border-[#D0D5DD] text-xs transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-1.5 bg-[#4693FD] hover:bg-[#357ee8] disabled:opacity-50 text-white font-semibold rounded-lg text-xs shadow-xs transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 bg-[#4693FD] hover:bg-[#357ee8] disabled:opacity-50 text-white font-semibold rounded-xl text-xs shadow-xs transition-colors flex items-center gap-1.5"
                 >
                   {saving ? (
                     <span>Menyimpan...</span>
@@ -1123,12 +1125,12 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
 
       {/* Proof Lightbox Viewer Modal */}
       {viewingProofExpense && viewingProofExpense.attachments && viewingProofExpense.attachments.length > 0 && currentViewingPhoto && (
-        <div className="kms-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/70 backdrop-blur-sm">
-          <div className="kms-modal-content bg-white rounded-2xl shadow-2xl max-w-3xl w-full border border-[#EAECF0] overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="kms-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70">
+          <div className="kms-modal-content bg-white rounded-2xl shadow-2xl max-w-[800px] w-[calc(100%-24px)] sm:w-full border border-[#EAECF0] overflow-hidden flex flex-col max-h-[90dvh] sm:max-h-[85vh]">
             {/* Modal Header */}
-            <div className="px-6 py-3.5 bg-white border-b border-[#EAECF0] flex items-center justify-between shrink-0">
+            <div className="px-5 sm:px-6 py-3.5 bg-white border-b border-[#EAECF0] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#EFF8FF] text-[#175CD3] flex items-center justify-center font-bold">
+                <div className="w-8 h-8 rounded-lg bg-[#EFF8FF] text-[#175CD3] flex items-center justify-center font-bold shrink-0">
                   <ImageIcon className="w-4 h-4" />
                 </div>
                 <div>
@@ -1142,7 +1144,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono font-medium text-[#475467] bg-[#F2F4F7] px-2.5 py-1 rounded-md">
+                <span className="text-xs font-mono font-medium text-[#475467] bg-[#F2F4F7] px-2.5 py-1 rounded-md hidden sm:inline-block">
                   Foto {activePhotoIndex + 1} dari {viewingProofExpense.attachments.length}
                 </span>
                 <button
@@ -1155,7 +1157,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
             </div>
 
             {/* Photo Viewer Canvas */}
-            <div className="relative bg-[#0F172A] flex-1 flex items-center justify-center min-h-[360px] max-h-[58vh] overflow-hidden select-none">
+            <div className="relative bg-[#0F172A] flex-1 flex items-center justify-center min-h-[280px] sm:min-h-[360px] max-h-[55vh] overflow-hidden select-none">
               {photoLoading && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/80 z-10 pointer-events-none">
                   <Loader2 className="w-8 h-8 animate-spin text-[#4693FD]" />
@@ -1196,7 +1198,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
                   key={currentViewingPhoto.id}
                   src={getPhotoViewUrl(currentViewingPhoto.id)}
                   alt={currentViewingPhoto.fileName}
-                  className={`max-w-full max-h-[56vh] object-contain transition-transform duration-200 ${
+                  className={`max-w-full max-h-[52vh] object-contain transition-transform duration-200 ${
                     photoLoading ? 'opacity-0' : 'opacity-100'
                   } ${isZoomed ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'}`}
                   onLoad={() => setPhotoLoading(false)}
@@ -1217,7 +1219,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
                       prev > 0 ? prev - 1 : viewingProofExpense.attachments!.length - 1
                     );
                   }}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 p-2 bg-[#0F172A]/70 hover:bg-[#0F172A] text-white rounded-full backdrop-blur-xs transition-colors"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 p-2 bg-[#0F172A]/80 hover:bg-[#0F172A] text-white rounded-full transition-colors"
                   title="Foto sebelumnya"
                 >
                   <ChevronLeft className="w-5 h-5" />
@@ -1233,7 +1235,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
                       prev < viewingProofExpense.attachments!.length - 1 ? prev + 1 : 0
                     );
                   }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-[#0F172A]/70 hover:bg-[#0F172A] text-white rounded-full backdrop-blur-xs transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-[#0F172A]/80 hover:bg-[#0F172A] text-white rounded-full transition-colors"
                   title="Foto berikutnya"
                 >
                   <ChevronRight className="w-5 h-5" />
@@ -1243,7 +1245,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
 
             {/* Thumbnails Strip if multiple photos */}
             {viewingProofExpense.attachments.length > 1 && (
-              <div className="px-6 py-2.5 bg-[#F9FAFB] border-t border-[#EAECF0] flex items-center gap-2 overflow-x-auto shrink-0">
+              <div className="px-5 sm:px-6 py-2.5 bg-[#F9FAFB] border-t border-[#EAECF0] flex items-center gap-2 overflow-x-auto shrink-0">
                 {viewingProofExpense.attachments.map((att, idx) => (
                   <button
                     key={att.id}
@@ -1268,19 +1270,11 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
             )}
 
             {/* Footer / Metadata */}
-            <div className="px-6 py-3 bg-white border-t border-[#EAECF0] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shrink-0">
-              <div className="flex flex-wrap items-center gap-3 text-[#667085]">
-                <span className="font-medium text-[#101828]">{currentViewingPhoto.fileName}</span>
+            <div className="px-5 sm:px-6 py-3 bg-white border-t border-[#EAECF0] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shrink-0">
+              <div className="flex flex-wrap items-center gap-2 text-[#667085]">
+                <span className="font-medium text-[#101828] truncate max-w-[200px]">{currentViewingPhoto.fileName}</span>
                 <span>·</span>
                 <span>{formatFileSize(currentViewingPhoto.fileSize)}</span>
-                <span>·</span>
-                <span>{currentViewingPhoto.mimeType}</span>
-                {currentViewingPhoto.uploadedBy && (
-                  <>
-                    <span>·</span>
-                    <span>Diunggah oleh: {currentViewingPhoto.uploadedBy}</span>
-                  </>
-                )}
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
@@ -1311,11 +1305,11 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
 
       {/* Modal Konfirmasi Hapus Transaksi Pengeluaran */}
       {expenseToDelete && (
-        <div className="kms-modal-overlay fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
-          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="p-5 border-b border-rose-200/60 flex items-center justify-between bg-rose-50/70">
+        <div className="kms-modal-overlay fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 shadow-xl rounded-2xl max-w-[420px] w-[calc(100%-24px)] sm:w-full overflow-hidden max-h-[90dvh] sm:max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-rose-200 flex items-center justify-between bg-rose-50 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-rose-100/80 border border-rose-200/60 text-[#D92D20] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-rose-100 border border-rose-200 text-[#D92D20] flex items-center justify-center shrink-0">
                   <Trash2 className="w-5 h-5" />
                 </div>
                 <div>
@@ -1330,29 +1324,29 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ showToast, onDataCha
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-5 space-y-3 text-xs text-[#344054]">
+            <div className="p-5 space-y-3 text-xs text-[#344054] overflow-y-auto flex-1">
               <p>
                 Yakin ingin menghapus transaksi{' '}
                 <strong className="font-mono text-[#101828]">{expenseToDelete.num}</strong>? Seluruh data dan foto bukti terkait akan dihapus secara permanen.
               </p>
-              <div className="pt-3 border-t border-[#EAECF0] flex justify-end gap-2">
-                <button
-                  type="button"
-                  disabled={deletingExpense}
-                  onClick={() => setExpenseToDelete(null)}
-                  className="px-4 py-2 border border-[#D0D5DD] rounded-lg text-xs font-medium text-[#344054] hover:bg-[#F9FAFB]"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  disabled={deletingExpense}
-                  onClick={confirmDeleteExpense}
-                  className="px-4 py-2 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-lg text-xs font-medium shadow-xs disabled:opacity-50"
-                >
-                  {deletingExpense ? 'Menghapus...' : 'Ya, Hapus Transaksi'}
-                </button>
-              </div>
+            </div>
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-[#EAECF0] flex justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={deletingExpense}
+                onClick={() => setExpenseToDelete(null)}
+                className="px-4 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs font-medium text-[#344054] hover:bg-[#F9FAFB]"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={deletingExpense}
+                onClick={confirmDeleteExpense}
+                className="px-4 py-2 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-xl text-xs font-medium shadow-xs disabled:opacity-50"
+              >
+                {deletingExpense ? 'Menghapus...' : 'Ya, Hapus Transaksi'}
+              </button>
             </div>
           </div>
         </div>

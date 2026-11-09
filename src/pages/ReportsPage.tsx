@@ -188,7 +188,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ showToast }) => {
       </div>
 
       {/* Report Selection & Period Filters */}
-      <div className="print:hidden glass-panel p-5 rounded-2xl space-y-4">
+      <div className="print:hidden glass-panel p-4 sm:p-5 rounded-2xl space-y-4">
         <div>
           <label className="block text-xs font-semibold text-slate-800 uppercase tracking-wider mb-2.5">
             Pilih Jenis Laporan Operasional (A - M):
@@ -200,8 +200,8 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ showToast }) => {
                 onClick={() => setSelectedReport(opt.id)}
                 className={`text-left px-3.5 py-2.5 rounded-xl text-xs transition-all border ${
                   selectedReport === opt.id
-                    ? 'bg-blue-50/80 text-[#155EEF] border-blue-200/80 font-semibold shadow-xs'
-                    : 'bg-white/70 text-slate-700 border-white/80 hover:bg-white'
+                    ? 'bg-blue-50 text-[#155EEF] border-blue-200 font-semibold shadow-2xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                 }`}
               >
                 {opt.label}
@@ -211,25 +211,25 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ showToast }) => {
         </div>
 
         {/* Date Filter Bar */}
-        <div className="pt-3 border-t border-white/60 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3">
+        <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="font-medium text-slate-700 flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-[#4693FD]" />
               Filter Periode:
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="bg-white/80 border border-white/80 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-[#4693FD]"
+                className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-[#4693FD]"
               />
               <span className="text-slate-400">s/d</span>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="bg-white/80 border border-white/80 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-[#4693FD]"
+                className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-[#4693FD]"
               />
             </div>
             <button
@@ -247,7 +247,7 @@ export const ReportsPage: React.FC<ReportsPageProps> = ({ showToast }) => {
       </div>
 
       {/* Printable Report Document Card */}
-      <div className="glass-panel rounded-2xl p-8" id="report-printable">
+      <div className="glass-panel rounded-2xl p-4 sm:p-8" id="report-printable">
         {/* Official Kop Surat */}
         <OfficialKopSurat className="mb-5" />
 

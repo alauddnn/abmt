@@ -220,7 +220,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
         {/* Filter Periode with Animated Sliding Pill */}
         <div className="mt-6 pt-5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
-          <div className="inline-flex items-center gap-1 p-1 bg-slate-200/50 backdrop-blur-sm rounded-xl overflow-x-auto max-w-full border border-white/60">
+          <div className="inline-flex items-center gap-1 p-1 bg-slate-100 rounded-xl overflow-x-auto max-w-full border border-slate-200">
             {[
               { id: 'today', label: 'Hari Ini' },
               { id: 'this_week', label: 'Minggu Ini' },
@@ -244,7 +244,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     <motion.span
                       layoutId="dashboard-period-pill"
                       transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                      className="absolute inset-0 bg-white rounded-lg shadow-xs"
+                      className="absolute inset-0 bg-white rounded-lg shadow-2xs border border-slate-200"
                     />
                   )}
                   <span className="relative z-10">{p.label}</span>
@@ -632,7 +632,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-slate-50/60 backdrop-blur-xs border-b border-slate-200/80 text-slate-600 font-medium">
+              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
                 <th className="py-3.5 px-6">Tanggal</th>
                 <th className="py-3.5 px-6">Keterangan Transaksi</th>
                 <th className="py-3.5 px-6">Kategori</th>

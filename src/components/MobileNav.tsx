@@ -90,7 +90,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               onClick={onClose}
-              className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-md lg:hidden"
+              className="fixed inset-0 z-40 bg-slate-900/45 lg:hidden"
             />
 
             {/* Slide-out Drawer */}
@@ -100,9 +100,9 @@ export const MobileNav: React.FC<MobileNavProps> = ({
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-              className="fixed inset-y-0 left-0 z-50 w-72 bg-white/80 backdrop-blur-2xl text-slate-700 border-r border-white/80 lg:hidden flex flex-col shadow-2xl"
+              className="fixed inset-y-0 left-0 z-50 w-72 max-w-[calc(100vw-48px)] bg-white text-slate-700 border-r border-slate-200 lg:hidden flex flex-col shadow-xl"
             >
-              <div className="h-16 px-4 border-b border-white/70 bg-white/40 backdrop-blur-md flex items-center justify-between">
+              <div className="h-16 px-4 border-b border-slate-200 bg-white flex items-center justify-between">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 p-0.5 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
                     <img
@@ -227,7 +227,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
       </AnimatePresence>
 
       {/* Bottom Bar on Mobile with Animated Active Indicator */}
-      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/80 backdrop-blur-2xl border-t border-white/80 px-2 py-1.5 flex items-center justify-around shadow-[0_-4px_20px_rgba(15,23,42,0.04)]">
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 px-2 py-1.5 flex items-center justify-around shadow-[0_-2px_10px_rgba(15,23,42,0.05)]">
         {bottomItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;

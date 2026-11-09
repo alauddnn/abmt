@@ -375,7 +375,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
             className="glass-table rounded-2xl overflow-hidden"
           >
             {/* Toolbar */}
-            <div className="p-5 sm:p-6 border-b border-slate-100/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="p-5 sm:p-6 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
               {/* Animated Search Input */}
               <div className="relative w-full md:w-96 group">
                 <Search className="w-4 h-4 text-slate-400 group-focus-within:text-[#2563EB] transition-colors absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -384,7 +384,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                   placeholder="Cari nama proyek, klien, kode, atau lokasi..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-9 py-2 bg-white/70 hover:bg-white/90 focus:bg-white border border-slate-200/90 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-3 focus:ring-[#2563EB]/15 backdrop-blur-md transition-all"
+                  className="w-full pl-10 pr-9 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
                 />
                 <AnimatePresence>
                   {search && (
@@ -404,16 +404,16 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
               </div>
 
               {/* Animated Status Filter Tabs */}
-              <div className="flex items-center gap-2.5 text-xs w-full md:w-auto justify-between md:justify-end">
+              <div className="flex flex-wrap items-center gap-2.5 text-xs w-full md:w-auto justify-between md:justify-end">
                 <span className="text-slate-500 font-medium">Filter Status:</span>
-                <div className="inline-flex items-center bg-slate-200/50 backdrop-blur-sm p-1 rounded-xl border border-white/60">
+                <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 overflow-x-auto max-w-full">
                   {['all', 'Berjalan', 'Persiapan', 'Selesai'].map((s) => {
                     const isSelected = statusFilter === s;
                     return (
                       <button
                         key={s}
                         onClick={() => setStatusFilter(s)}
-                        className={`relative px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                        className={`relative px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
                           isSelected
                             ? 'text-slate-900'
                             : 'text-slate-600 hover:text-slate-900'
@@ -423,7 +423,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                           <motion.span
                             layoutId="project-status-filter-pill"
                             transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                            className="absolute inset-0 bg-white/90 rounded-lg shadow-xs border border-white/80"
+                            className="absolute inset-0 bg-white rounded-lg shadow-2xs border border-slate-200"
                           />
                         )}
                         <span className="relative z-10">{s === 'all' ? 'Semua' : s}</span>
@@ -438,7 +438,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50/60 backdrop-blur-xs text-slate-600 font-medium border-b border-slate-200/80">
+                  <tr className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
                     <th className="py-3.5 px-6">Kode Proyek</th>
                     <th className="py-3.5 px-6">Nama Proyek</th>
                     <th className="py-3.5 px-6">Klien / Pemilik</th>
@@ -581,7 +581,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.18 }}
                 onClick={() => setIsModalOpen(false)}
-                className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+                className="fixed inset-0 z-50 bg-slate-900/45 flex items-center justify-center p-3 sm:p-4"
               >
                 <motion.div
                   key="project-modal-panel"
@@ -590,16 +590,16 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                   exit={{ opacity: 0, scale: 0.96, y: 10 }}
                   transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                   onClick={(e) => e.stopPropagation()}
-                  className="glass-modal rounded-2xl max-w-xl w-full overflow-hidden my-8"
+                  className="bg-white border border-slate-200 shadow-xl rounded-2xl max-w-[600px] w-[calc(100%-24px)] sm:w-full max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden"
                 >
-                  <div className="px-6 py-5 border-b border-white/70 flex items-center justify-between bg-white/40 backdrop-blur-sm">
+                  <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
                     <div>
                       <div className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
                         <span>Portofolio Proyek</span>
                         <span aria-hidden="true">·</span>
                         <span className="font-mono text-[#2563EB]">{formData.code || 'PRJ-BARU'}</span>
                       </div>
-                      <h3 className="text-lg font-semibold text-slate-900 mt-0.5">
+                      <h3 className="text-base sm:text-lg font-semibold text-slate-900 mt-0.5">
                         {viewOnly
                           ? 'Rincian Dokumen Kontrak Proyek'
                           : editingProject
@@ -609,178 +609,180 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                     </div>
                     <button
                       onClick={() => setIsModalOpen(false)}
-                      className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+                      className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
                     >
                       <X className="w-5 h-5" />
                     </button>
                   </div>
 
-                  <form onSubmit={handleSave} className="p-6 space-y-5">
-                    {/* Row 1: Kode & Status */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                          Kode Proyek
-                        </label>
-                        <input
-                          type="text"
-                          disabled={viewOnly}
-                          value={formData.code}
-                          onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                          className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-semibold text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
-                          required
-                        />
+                  <form onSubmit={handleSave} className="flex flex-col flex-1 min-h-0 bg-white">
+                    <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
+                      {/* Row 1: Kode & Status */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                            Kode Proyek
+                          </label>
+                          <input
+                            type="text"
+                            disabled={viewOnly}
+                            value={formData.code}
+                            onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                            className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-semibold text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                            Status Pelaksanaan
+                          </label>
+                          <select
+                            disabled={viewOnly}
+                            value={formData.status}
+                            onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                            className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
+                          >
+                            <option value="Berjalan">Berjalan (Aktif)</option>
+                            <option value="Persiapan">Persiapan</option>
+                            <option value="Selesai">Selesai</option>
+                          </select>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                          Status Pelaksanaan
-                        </label>
-                        <select
-                          disabled={viewOnly}
-                          value={formData.status}
-                          onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                          className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
-                        >
-                          <option value="Berjalan">Berjalan (Aktif)</option>
-                          <option value="Persiapan">Persiapan</option>
-                          <option value="Selesai">Selesai</option>
-                        </select>
-                      </div>
-                    </div>
 
-                    {/* Row 2: Nama Proyek */}
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                        Nama Proyek Konstruksi
-                      </label>
-                      <input
-                        type="text"
-                        disabled={viewOnly}
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="Contoh: PT. ZUNGLAO atau Renovasi Gudang Merak"
-                        className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
-                        required
-                      />
-                    </div>
-
-                    {/* Row 3: Klien & Lokasi */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Row 2: Nama Proyek */}
                       <div>
                         <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                          Nama Klien / Pemilik
+                          Nama Proyek Konstruksi
                         </label>
                         <input
                           type="text"
                           disabled={viewOnly}
-                          value={formData.client}
-                          onChange={(e) => setFormData({ ...formData, client: e.target.value })}
-                          placeholder="Contoh: PT Mega Graha atau -"
-                          className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                          Lokasi Proyek
-                        </label>
-                        <input
-                          type="text"
-                          disabled={viewOnly}
-                          value={formData.location}
-                          onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                          placeholder="Contoh: Cikande, Serang"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          placeholder="Contoh: PT. ZUNGLAO atau Renovasi Gudang Merak"
                           className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
                           required
                         />
                       </div>
-                    </div>
 
-                    {/* Row 4: Jadwal Mulai & Target Selesai */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                          Tanggal Mulai
-                        </label>
-                        <input
-                          type="date"
-                          disabled={viewOnly}
-                          value={formData.startDate}
-                          onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                          className="w-full px-3.5 py-2 bg-white disabled:bg-slate-100 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
-                        />
+                      {/* Row 3: Klien & Lokasi */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                            Nama Klien / Pemilik
+                          </label>
+                          <input
+                            type="text"
+                            disabled={viewOnly}
+                            value={formData.client}
+                            onChange={(e) => setFormData({ ...formData, client: e.target.value })}
+                            placeholder="Contoh: PT Mega Graha atau -"
+                            className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                            Lokasi Proyek
+                          </label>
+                          <input
+                            type="text"
+                            disabled={viewOnly}
+                            value={formData.location}
+                            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                            placeholder="Contoh: Cikande, Serang"
+                            className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
+                            required
+                          />
+                        </div>
                       </div>
+
+                      {/* Row 4: Jadwal Mulai & Target Selesai */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                            Tanggal Mulai
+                          </label>
+                          <input
+                            type="date"
+                            disabled={viewOnly}
+                            value={formData.startDate}
+                            onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                            className="w-full px-3.5 py-2 bg-white disabled:bg-slate-100 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-xs font-medium text-slate-700">
+                              Target Selesai <span className="text-slate-400 font-normal">(Opsional)</span>
+                            </label>
+                            {!viewOnly && formData.targetEndDate && (
+                              <button
+                                type="button"
+                                onClick={() => setFormData({ ...formData, targetEndDate: '' })}
+                                className="text-[11px] text-slate-500 hover:text-rose-600 cursor-pointer"
+                              >
+                                Kosongkan
+                              </button>
+                            )}
+                          </div>
+                          <input
+                            type="date"
+                            disabled={viewOnly}
+                            value={formData.targetEndDate}
+                            onChange={(e) => setFormData({ ...formData, targetEndDate: e.target.value })}
+                            className="w-full px-3.5 py-2 bg-white disabled:bg-slate-100 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Row 5: Nilai Anggaran */}
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
                           <label className="block text-xs font-medium text-slate-700">
-                            Target Selesai <span className="text-slate-400 font-normal">(Opsional)</span>
+                            Nilai Anggaran / Kontrak (Rp)
                           </label>
-                          {!viewOnly && formData.targetEndDate && (
-                            <button
-                              type="button"
-                              onClick={() => setFormData({ ...formData, targetEndDate: '' })}
-                              className="text-[11px] text-slate-500 hover:text-rose-600 cursor-pointer"
-                            >
-                              Kosongkan
-                            </button>
-                          )}
+                          <span className="text-xs font-mono font-semibold text-[#2563EB] tabular-nums">
+                            {formatRupiah(formData.budget)}
+                          </span>
                         </div>
                         <input
-                          type="date"
+                          type="number"
                           disabled={viewOnly}
-                          value={formData.targetEndDate}
-                          onChange={(e) => setFormData({ ...formData, targetEndDate: e.target.value })}
-                          className="w-full px-3.5 py-2 bg-white disabled:bg-slate-100 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
+                          value={formData.budget}
+                          onChange={(e) => setFormData({ ...formData, budget: Number(e.target.value) })}
+                          className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-semibold text-slate-900 tabular-nums focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
+                        />
+                      </div>
+
+                      {/* Row 6: Deskripsi */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                          Deskripsi / Lingkup Pekerjaan <span className="text-slate-400 font-normal">(Opsional)</span>
+                        </label>
+                        <textarea
+                          disabled={viewOnly}
+                          rows={2}
+                          value={formData.description}
+                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                          placeholder="Catatan lingkup pekerjaan, spesifikasi khusus, dll."
+                          className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
                         />
                       </div>
                     </div>
 
-                    {/* Row 5: Nilai Anggaran */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="block text-xs font-medium text-slate-700">
-                          Nilai Anggaran / Kontrak (Rp)
-                        </label>
-                        <span className="text-xs font-mono font-semibold text-[#2563EB] tabular-nums">
-                          {formatRupiah(formData.budget)}
-                        </span>
-                      </div>
-                      <input
-                        type="number"
-                        disabled={viewOnly}
-                        value={formData.budget}
-                        onChange={(e) => setFormData({ ...formData, budget: Number(e.target.value) })}
-                        className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-semibold text-slate-900 tabular-nums focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
-                      />
-                    </div>
-
-                    {/* Row 6: Deskripsi */}
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                        Deskripsi / Lingkup Pekerjaan <span className="text-slate-400 font-normal">(Opsional)</span>
-                      </label>
-                      <textarea
-                        disabled={viewOnly}
-                        rows={2}
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        placeholder="Catatan lingkup pekerjaan, spesifikasi khusus, dll."
-                        className="w-full px-3.5 py-2.5 bg-white disabled:bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15 transition-all"
-                      />
-                    </div>
-
                     {/* Footer Actions */}
-                    <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                    <div className="px-5 sm:px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
                       <button
                         type="button"
                         onClick={() => setIsModalOpen(false)}
-                        className="px-4 py-2.5 border border-slate-300 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                        className="px-4 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                       >
                         {viewOnly ? 'Tutup Rincian' : 'Batal'}
                       </button>
                       {!viewOnly && (
                         <button
                           type="submit"
-                          className="px-5 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-xl text-xs font-medium shadow-xs hover:shadow-md transition-all cursor-pointer"
+                          className="px-5 py-2 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-xl text-xs font-medium shadow-xs hover:shadow-md transition-all cursor-pointer"
                         >
                           Simpan Proyek
                         </button>
@@ -802,7 +804,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.18 }}
                 onClick={() => !deletingProject && setProjectToDelete(null)}
-                className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4"
+                className="fixed inset-0 z-50 bg-slate-900/45 flex items-center justify-center p-3 sm:p-4"
               >
                 <motion.div
                   key="delete-project-panel"
@@ -811,9 +813,9 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                   exit={{ opacity: 0, scale: 0.96, y: 8 }}
                   transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                   onClick={(e) => e.stopPropagation()}
-                  className="glass-modal rounded-2xl max-w-md w-full overflow-hidden"
+                  className="bg-white border border-slate-200 shadow-xl rounded-2xl max-w-[420px] w-[calc(100%-24px)] sm:w-full max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden"
                 >
-                  <div className="p-5 border-b border-rose-200/60 flex items-center justify-between bg-rose-50/70 backdrop-blur-xs">
+                  <div className="p-5 border-b border-rose-200 flex items-center justify-between bg-rose-50 shrink-0">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
                         <Trash2 className="w-5 h-5" />
@@ -830,7 +832,7 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-                  <div className="p-6 space-y-4 text-xs text-slate-700">
+                  <div className="p-5 sm:p-6 space-y-4 text-xs text-slate-700 overflow-y-auto flex-1 bg-white">
                     <p className="leading-relaxed">
                       Apakah Anda yakin ingin menghapus proyek{' '}
                       <strong className="text-slate-900">
@@ -838,27 +840,27 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ showToast }) => {
                       </strong>
                       ?
                     </p>
-                    <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 text-amber-900 text-[11px] leading-relaxed">
+                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
                       <strong>Catatan Perlindungan Data:</strong> Proyek yang sudah memiliki riwayat absensi, lembur, kasbon, atau pengeluaran tidak dapat dihapus secara permanen demi menjaga keutuhan riwayat keuangan.
                     </div>
-                    <div className="pt-3 border-t border-slate-100 flex justify-end gap-2.5">
-                      <button
-                        type="button"
-                        disabled={deletingProject}
-                        onClick={() => setProjectToDelete(null)}
-                        className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
-                      >
-                        Batal
-                      </button>
-                      <button
-                        type="button"
-                        disabled={deletingProject}
-                        onClick={confirmDeleteProject}
-                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-medium shadow-xs disabled:opacity-50 cursor-pointer"
-                      >
-                        {deletingProject ? 'Menghapus...' : 'Ya, Hapus Proyek'}
-                      </button>
-                    </div>
+                  </div>
+                  <div className="px-5 sm:px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end gap-2.5 shrink-0">
+                    <button
+                      type="button"
+                      disabled={deletingProject}
+                      onClick={() => setProjectToDelete(null)}
+                      className="px-4 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deletingProject}
+                      onClick={confirmDeleteProject}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-medium shadow-xs disabled:opacity-50 cursor-pointer"
+                    >
+                      {deletingProject ? 'Menghapus...' : 'Ya, Hapus Proyek'}
+                    </button>
                   </div>
                 </motion.div>
               </motion.div>

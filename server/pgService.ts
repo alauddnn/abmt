@@ -251,6 +251,23 @@ function mapKasbon(row: any): KasbonRecord {
     ? row.payments.map(mapKasbonPayment)
     : [];
 
+  const isStatusLunas = row.status === 'Lunas' || Number(row.remaining_amount || 0) === 0 && Number(row.deducted_amount || 0) > 0 && row.status !== 'Ditolak';
+  const hasBeenRestored = Boolean(row.restored_at);
+  const isArchived =
+    row.is_archived !== undefined && row.is_archived !== null
+      ? Boolean(row.is_archived)
+      : isStatusLunas && !hasBeenRestored;
+
+  const latestPaymentDate = payments.length > 0 ? payments[0].paymentDate : undefined;
+  const approvedDateOnly = row.approved_at
+    ? typeof row.approved_at === 'string'
+      ? row.approved_at.split('T')[0]
+      : row.approved_at.toISOString().split('T')[0]
+    : undefined;
+  const paidOffDate =
+    row.paid_off_date ||
+    (isStatusLunas ? latestPaymentDate || approvedDateOnly || (typeof row.request_date === 'string' ? row.request_date.split('T')[0] : undefined) : undefined);
+
   return {
     id: row.id,
     kasbonNumber: row.kasbon_number,
@@ -266,6 +283,10 @@ function mapKasbon(row: any): KasbonRecord {
     amount: Number(row.amount || 0),
     reason: row.reason || '',
     status: row.status,
+    isArchived,
+    paidOffDate: paidOffDate || undefined,
+    archivedAt: row.archived_at ? (typeof row.archived_at === 'string' ? row.archived_at : row.archived_at.toISOString()) : undefined,
+    restoredAt: row.restored_at ? (typeof row.restored_at === 'string' ? row.restored_at : row.restored_at.toISOString()) : undefined,
     deductedAmount: Number(row.deducted_amount || 0),
     remainingAmount: Number(row.remaining_amount || 0),
     targetPaymentPeriod: row.target_payment_period || undefined,
@@ -504,6 +525,18 @@ export async function ensureAllSchemasOnce(): Promise<void> {
         ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS attachment_file_name VARCHAR(255);
         ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS attachment_file_size INT;
         ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS attachment_mime_type VARCHAR(100);
+        ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE;
+        ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS paid_off_date VARCHAR(32);
+        ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+        ALTER TABLE kasbon_records ADD COLUMN IF NOT EXISTS restored_at TIMESTAMPTZ;
+
+        UPDATE kasbon_records
+        SET is_archived = TRUE,
+            paid_off_date = COALESCE(paid_off_date, TO_CHAR(approved_at, 'YYYY-MM-DD'), request_date::text),
+            archived_at = COALESCE(archived_at, approved_at, NOW())
+        WHERE status = 'Lunas'
+          AND restored_at IS NULL
+          AND (is_archived IS NULL OR is_archived = FALSE);
 
         DO $$
         DECLARE
@@ -3677,7 +3710,8 @@ export const pgService = {
 
       const newDeducted = Math.round(Number(kb.deducted_amount || 0)) + payAmount;
       const newRemaining = Math.max(0, Math.round(Number(kb.amount || 0)) - newDeducted);
-      const newStatus = newRemaining === 0 ? 'Lunas' : 'Dipotong sebagian';
+      const isNowLunas = newRemaining === 0;
+      const newStatus = isNowLunas ? 'Lunas' : 'Dipotong sebagian';
 
       const prevTrail = Array.isArray(kb.audit_trail) ? kb.audit_trail : [];
       const nextTrail = [
@@ -3685,9 +3719,13 @@ export const pgService = {
         {
           timestamp: new Date().toISOString(),
           user: userName,
-          action: `Pembayaran / pelunasan manual kasbon (${paymentNumber}) sebesar Rp ${payAmount.toLocaleString('id-ID')} via ${paymentMethod}${
-            notes ? ` (${notes})` : ''
-          }. Sisa kasbon: Rp ${newRemaining.toLocaleString('id-ID')}.`,
+          action: isNowLunas
+            ? `Pelunasan penuh kasbon (${paymentNumber}) sebesar Rp ${payAmount.toLocaleString('id-ID')} via ${paymentMethod}${
+                notes ? ` (${notes})` : ''
+              }. Status diubah menjadi LUNAS dan otomatis dipindahkan ke Arsip Pelunasan.`
+            : `Pembayaran sebagian kasbon (${paymentNumber}) sebesar Rp ${payAmount.toLocaleString('id-ID')} via ${paymentMethod}${
+                notes ? ` (${notes})` : ''
+              }. Sisa kewajiban kasbon: Rp ${newRemaining.toLocaleString('id-ID')}.`,
         },
       ];
 
@@ -3696,19 +3734,168 @@ export const pgService = {
           deducted_amount = $1,
           remaining_amount = $2,
           status = $3,
-          approved_by = COALESCE(approved_by, $4),
+          is_archived = $4,
+          paid_off_date = CASE WHEN $4 = TRUE THEN $5 ELSE paid_off_date END,
+          archived_at = CASE WHEN $4 = TRUE THEN NOW() ELSE archived_at END,
+          restored_at = CASE WHEN $4 = TRUE THEN NULL ELSE restored_at END,
+          approved_by = COALESCE(approved_by, $6),
           approved_at = COALESCE(approved_at, NOW()),
-          audit_trail = $5
-         WHERE id = $6 RETURNING *`,
-        [newDeducted, newRemaining, newStatus, userName, JSON.stringify(nextTrail), kasbonId]
+          audit_trail = $7
+         WHERE id = $8 RETURNING *`,
+        [newDeducted, newRemaining, newStatus, isNowLunas, paymentDate, userName, JSON.stringify(nextTrail), kasbonId]
       );
 
       await insertAuditLog(
         userName,
         userRole as any,
-        'Pembayaran Kasbon Manual',
+        isNowLunas ? 'Pelunasan Kasbon & Arsip' : 'Pembayaran Kasbon Sebagian',
         'Kasbon',
-        `Mencatat pembayaran kasbon ${kb.kasbon_number} (${kb.employee_name}) sebesar Rp ${payAmount.toLocaleString('id-ID')} via ${paymentMethod}. Sisa: Rp ${newRemaining.toLocaleString('id-ID')}`
+        isNowLunas
+          ? `Melunasi penuh kasbon ${kb.kasbon_number} (${kb.employee_name}) sebesar Rp ${payAmount.toLocaleString('id-ID')} via ${paymentMethod} dan memindahkan ke Arsip Pelunasan.`
+          : `Mencatat pembayaran sebagian kasbon ${kb.kasbon_number} (${kb.employee_name}) sebesar Rp ${payAmount.toLocaleString('id-ID')} via ${paymentMethod}. Sisa: Rp ${newRemaining.toLocaleString('id-ID')}`
+      );
+
+      const [attRes, payRes, projRes] = await Promise.all([
+        client.query('SELECT * FROM kasbon_attachments WHERE kasbon_id = $1 ORDER BY created_at ASC', [kasbonId]),
+        client.query('SELECT * FROM kasbon_payments WHERE kasbon_id = $1 ORDER BY payment_date DESC, created_at DESC', [kasbonId]),
+        updRes.rows[0].project_id
+          ? client.query('SELECT name, code FROM projects WHERE id = $1 LIMIT 1', [updRes.rows[0].project_id])
+          : Promise.resolve({ rows: [] }),
+      ]);
+
+      const row = updRes.rows[0];
+      row.attachments = attRes.rows;
+      row.payments = payRes.rows;
+      if (projRes.rows.length > 0) {
+        row.project_name = projRes.rows[0].name;
+        row.project_code = projRes.rows[0].code;
+      }
+      return mapKasbon(row);
+    });
+  },
+
+  async restoreKasbonFromArchive(
+    kasbonId: string,
+    reason: string | undefined,
+    userName: string = 'Administrator',
+    userRole: string = 'admin'
+  ): Promise<KasbonRecord> {
+    await this.ensureKasbonTables();
+    return withTransaction(async (client) => {
+      const kbRes = await client.query('SELECT * FROM kasbon_records WHERE id = $1 FOR UPDATE', [kasbonId]);
+      if (!kbRes.rows.length) {
+        throw new Error('Data kasbon tidak ditemukan.');
+      }
+      const kb = kbRes.rows[0];
+
+      // Calculate total paid from payment history & salary deductions without deleting or altering any transaction rows
+      const [paySumRes, dedSumRes] = await Promise.all([
+        client.query('SELECT COALESCE(SUM(amount), 0) AS total_manual FROM kasbon_payments WHERE kasbon_id = $1', [kasbonId]),
+        client.query('SELECT COALESCE(SUM(amount), 0) AS total_deducted FROM kasbon_deductions WHERE kasbon_id = $1', [kasbonId]),
+      ]);
+      const recordedPaymentsSum =
+        Math.round(Number(paySumRes.rows[0]?.total_manual || 0)) +
+        Math.round(Number(dedSumRes.rows[0]?.total_deducted || 0));
+
+      // Preserve existing deducted_amount if there were legacy payments prior to kasbon_payments table
+      const effectiveDeducted = Math.max(Math.round(Number(kb.deducted_amount || 0)), recordedPaymentsSum);
+      const totalAmount = Math.round(Number(kb.amount || 0));
+      const recalculatedRemaining = Math.max(0, totalAmount - effectiveDeducted);
+
+      const noteText = (reason || 'Dipulihkan oleh Admin ke daftar Kasbon Aktif').trim();
+      const prevTrail = Array.isArray(kb.audit_trail) ? kb.audit_trail : [];
+      const nextTrail = [
+        ...prevTrail,
+        {
+          timestamp: new Date().toISOString(),
+          user: userName,
+          action: `Data kasbon dikeluarkan dari Arsip Pelunasan (Dipulihkan ke Kasbon Aktif). Alasan: ${noteText}. Riwayat pembayaran tetap utuh (Total dibayar: Rp ${effectiveDeducted.toLocaleString('id-ID')}, Sisa kewajiban: Rp ${recalculatedRemaining.toLocaleString('id-ID')}).`,
+        },
+      ];
+
+      const updRes = await client.query(
+        `UPDATE kasbon_records SET
+          is_archived = FALSE,
+          restored_at = NOW(),
+          deducted_amount = $1,
+          remaining_amount = $2,
+          audit_trail = $3
+         WHERE id = $4 RETURNING *`,
+        [effectiveDeducted, recalculatedRemaining, JSON.stringify(nextTrail), kasbonId]
+      );
+
+      await insertAuditLog(
+        userName,
+        userRole as any,
+        'Pulihkan Kasbon dari Arsip',
+        'Kasbon',
+        `Mengeluarkan kasbon ${kb.kasbon_number} (${kb.employee_name}) dari Arsip Pelunasan ke daftar Kasbon Aktif (${noteText}). Seluruh riwayat pembayaran tetap tersimpan.`
+      );
+
+      const [attRes, payRes, projRes] = await Promise.all([
+        client.query('SELECT * FROM kasbon_attachments WHERE kasbon_id = $1 ORDER BY created_at ASC', [kasbonId]),
+        client.query('SELECT * FROM kasbon_payments WHERE kasbon_id = $1 ORDER BY payment_date DESC, created_at DESC', [kasbonId]),
+        updRes.rows[0].project_id
+          ? client.query('SELECT name, code FROM projects WHERE id = $1 LIMIT 1', [updRes.rows[0].project_id])
+          : Promise.resolve({ rows: [] }),
+      ]);
+
+      const row = updRes.rows[0];
+      row.attachments = attRes.rows;
+      row.payments = payRes.rows;
+      if (projRes.rows.length > 0) {
+        row.project_name = projRes.rows[0].name;
+        row.project_code = projRes.rows[0].code;
+      }
+      return mapKasbon(row);
+    });
+  },
+
+  async archiveSettledKasbon(
+    kasbonId: string,
+    userName: string = 'Administrator',
+    userRole: string = 'admin'
+  ): Promise<KasbonRecord> {
+    await this.ensureKasbonTables();
+    return withTransaction(async (client) => {
+      const kbRes = await client.query('SELECT * FROM kasbon_records WHERE id = $1 FOR UPDATE', [kasbonId]);
+      if (!kbRes.rows.length) {
+        throw new Error('Data kasbon tidak ditemukan.');
+      }
+      const kb = kbRes.rows[0];
+      if (Number(kb.remaining_amount || 0) > 0) {
+        throw new Error('Kasbon masih memiliki sisa kewajiban dan belum dapat dipindahkan ke Arsip Pelunasan.');
+      }
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      const prevTrail = Array.isArray(kb.audit_trail) ? kb.audit_trail : [];
+      const nextTrail = [
+        ...prevTrail,
+        {
+          timestamp: new Date().toISOString(),
+          user: userName,
+          action: 'Kasbon yang telah lunas dipindahkan kembali ke Arsip Pelunasan.',
+        },
+      ];
+
+      const updRes = await client.query(
+        `UPDATE kasbon_records SET
+          status = 'Lunas',
+          is_archived = TRUE,
+          paid_off_date = COALESCE(paid_off_date, $1),
+          archived_at = NOW(),
+          restored_at = NULL,
+          audit_trail = $2
+         WHERE id = $3 RETURNING *`,
+        [todayStr, JSON.stringify(nextTrail), kasbonId]
+      );
+
+      await insertAuditLog(
+        userName,
+        userRole as any,
+        'Arsipkan Kasbon Lunas',
+        'Kasbon',
+        `Memindahkan kasbon lunas ${kb.kasbon_number} (${kb.employee_name}) ke Arsip Pelunasan.`
       );
 
       const [attRes, payRes, projRes] = await Promise.all([
@@ -4005,16 +4192,25 @@ export const pgService = {
           const newRemaining = currRemaining - deductFromThis;
           const newDeducted = Number(row.deducted_amount) + deductFromThis;
           const newStatus = newRemaining === 0 ? 'Lunas' : 'Dipotong sebagian';
+          const isNowLunas = newRemaining === 0;
           const auditTrail = Array.isArray(row.audit_trail) ? row.audit_trail : [];
           auditTrail.push({
             timestamp: new Date().toISOString(),
             user: userName,
-            action: `Dipotong sebesar Rp ${deductFromThis.toLocaleString('id-ID')} melalui pembayaran ${paymentNumber}. Sisa kasbon: Rp ${newRemaining.toLocaleString('id-ID')}`,
+            action: `Dipotong sebesar Rp ${deductFromThis.toLocaleString('id-ID')} melalui pembayaran ${paymentNumber}. Sisa kasbon: Rp ${newRemaining.toLocaleString('id-ID')}${isNowLunas ? ' (LUNAS & Diarsipkan)' : ''}`,
           });
 
           await client.query(
-            `UPDATE kasbon_records SET deducted_amount = $1, remaining_amount = $2, status = $3, audit_trail = $4 WHERE id = $5`,
-            [newDeducted, newRemaining, newStatus, JSON.stringify(auditTrail), row.id]
+            `UPDATE kasbon_records SET
+               deducted_amount = $1,
+               remaining_amount = $2,
+               status = $3,
+               is_archived = CASE WHEN $5 = TRUE THEN TRUE ELSE is_archived END,
+               paid_off_date = CASE WHEN $5 = TRUE THEN $6 ELSE paid_off_date END,
+               archived_at = CASE WHEN $5 = TRUE THEN NOW() ELSE archived_at END,
+               audit_trail = $4
+             WHERE id = $7`,
+            [newDeducted, newRemaining, newStatus, JSON.stringify(auditTrail), isNowLunas, cleanPaymentDate, row.id]
           );
 
           const dedId = `DED-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
@@ -4103,7 +4299,14 @@ export const pgService = {
             },
           ];
           await client.query(
-            `UPDATE kasbon_records SET deducted_amount = $1, remaining_amount = $2, status = $3, audit_trail = $4 WHERE id = $5`,
+            `UPDATE kasbon_records SET
+               deducted_amount = $1,
+               remaining_amount = $2,
+               status = $3,
+               is_archived = FALSE,
+               paid_off_date = NULL,
+               audit_trail = $4
+             WHERE id = $5`,
             [newDeducted, newRemaining, newStatus, JSON.stringify(newTrail), kb.id]
           );
         }

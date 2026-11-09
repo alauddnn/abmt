@@ -36,12 +36,16 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'Mandor' | 'Tukang' | 'Helper' | 'Driver'>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmp, setEditingEmp] = useState<Employee | null>(null);
   const [isViewOnly, setIsViewOnly] = useState(false);
+
+  // Archive / Restore Confirmation Modal State
+  const [empToToggleStatus, setEmpToToggleStatus] = useState<Employee | null>(null);
+  const [togglingStatus, setTogglingStatus] = useState(false);
 
   // Delete / Deactivate Confirmation Modal State
   const [empToDelete, setEmpToDelete] = useState<Employee | null>(null);
@@ -229,7 +233,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
       await api.updateEmployee(emp.id, { status: 'inactive' });
       showToast(
         'success',
-        `Karyawan ${emp.name} (${emp.id}) dinonaktifkan. Seluruh riwayat transaksi lama tetap aman.`
+        `Karyawan ${emp.name} (${emp.id}) dinonaktifkan dan dipindahkan ke Arsip Nonaktif. Seluruh riwayat transaksi lama tetap aman.`
       );
       setEmpToDelete(null);
       setDeleteConflictError(null);
@@ -239,6 +243,27 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
       showToast('error', err.message || 'Gagal menonaktifkan karyawan');
     } finally {
       setDeletingEmp(false);
+    }
+  };
+
+  const handleConfirmToggleStatus = async () => {
+    if (!empToToggleStatus || !isAdmin) return;
+    const nextStatus: 'active' | 'inactive' = empToToggleStatus.status === 'active' ? 'inactive' : 'active';
+    setTogglingStatus(true);
+    try {
+      await api.updateEmployee(empToToggleStatus.id, { status: nextStatus });
+      showToast(
+        'success',
+        nextStatus === 'active'
+          ? `Karyawan ${empToToggleStatus.name} (${empToToggleStatus.id}) berhasil dikeluarkan dari Arsip dan dikembalikan ke daftar Karyawan Aktif.`
+          : `Karyawan ${empToToggleStatus.name} (${empToToggleStatus.id}) telah dinonaktifkan dan dipindahkan ke Arsip Karyawan Nonaktif.`
+      );
+      setEmpToToggleStatus(null);
+      fetchEmployees();
+    } catch (err: any) {
+      showToast('error', err.message || 'Gagal mengubah status karyawan');
+    } finally {
+      setTogglingStatus(false);
     }
   };
 
@@ -253,6 +278,9 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
     const matchesStatus = statusFilter === 'all' || emp.status === statusFilter;
     return matchesSearch && matchesRole && matchesStatus;
   });
+
+  const activeEmpCount = employees.filter((e) => e.status === 'active').length;
+  const inactiveEmpCount = employees.filter((e) => e.status === 'inactive').length;
 
   const countMandor = employees.filter((e) => e.role === 'Mandor').length;
   const countTukang = employees.filter((e) => e.role === 'Tukang').length;
@@ -276,7 +304,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
           </h1>
           <p className="text-xs text-[#667085] mt-1">
             {isAdmin
-              ? 'Kelola data identitas mandor, tukang, helper, driver, penyesuaian ID manual, serta kustomisasi tarif gaji dan lembur.'
+              ? 'Kelola data identitas mandor, tukang, helper, driver, arsip karyawan nonaktif, serta kustomisasi tarif gaji dan lembur.'
               : 'Pemantauan data identitas personil proyek dan status keaktifan tenaga kerja (Mode Baca-Saja).'}
           </p>
         </div>
@@ -298,7 +326,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-[#B54708] shrink-0" />
             <span>
-              <strong>Mode Akun Owner:</strong> Anda memiliki akses baca untuk seluruh data karyawan, tarif, dan profil. Perubahan data hanya dapat dilakukan oleh Admin.
+              <strong>Mode Akun Owner:</strong> Anda memiliki akses baca untuk seluruh data karyawan aktif maupun arsip nonaktif. Perubahan data hanya dapat dilakukan oleh Admin.
             </span>
           </div>
         </div>
@@ -309,7 +337,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
         <div className="glass-card p-4 rounded-2xl">
           <p className="text-xs font-medium text-[#667085]">Total Personil</p>
           <p className="text-xl font-semibold text-[#262626] mt-1.5">{employees.length}</p>
-          <p className="text-[10px] text-[#667085] mt-0.5">Semua jabatan</p>
+          <p className="text-[10px] text-[#667085] mt-0.5">{activeEmpCount} Aktif · {inactiveEmpCount} Arsip</p>
         </div>
 
         <div className="glass-card p-4 rounded-2xl">
@@ -337,6 +365,60 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
         </div>
       </div>
 
+      {/* Two Main Sections Tab Bar: A. KARYAWAN AKTIF vs B. ARSIP KARYAWAN (NONAKTIF) */}
+      <div className="glass-panel p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => setStatusFilter('active')}
+            className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+              statusFilter === 'active'
+                ? 'bg-white text-[#155EEF] shadow-xs border border-slate-200/70'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>A. Karyawan Aktif</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                statusFilter === 'active'
+                  ? 'bg-[#EFF5FF] text-[#155EEF]'
+                  : 'bg-slate-200/70 text-slate-600'
+              }`}
+            >
+              {activeEmpCount}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('inactive')}
+            className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+              statusFilter === 'inactive'
+                ? 'bg-white text-[#475467] shadow-xs border border-slate-200/70'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>B. Arsip Karyawan (Nonaktif)</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                statusFilter === 'inactive'
+                  ? 'bg-slate-200 text-slate-800'
+                  : 'bg-slate-200/70 text-slate-600'
+              }`}
+            >
+              {inactiveEmpCount}
+            </span>
+          </button>
+        </div>
+
+        <div className="text-[11px] text-slate-500">
+          {statusFilter === 'inactive'
+            ? 'Menampilkan arsip karyawan nonaktif · Riwayat transaksi tetap utuh.'
+            : 'Menampilkan maksimal 10 baris terlihat sekaligus (scroll vertikal untuk baris ke-11 dst).'}
+        </div>
+      </div>
+
       {/* Filter and Search Bar */}
       <div className="glass-panel p-4 sm:p-5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3">
         <div className="relative w-full md:w-80">
@@ -346,17 +428,17 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
             placeholder="Cari nama atau ID karyawan..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3.5 py-2 bg-white/70 hover:bg-white/90 focus:bg-white border border-slate-200/90 rounded-xl text-xs text-[#262626] backdrop-blur-md focus:outline-none focus:border-[#4693FD]"
+            className="w-full pl-9 pr-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           {/* Role Filter */}
-          <div className="flex items-center bg-slate-200/50 backdrop-blur-sm p-1 rounded-xl text-xs border border-white/60">
+          <div className="flex flex-wrap items-center bg-slate-100 p-1 rounded-xl text-xs border border-slate-200 gap-0.5">
             <button
               onClick={() => setRoleFilter('all')}
               className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
-                roleFilter === 'all' ? 'bg-white/90 text-[#262626] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#262626]'
+                roleFilter === 'all' ? 'bg-white text-[#262626] shadow-2xs border border-slate-200/80' : 'text-[#667085] hover:text-[#262626]'
               }`}
             >
               Semua ({employees.length})
@@ -364,7 +446,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
             <button
               onClick={() => setRoleFilter('Mandor')}
               className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
-                roleFilter === 'Mandor' ? 'bg-white/90 text-[#7F56D9] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#7F56D9]'
+                roleFilter === 'Mandor' ? 'bg-white text-[#7F56D9] shadow-2xs border border-slate-200/80' : 'text-[#667085] hover:text-[#7F56D9]'
               }`}
             >
               Mandor ({countMandor})
@@ -372,7 +454,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
             <button
               onClick={() => setRoleFilter('Tukang')}
               className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
-                roleFilter === 'Tukang' ? 'bg-white/90 text-[#4693FD] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#4693FD]'
+                roleFilter === 'Tukang' ? 'bg-white text-[#4693FD] shadow-2xs border border-slate-200/80' : 'text-[#667085] hover:text-[#4693FD]'
               }`}
             >
               Tukang ({countTukang})
@@ -380,7 +462,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
             <button
               onClick={() => setRoleFilter('Helper')}
               className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
-                roleFilter === 'Helper' ? 'bg-white/90 text-[#D99A23] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#D99A23]'
+                roleFilter === 'Helper' ? 'bg-white text-[#D99A23] shadow-2xs border border-slate-200/80' : 'text-[#667085] hover:text-[#D99A23]'
               }`}
             >
               Helper ({countHelper})
@@ -388,7 +470,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
             <button
               onClick={() => setRoleFilter('Driver')}
               className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
-                roleFilter === 'Driver' ? 'bg-white/90 text-[#0E9384] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#0E9384]'
+                roleFilter === 'Driver' ? 'bg-white text-[#0E9384] shadow-2xs border border-slate-200/80' : 'text-[#667085] hover:text-[#0E9384]'
               }`}
             >
               Driver ({countDriver})
@@ -396,41 +478,41 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
           </div>
 
           {/* Status Filter */}
-          <div className="flex items-center bg-slate-200/50 backdrop-blur-sm p-1 rounded-xl text-xs border border-white/60">
-            <button
-              onClick={() => setStatusFilter('all')}
-              className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
-                statusFilter === 'all' ? 'bg-white/90 text-[#262626] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#262626]'
-              }`}
-            >
-              Semua
-            </button>
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs border border-slate-200 gap-0.5">
             <button
               onClick={() => setStatusFilter('active')}
               className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
-                statusFilter === 'active' ? 'bg-white/90 text-[#16A36A] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#262626]'
+                statusFilter === 'active' ? 'bg-white text-[#16A36A] shadow-2xs border border-slate-200/80' : 'text-[#667085] hover:text-[#262626]'
               }`}
             >
-              Aktif
+              Aktif ({activeEmpCount})
             </button>
             <button
               onClick={() => setStatusFilter('inactive')}
               className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
-                statusFilter === 'inactive' ? 'bg-white/90 text-[#667085] shadow-xs border border-white/80' : 'text-[#667085] hover:text-[#262626]'
+                statusFilter === 'inactive' ? 'bg-white text-[#667085] shadow-2xs border border-slate-200/80' : 'text-[#667085] hover:text-[#262626]'
               }`}
             >
-              Nonaktif
+              Arsip ({inactiveEmpCount})
+            </button>
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-2.5 py-1 font-medium rounded-lg transition-colors ${
+                statusFilter === 'all' ? 'bg-white text-[#262626] shadow-2xs border border-slate-200/80' : 'text-[#667085] hover:text-[#262626]'
+              }`}
+            >
+              Semua
             </button>
           </div>
         </div>
       </div>
 
-      {/* Employees Table */}
+      {/* Employees Table (Max 10 rows visible at once, vertical scroll for 11+) */}
       <div className="glass-table rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="max-h-[540px] overflow-y-auto overscroll-contain overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="bg-slate-50/60 backdrop-blur-xs text-[#475467] font-medium border-b border-slate-200/80">
+            <thead className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+              <tr className="bg-slate-50 text-[#475467] font-semibold border-b border-slate-200">
                 <th className="py-3 px-4">ID Karyawan</th>
                 <th className="py-3 px-4">Nama Lengkap</th>
                 <th className="py-3 px-4">Jabatan</th>
@@ -452,12 +534,14 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
               ) : filteredEmployees.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-10 text-center text-[#667085]">
-                    Tidak ada karyawan yang sesuai filter.
+                    {statusFilter === 'inactive'
+                      ? 'Belum ada data karyawan pada Arsip Nonaktif.'
+                      : 'Tidak ada karyawan yang sesuai filter.'}
                   </td>
                 </tr>
               ) : (
                 filteredEmployees.map((emp) => (
-                  <tr key={emp.id} className="h-11 hover:bg-[#F9FAFB] transition-colors">
+                  <tr key={emp.id} className="h-[48px] hover:bg-[#F9FAFB] transition-colors">
                     <td className="py-3 px-4 font-mono font-medium text-[#4693FD]">{emp.id}</td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
@@ -523,7 +607,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
                         ) : (
                           <XCircle className="w-3 h-3 text-[#98A2B3]" />
                         )}
-                        {emp.status === 'active' ? 'Aktif' : 'Nonaktif'}
+                        {emp.status === 'active' ? 'Aktif' : 'Arsip Nonaktif'}
                       </span>
                     </td>
                     <td className="py-3 px-4 max-w-xs truncate">
@@ -532,6 +616,26 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
                     </td>
                     <td className="py-3 px-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1">
+                        {isAdmin && emp.status === 'inactive' && (
+                          <button
+                            type="button"
+                            onClick={() => setEmpToToggleStatus(emp)}
+                            className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[11px] font-semibold transition-colors"
+                            title="Keluarkan dari Arsip dan Kembalikan ke Karyawan Aktif"
+                          >
+                            Keluarkan dari Arsip
+                          </button>
+                        )}
+                        {isAdmin && emp.status === 'active' && (
+                          <button
+                            type="button"
+                            onClick={() => setEmpToToggleStatus(emp)}
+                            className="px-2 py-1 bg-slate-100 hover:bg-amber-50 text-slate-700 hover:text-amber-800 border border-slate-200 rounded-lg text-[11px] font-semibold transition-colors"
+                            title="Nonaktifkan & Pindahkan ke Arsip"
+                          >
+                            Arsipkan
+                          </button>
+                        )}
                         <button
                           onClick={() => openDetailModal(emp)}
                           className="p-1 text-[#667085] hover:text-[#4693FD] hover:bg-[#EFF5FF] rounded transition-colors"
@@ -565,247 +669,339 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
             </tbody>
           </table>
         </div>
+        {filteredEmployees.length > 0 && (
+          <div className="px-4 py-2.5 bg-slate-50/80 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+            <span>
+              Menampilkan <strong className="text-slate-700">{Math.min(filteredEmployees.length, 10)}</strong> baris terlihat dari total{' '}
+              <strong className="text-slate-700">{filteredEmployees.length}</strong> karyawan
+            </span>
+            {filteredEmployees.length > 10 && (
+              <span className="text-[#2563EB] font-medium">
+                Maksimal 10 baris terlihat · Gunakan scroll vertikal di dalam tabel untuk melihat karyawan ke-11 dst.
+              </span>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Confirmation Modal for Arsipkan / Keluarkan dari Arsip */}
+      {isAdmin && empToToggleStatus && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 animate-in fade-in">
+          <div className="bg-white border border-slate-200 shadow-xl rounded-2xl max-w-[420px] w-[calc(100%-24px)] sm:w-full max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-amber-200 flex items-center justify-between bg-amber-50 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-[#1D2939]">
+                    {empToToggleStatus.status === 'active'
+                      ? 'Arsipkan / Nonaktifkan Karyawan?'
+                      : 'Keluarkan dari Arsip Karyawan?'}
+                  </h3>
+                  <p className="text-[11px] text-[#667085]">
+                    ID: <span className="font-mono font-semibold text-[#4693FD]">{empToToggleStatus.id}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEmpToToggleStatus(null)}
+                disabled={togglingStatus}
+                className="p-1 text-[#667085] hover:text-[#1D2939] rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Nama Karyawan:</span>
+                  <span className="font-semibold text-slate-800">{empToToggleStatus.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Jabatan:</span>
+                  <span className="font-semibold text-slate-800">{empToToggleStatus.role}</span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+                {empToToggleStatus.status === 'active'
+                  ? 'Karyawan akan dinonaktifkan dan dipindahkan dari A. Karyawan Aktif ke B. Arsip Karyawan (Nonaktif). Seluruh riwayat absensi, lembur, kasbon, dan gaji tetap tersimpan aman.'
+                  : 'Karyawan akan dikeluarkan dari Arsip dan dikembalikan ke daftar A. Karyawan Aktif. Seluruh riwayat transaksi sebelumnya tetap utuh.'}
+              </div>
+            </div>
+
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setEmpToToggleStatus(null)}
+                disabled={togglingStatus}
+                className="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmToggleStatus}
+                disabled={togglingStatus}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold"
+              >
+                {togglingStatus
+                  ? 'Memproses...'
+                  : empToToggleStatus.status === 'active'
+                  ? 'Ya, Arsipkan Karyawan'
+                  : 'Ya, Keluarkan dari Arsip'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit / Add / Detail Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
-          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden">
-            <div className="px-6 py-4 bg-white/40 backdrop-blur-sm text-[#262626] border-b border-white/70 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 animate-in fade-in">
+          <div className="bg-white border border-slate-200 shadow-xl rounded-2xl max-w-[600px] w-[calc(100%-24px)] sm:w-full max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="px-5 sm:px-6 py-4 bg-slate-50 text-[#262626] border-b border-slate-200 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="font-semibold text-sm">
+                <h3 className="font-semibold text-sm text-slate-900">
                   {isViewOnly
                     ? `Detail Karyawan: ${editingEmp?.name}`
                     : editingEmp
                     ? `Edit Data Karyawan: ${editingEmp.name}`
                     : 'Tambah Karyawan Baru'}
                 </h3>
-                <p className="text-[11px] text-[#667085]">
+                <p className="text-[11px] text-[#667085] mt-0.5">
                   {isViewOnly ? 'Mode pratinjau data tenaga kerja' : 'ID karyawan dapat ditentukan secara manual'}
                 </p>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-[#667085] hover:text-[#262626] p-1 rounded-md hover:bg-[#F2F4F7]"
+                className="text-[#667085] hover:text-[#262626] p-1.5 rounded-lg hover:bg-slate-200/60"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="p-6 space-y-4 text-xs">
-              {/* Manual ID Input */}
-              <div>
-                <label className="block font-medium text-[#344054] mb-1">
-                  ID Karyawan <span className="text-[#667085] font-normal font-mono">(Dapat diedit manual)</span>
-                </label>
-                <input
-                  type="text"
-                  disabled={isViewOnly}
-                  placeholder="Contoh: EMP-TK-01 atau ID Khusus"
-                  value={formData.id}
-                  onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-                  className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg text-xs font-mono font-medium text-[#4693FD] focus:outline-none focus:border-[#4693FD]"
-                />
-                <p className="text-[10px] text-[#667085] mt-0.5">
-                  Kosongkan saat tambah baru jika ingin ID dibuat otomatis sesuai format perusahaan.
-                </p>
-              </div>
-
-              <div>
-                <label className="block font-medium text-[#344054] mb-1">
-                  Nama Lengkap Karyawan *
-                </label>
-                <input
-                  type="text"
-                  required
-                  disabled={isViewOnly}
-                  placeholder="Contoh: Budi Santoso"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium text-[#344054] mb-1">Jabatan *</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <button
-                    type="button"
-                    disabled={isViewOnly}
-                    onClick={() => handleRoleChange('Mandor')}
-                    className={`py-2 px-2.5 rounded-lg border font-medium text-xs transition-colors flex items-center justify-center gap-1.5 ${
-                      formData.role === 'Mandor'
-                        ? 'bg-[#F9F5FF] text-[#7F56D9] border-[#7F56D9]'
-                        : 'bg-white text-[#667085] border-[#D0D5DD]'
-                    }`}
-                  >
-                    <Award className="w-3.5 h-3.5" />
-                    Mandor
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isViewOnly}
-                    onClick={() => handleRoleChange('Tukang')}
-                    className={`py-2 px-2.5 rounded-lg border font-medium text-xs transition-colors flex items-center justify-center gap-1.5 ${
-                      formData.role === 'Tukang'
-                        ? 'bg-[#EFF5FF] text-[#4693FD] border-[#4693FD]'
-                        : 'bg-white text-[#667085] border-[#D0D5DD]'
-                    }`}
-                  >
-                    <HardHat className="w-3.5 h-3.5" />
-                    Tukang
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isViewOnly}
-                    onClick={() => handleRoleChange('Helper')}
-                    className={`py-2 px-2.5 rounded-lg border font-medium text-xs transition-colors flex items-center justify-center gap-1.5 ${
-                      formData.role === 'Helper' || formData.role === 'Kenek'
-                        ? 'bg-[#FEF7EC] text-[#D99A23] border-[#FEDF89]'
-                        : 'bg-white text-[#667085] border-[#D0D5DD]'
-                    }`}
-                  >
-                    <Users className="w-3.5 h-3.5" />
-                    Helper
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isViewOnly}
-                    onClick={() => handleRoleChange('Driver')}
-                    className={`py-2 px-2.5 rounded-lg border font-medium text-xs transition-colors flex items-center justify-center gap-1.5 ${
-                      formData.role === 'Driver'
-                        ? 'bg-[#F0FDF9] text-[#0E9384] border-[#99F6E0]'
-                        : 'bg-white text-[#667085] border-[#D0D5DD]'
-                    }`}
-                  >
-                    <Truck className="w-3.5 h-3.5" />
-                    Driver
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-medium text-[#344054]">
-                      Gaji Normal / Hari (IDR) *
+            <form onSubmit={handleSave} className="flex flex-col flex-1 overflow-hidden text-xs">
+              <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
+                {/* Manual ID Input & Nama Lengkap */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1.5">
+                      ID Karyawan <span className="text-[#667085] font-normal font-mono">(Manual/Otomatis)</span>
                     </label>
-                  </div>
-                  <input
-                    type="number"
-                    step={1000}
-                    required
-                    disabled={isViewOnly}
-                    value={formData.dailyWage}
-                    onChange={(e) => setFormData({ ...formData, dailyWage: Number(e.target.value) })}
-                    className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg font-mono text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                    placeholder="Contoh: 150000"
-                  />
-                  <p className="text-[10px] text-[#175CD3] font-mono mt-0.5">
-                    Upah ½ Hari (50%): {formatRupiah(Math.round((formData.dailyWage || 0) / 2))}
-                  </p>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block font-medium text-[#344054]">
-                      Tarif Lembur / Jam (IDR) *
-                    </label>
-                  </div>
-                  <input
-                    type="number"
-                    step={1000}
-                    required
-                    disabled={isViewOnly || formData.role === 'Driver'}
-                    value={formData.role === 'Driver' ? 0 : formData.overtimeHourlyWage}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        overtimeHourlyWage: formData.role === 'Driver' ? 0 : Number(e.target.value),
-                      })
-                    }
-                    className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg font-mono text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                    placeholder="Contoh: 20000"
-                  />
-                  {formData.role === 'Driver' ? (
-                    <p className="text-[10px] text-[#0E9384] font-medium mt-0.5">
-                      Ketentuan perusahaan: Driver tidak mendapat upah lembur (Rp0)
+                    <input
+                      type="text"
+                      disabled={isViewOnly}
+                      placeholder="Contoh: EMP-TK-01"
+                      value={formData.id}
+                      onChange={(e) => setFormData({ ...formData, id: e.target.value })}
+                      className="w-full px-3 py-2 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-xl text-xs font-mono font-medium text-[#4693FD] focus:outline-none focus:border-[#4693FD]"
+                    />
+                    <p className="text-[10px] text-[#667085] mt-1">
+                      Kosongkan jika ingin ID dibuat otomatis.
                     </p>
-                  ) : (
-                    <p className="text-[10px] text-[#667085] font-mono mt-0.5">
-                      1j 30m: {formatRupiah(Math.round((formData.overtimeHourlyWage || 0) * 1.5))}
-                    </p>
-                  )}
-                </div>
-              </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1.5">
+                      Nama Lengkap Karyawan *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      disabled={isViewOnly}
+                      placeholder="Contoh: Budi Santoso"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-3 py-2 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block font-medium text-[#344054] mb-1">
-                    Mulai Bekerja *
+                  <label className="block font-medium text-[#344054] mb-1.5">Jabatan *</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button
+                      type="button"
+                      disabled={isViewOnly}
+                      onClick={() => handleRoleChange('Mandor')}
+                      className={`py-2 px-2.5 rounded-xl border font-medium text-xs transition-colors flex items-center justify-center gap-1.5 ${
+                        formData.role === 'Mandor'
+                          ? 'bg-[#F9F5FF] text-[#7F56D9] border-[#7F56D9]'
+                          : 'bg-white text-[#667085] border-[#D0D5DD]'
+                      }`}
+                    >
+                      <Award className="w-3.5 h-3.5" />
+                      Mandor
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isViewOnly}
+                      onClick={() => handleRoleChange('Tukang')}
+                      className={`py-2 px-2.5 rounded-xl border font-medium text-xs transition-colors flex items-center justify-center gap-1.5 ${
+                        formData.role === 'Tukang'
+                          ? 'bg-[#EFF5FF] text-[#4693FD] border-[#4693FD]'
+                          : 'bg-white text-[#667085] border-[#D0D5DD]'
+                      }`}
+                    >
+                      <HardHat className="w-3.5 h-3.5" />
+                      Tukang
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isViewOnly}
+                      onClick={() => handleRoleChange('Helper')}
+                      className={`py-2 px-2.5 rounded-xl border font-medium text-xs transition-colors flex items-center justify-center gap-1.5 ${
+                        formData.role === 'Helper' || formData.role === 'Kenek'
+                          ? 'bg-[#FEF7EC] text-[#D99A23] border-[#FEDF89]'
+                          : 'bg-white text-[#667085] border-[#D0D5DD]'
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      Helper
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isViewOnly}
+                      onClick={() => handleRoleChange('Driver')}
+                      className={`py-2 px-2.5 rounded-xl border font-medium text-xs transition-colors flex items-center justify-center gap-1.5 ${
+                        formData.role === 'Driver'
+                          ? 'bg-[#F0FDF9] text-[#0E9384] border-[#99F6E0]'
+                          : 'bg-white text-[#667085] border-[#D0D5DD]'
+                      }`}
+                    >
+                      <Truck className="w-3.5 h-3.5" />
+                      Driver
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block font-medium text-[#344054]">
+                        Gaji Normal / Hari (IDR) *
+                      </label>
+                    </div>
+                    <input
+                      type="number"
+                      step={1000}
+                      required
+                      disabled={isViewOnly}
+                      value={formData.dailyWage}
+                      onChange={(e) => setFormData({ ...formData, dailyWage: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-xl font-mono text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                      placeholder="Contoh: 150000"
+                    />
+                    <p className="text-[10px] text-[#175CD3] font-mono mt-1">
+                      Upah ½ Hari (50%): {formatRupiah(Math.round((formData.dailyWage || 0) / 2))}
+                    </p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block font-medium text-[#344054]">
+                        Tarif Lembur / Jam (IDR) *
+                      </label>
+                    </div>
+                    <input
+                      type="number"
+                      step={1000}
+                      required
+                      disabled={isViewOnly || formData.role === 'Driver'}
+                      value={formData.role === 'Driver' ? 0 : formData.overtimeHourlyWage}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          overtimeHourlyWage: formData.role === 'Driver' ? 0 : Number(e.target.value),
+                        })
+                      }
+                      className="w-full px-3 py-2 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-xl font-mono text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                      placeholder="Contoh: 20000"
+                    />
+                    {formData.role === 'Driver' ? (
+                      <p className="text-[10px] text-[#0E9384] font-medium mt-1">
+                        Ketentuan perusahaan: Driver tidak mendapat upah lembur (Rp0)
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-[#667085] font-mono mt-1">
+                        1j 30m: {formatRupiah(Math.round((formData.overtimeHourlyWage || 0) * 1.5))}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1.5">
+                      Mulai Bekerja *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      disabled={isViewOnly}
+                      value={formData.startDate}
+                      onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                      className="w-full px-3 py-2 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1.5">Status Karyawan</label>
+                    <select
+                      disabled={isViewOnly}
+                      value={formData.status}
+                      onChange={(e) =>
+                        setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })
+                      }
+                      className="w-full px-3 py-2 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    >
+                      <option value="active">Aktif Bekerja</option>
+                      <option value="inactive">Nonaktif</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-medium text-[#344054] mb-1.5">
+                    Nomor HP / WhatsApp (Opsional)
                   </label>
                   <input
-                    type="date"
-                    required
+                    type="text"
                     disabled={isViewOnly}
-                    value={formData.startDate}
-                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    placeholder="0812-xxxx-xxxx"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full px-3 py-2 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                   />
                 </div>
+
                 <div>
-                  <label className="block font-medium text-[#344054] mb-1">Status Karyawan</label>
-                  <select
+                  <label className="block font-medium text-[#344054] mb-1.5">Catatan Keahlian</label>
+                  <textarea
+                    rows={2}
                     disabled={isViewOnly}
-                    value={formData.status}
-                    onChange={(e) =>
-                      setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })
-                    }
-                    className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                  >
-                    <option value="active">Aktif Bekerja</option>
-                    <option value="inactive">Nonaktif</option>
-                  </select>
+                    placeholder="Contoh: Ahli pasang bata hebel, acian halus, cor dak"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full px-3 py-2 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block font-medium text-[#344054] mb-1">
-                  Nomor HP / WhatsApp (Opsional)
-                </label>
-                <input
-                  type="text"
-                  disabled={isViewOnly}
-                  placeholder="0812-xxxx-xxxx"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium text-[#344054] mb-1">Catatan Keahlian</label>
-                <textarea
-                  rows={2}
-                  disabled={isViewOnly}
-                  placeholder="Contoh: Ahli pasang bata hebel, acian halus, cor dak"
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-3 py-1.5 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-[#EAECF0] flex items-center justify-end gap-2.5">
+              <div className="px-5 sm:px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-3.5 py-1.5 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-lg border border-[#D0D5DD] text-xs transition-colors"
+                  className="px-4 py-2 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-xl border border-[#D0D5DD] text-xs transition-colors"
                 >
                   {isViewOnly ? 'Tutup' : 'Batal'}
                 </button>
                 {!isViewOnly && (
                   <button
                     type="submit"
-                    className="px-4 py-1.5 bg-[#4693FD] hover:bg-[#357ee8] text-white font-medium rounded-lg text-xs shadow-xs transition-colors"
+                    className="px-4 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white font-semibold rounded-xl text-xs shadow-xs transition-colors"
                   >
                     {editingEmp ? 'Simpan Perubahan' : 'Tambah Karyawan'}
                   </button>
@@ -818,9 +1014,9 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
 
       {/* Permanent Delete / Deactivate Confirmation Modal */}
       {empToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
-          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden">
-            <div className="p-5 border-b border-rose-200/60 flex items-center justify-between bg-rose-50/70 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 animate-in fade-in">
+          <div className="bg-white border border-slate-200 shadow-xl rounded-2xl max-w-[420px] w-[calc(100%-24px)] sm:w-full max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-rose-200 flex items-center justify-between bg-rose-50 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-[#FEE4E2] text-[#D92D20] flex items-center justify-center shrink-0">
                   <Trash2 className="w-4 h-4" />
@@ -848,7 +1044,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
               </button>
             </div>
 
-            <div className="p-5 space-y-4 text-xs">
+            <div className="p-5 space-y-4 text-xs overflow-y-auto flex-1">
               <div className="p-3.5 bg-[#F8F9FA] rounded-xl border border-[#EAECF0] space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-[#667085]">Nama Karyawan:</span>
@@ -874,7 +1070,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
                   </div>
                   <p className="text-[11px] leading-relaxed">{deleteConflictError}</p>
                   {deleteConflictCounts && (
-                    <div className="p-2.5 bg-white/80 rounded-lg border border-[#FECDCA] font-mono text-[11px] space-y-1">
+                    <div className="p-2.5 bg-white rounded-lg border border-[#FECDCA] font-mono text-[11px] space-y-1">
                       <div>• Absensi tercatat: {deleteConflictCounts.attendanceCount || 0} data</div>
                       <div>• Lembur tercatat: {deleteConflictCounts.overtimeCount || 0} data</div>
                       <div>• Kasbon tercatat: {deleteConflictCounts.kasbonCount || 0} data</div>
@@ -898,7 +1094,7 @@ export const EmployeesPage: React.FC<EmployeesPageProps> = ({ showToast }) => {
               )}
             </div>
 
-            <div className="px-5 py-3.5 bg-[#F9FAFB] border-t border-[#EAECF0] flex items-center justify-end gap-2">
+            <div className="px-5 py-3.5 bg-[#F9FAFB] border-t border-[#EAECF0] flex items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => {

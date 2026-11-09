@@ -59,12 +59,12 @@ export const TestCasesModal: React.FC<TestCasesModalProps> = ({ isOpen, onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md overflow-y-auto">
-      <div className="glass-modal rounded-2xl max-w-3xl w-full overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/45">
+      <div className="bg-white border border-slate-200 shadow-xl rounded-2xl max-w-[800px] w-[calc(100%-24px)] sm:w-full max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-white/40 backdrop-blur-sm border-b border-white/70">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 bg-white border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#ECFDF3] text-[#16A36A] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-[#ECFDF3] text-[#16A36A] flex items-center justify-center shrink-0">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
@@ -78,7 +78,7 @@ export const TestCasesModal: React.FC<TestCasesModalProps> = ({ isOpen, onClose,
         </div>
 
         {/* Action bar */}
-        <div className="p-5 bg-[#F9FAFB] border-b border-[#EAECF0] flex flex-wrap items-center justify-between gap-3">
+        <div className="p-4 sm:p-5 bg-[#F9FAFB] border-b border-[#EAECF0] flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2.5">
             <button
               onClick={handleRunTests}

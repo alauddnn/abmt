@@ -81,11 +81,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, onOpe
       initial={false}
       animate={{ width: isCollapsed ? 76 : 252 }}
       transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-      className="hidden lg:flex lg:flex-col bg-white/70 backdrop-blur-2xl border-r border-white/80 text-slate-700 min-h-screen shrink-0 select-none relative z-30 shadow-[2px_0_24px_rgba(15,23,42,0.03)]"
+      className="hidden lg:flex lg:flex-col bg-white border-r border-slate-200 text-slate-700 min-h-screen shrink-0 select-none relative z-30 shadow-2xs"
     >
       {/* Brand & Company Header + Collapse Toggle */}
       <div
-        className={`h-16 border-b border-white/70 bg-white/40 backdrop-blur-md flex items-center ${
+        className={`h-16 border-b border-slate-200 bg-white flex items-center ${
           isCollapsed ? 'justify-center px-2' : 'justify-between px-4'
         } gap-2.5`}
       >
@@ -196,7 +196,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, onOpe
                         stiffness: 420,
                         damping: 34,
                       }}
-                      className="absolute inset-0 bg-[#EFF5FF]/85 backdrop-blur-xs border border-blue-200/70 rounded-xl z-0 shadow-2xs"
+                      className="absolute inset-0 bg-[#EFF5FF] border border-blue-200 rounded-xl z-0 shadow-2xs"
                     >
                       <span className="absolute left-0 top-2 bottom-2 w-1 bg-[#2563EB] rounded-r-full" />
                     </motion.div>
@@ -236,7 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab, onOpe
       </div>
 
       {/* User Profile Footer with Popup Menu */}
-      <div className="p-3 border-t border-white/70 bg-white/40 backdrop-blur-md">
+      <div className="p-3 border-t border-slate-200 bg-white">
         <UserProfileDropdown
           onSelectTab={onSelectTab}
           onOpenProfileModal={onOpenProfileModal}

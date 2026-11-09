@@ -20,26 +20,27 @@ export const SlipGajiModal: React.FC<SlipGajiModalProps> = ({ payment, onClose }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/40 backdrop-blur-[2px] overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full overflow-hidden border border-[#EAECF0] animate-in fade-in zoom-in-95 my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#0F172A]/45">
+      <div className="bg-white rounded-2xl shadow-xl max-w-[800px] w-[calc(100%-24px)] sm:w-full max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden border border-[#EAECF0] animate-in fade-in zoom-in-95">
         {/* Modal Toolbar (hidden on print) */}
-        <div className="print:hidden flex items-center justify-between px-6 py-4 bg-white border-b border-[#EAECF0]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#EFF5FF] text-[#4693FD] flex items-center justify-center">
+        <div className="print:hidden flex items-center justify-between px-4 sm:px-6 py-4 bg-white border-b border-[#EAECF0] shrink-0 gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-[#EFF5FF] text-[#4693FD] flex items-center justify-center shrink-0">
               <Building2 className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="font-semibold text-sm text-[#262626]">Slip Gaji Karyawan</h3>
-              <p className="text-[11px] text-[#667085] font-mono">{payment.paymentNumber}</p>
+            <div className="min-w-0">
+              <h3 className="font-semibold text-sm text-[#262626] truncate">Slip Gaji Karyawan</h3>
+              <p className="text-[11px] text-[#667085] font-mono truncate">{payment.paymentNumber}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-medium rounded-lg transition-colors shadow-xs"
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-medium rounded-lg transition-colors shadow-xs"
             >
-              <Printer className="w-4 h-4" />
-              <span>Cetak / Simpan PDF</span>
+              <Printer className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">Cetak / Simpan PDF</span>
+              <span className="sm:hidden">Cetak</span>
             </button>
             <button
               onClick={onClose}
@@ -51,7 +52,7 @@ export const SlipGajiModal: React.FC<SlipGajiModalProps> = ({ payment, onClose }
         </div>
 
         {/* Printable Area */}
-        <div className="p-8 text-[#344054] bg-white" id="printable-slip">
+        <div className="p-4 sm:p-8 text-[#344054] bg-white overflow-y-auto flex-1" id="printable-slip">
           {/* Official Kop Surat Header */}
           <OfficialKopSurat compact className="mb-4" />
 

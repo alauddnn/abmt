@@ -90,7 +90,7 @@ function MainLayout() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8FAFC] font-sans text-[#1E293B] antialiased">
+    <div className="flex min-h-screen bg-[#F8FAFC] font-sans text-[#1E293B] antialiased overflow-x-hidden">
       {/* Desktop Sidebar */}
       <Sidebar
         currentTab={currentTab}
@@ -109,7 +109,7 @@ function MainLayout() {
           onOpenProfileModal={() => setIsProfileModalOpen(true)}
         />
 
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8 max-w-[1440px] w-full mx-auto">
+        <main className="flex-1 px-4 pt-5 pb-24 sm:px-6 lg:px-10 lg:py-8 max-w-[1440px] w-full mx-auto">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={currentTab}

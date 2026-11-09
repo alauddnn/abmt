@@ -25,7 +25,7 @@ export const ToastContainer: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, x: 28, scale: 0.95 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="pointer-events-auto relative overflow-hidden flex items-start gap-3 p-4 bg-white/95 backdrop-blur-md rounded-2xl shadow-[0_12px_32px_-8px_rgba(15,23,42,0.14)] border border-slate-200/90 text-xs"
+            className="pointer-events-auto relative overflow-hidden flex items-start gap-3 p-4 bg-white rounded-2xl shadow-lg border border-slate-200 text-xs"
           >
             {toast.type === 'success' && (
               <div className="w-7 h-7 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200/70 flex items-center justify-center shrink-0 mt-0.5">

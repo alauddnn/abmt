@@ -17,11 +17,33 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
+  Filter,
+  HardHat,
+  Truck,
+  Eye,
+  Check,
 } from 'lucide-react';
 import { KasbonRecord, Employee, Project, ProjectAssignment } from '../types.js';
 import { api } from '../lib/api.js';
-import { formatRupiah, formatDateID, getTodayDateString } from '../lib/utils.js';
+import { formatRupiah, formatDateID, getTodayDateString, isDriverRole } from '../lib/utils.js';
 import { useAuth } from '../context/AuthContext.js';
+
+const avatarPalettes = [
+  'bg-[#DCE7F9] text-[#1E293B]',
+  'bg-[#F9E2D2] text-[#1E293B]',
+  'bg-[#EDE3DA] text-[#1E293B]',
+  'bg-[#D9EFE6] text-[#1E293B]',
+  'bg-[#E5EEDF] text-[#1E293B]',
+];
+
+const getInitials = (name: string) => {
+  const cleaned = (name || 'Karyawan').trim();
+  const parts = cleaned.split(/\s+/);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+  return cleaned.slice(0, 2).toUpperCase();
+};
 
 interface KasbonPageProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
@@ -37,6 +59,9 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
   const [projectAssignmentsMap, setProjectAssignmentsMap] = useState<Record<string, ProjectAssignment[]>>({});
   const [loading, setLoading] = useState(true);
 
+  // Section Tab: A. Kasbon Aktif vs B. Arsip Pelunasan
+  const [sectionTab, setSectionTab] = useState<'active' | 'archive'>('active');
+
   // View Mode: Daftar Transaksi vs Riwayat Per Karyawan
   const [viewMode, setViewMode] = useState<'transactions' | 'employees'>('transactions');
   const [expandedEmployeeId, setExpandedEmployeeId] = useState<string | null>(null);
@@ -44,6 +69,7 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [projectFilter, setProjectFilter] = useState('ALL');
+  const [roleFilter, setRoleFilter] = useState('ALL');
   const [employeeFilter, setEmployeeFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [startDateFilter, setStartDateFilter] = useState('');
@@ -72,6 +98,7 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
 
   // Manual Payment / Pelunasan Modal State
   const [kasbonToPay, setKasbonToPay] = useState<KasbonRecord | null>(null);
+  const [payMode, setPayMode] = useState<'full' | 'partial'>('full');
   const [paymentForm, setPaymentForm] = useState({
     amount: '',
     paymentDate: getTodayDateString(),
@@ -79,6 +106,11 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
     notes: '',
   });
   const [submittingPayment, setSubmittingPayment] = useState(false);
+
+  // Restore from Archive Modal State
+  const [kasbonToRestore, setKasbonToRestore] = useState<KasbonRecord | null>(null);
+  const [restoreReason, setRestoreReason] = useState('');
+  const [restoringKasbon, setRestoringKasbon] = useState(false);
 
   // Detail & Riwayat Kasbon Modal
   const [detailKasbon, setDetailKasbon] = useState<KasbonRecord | null>(null);
@@ -260,14 +292,15 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
     }
   };
 
-  const handleOpenPayModal = (kb: KasbonRecord) => {
+  const handleOpenPayModal = (kb: KasbonRecord, mode: 'full' | 'partial' = 'full') => {
     if (!isAdmin) return;
     setKasbonToPay(kb);
+    setPayMode(mode);
     setPaymentForm({
       amount: String(kb.remainingAmount || 0),
       paymentDate: getTodayDateString(),
       paymentMethod: 'Tunai',
-      notes: '',
+      notes: mode === 'full' ? 'Pelunasan penuh kewajiban kasbon' : '',
     });
   };
 
@@ -275,7 +308,11 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
     e.preventDefault();
     if (!isAdmin || !kasbonToPay) return;
 
-    const payAmount = Math.round(Number(paymentForm.amount || 0));
+    const payAmount =
+      payMode === 'full'
+        ? Math.round(Number(kasbonToPay.remainingAmount || 0))
+        : Math.round(Number(paymentForm.amount || 0));
+
     if (!payAmount || payAmount <= 0) {
       showToast('error', 'Nominal pembayaran harus lebih besar dari Rp0.');
       return;
@@ -291,13 +328,23 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
         amount: payAmount,
         paymentDate: paymentForm.paymentDate || getTodayDateString(),
         paymentMethod: paymentForm.paymentMethod || 'Tunai',
-        notes: paymentForm.notes,
+        notes:
+          paymentForm.notes ||
+          (payAmount >= kasbonToPay.remainingAmount ? 'Pelunasan kasbon penuh' : 'Cicilan pembayaran kasbon'),
       });
 
-      showToast(
-        'success',
-        `Pembayaran kasbon ${kasbonToPay.employeeName} sebesar ${formatRupiah(payAmount)} berhasil dicatat. Sisa: ${formatRupiah(updated.remainingAmount)}`
-      );
+      if (updated.status === 'Lunas') {
+        showToast(
+          'success',
+          `Kasbon ${kasbonToPay.employeeName} (${kasbonToPay.kasbonNumber}) resmi LUNAS sebesar ${formatRupiah(payAmount)} dan dipindahkan ke Arsip Pelunasan.`
+        );
+      } else {
+        showToast(
+          'success',
+          `Pembayaran kasbon ${kasbonToPay.employeeName} sebesar ${formatRupiah(payAmount)} berhasil dicatat. Sisa kewajiban: ${formatRupiah(updated.remainingAmount)}`
+        );
+      }
+
       setKasbonToPay(null);
       if (detailKasbon && detailKasbon.id === updated.id) {
         setDetailKasbon(updated);
@@ -308,6 +355,54 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
       showToast('error', err.message || 'Gagal mencatat pembayaran kasbon');
     } finally {
       setSubmittingPayment(false);
+    }
+  };
+
+  const handleOpenRestoreModal = (kb: KasbonRecord) => {
+    if (!isAdmin) return;
+    setKasbonToRestore(kb);
+    setRestoreReason('');
+  };
+
+  const handleConfirmRestore = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin || !kasbonToRestore) return;
+    setRestoringKasbon(true);
+    try {
+      const updated = await api.restoreKasbon(
+        kasbonToRestore.id,
+        restoreReason.trim() || 'Dikeluarkan dari Arsip Pelunasan ke daftar Kasbon Aktif oleh Admin'
+      );
+      showToast(
+        'success',
+        `Kasbon ${kasbonToRestore.employeeName} (${kasbonToRestore.kasbonNumber}) berhasil dikeluarkan dari Arsip Pelunasan dan dikembalikan ke Kasbon Aktif.`
+      );
+      setKasbonToRestore(null);
+      setRestoreReason('');
+      if (detailKasbon && detailKasbon.id === updated.id) {
+        setDetailKasbon(updated);
+      }
+      fetchData();
+      onDataChanged();
+    } catch (err: any) {
+      showToast('error', err.message || 'Gagal mengeluarkan kasbon dari arsip');
+    } finally {
+      setRestoringKasbon(false);
+    }
+  };
+
+  const handleArchiveKasbon = async (kb: KasbonRecord) => {
+    if (!isAdmin) return;
+    try {
+      const updated = await api.archiveKasbon(kb.id);
+      showToast('success', `Kasbon ${kb.kasbonNumber} dipindahkan ke Arsip Pelunasan.`);
+      if (detailKasbon && detailKasbon.id === updated.id) {
+        setDetailKasbon(updated);
+      }
+      fetchData();
+      onDataChanged();
+    } catch (err: any) {
+      showToast('error', err.message || 'Gagal mengarsipkan kasbon');
     }
   };
 
@@ -346,15 +441,28 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
     }
   };
 
+  // Partition Kasbon into A. Kasbon Aktif vs B. Arsip Pelunasan
+  const isArchivedRecord = (kb: KasbonRecord) =>
+    kb.status === 'Lunas' && kb.isArchived !== false;
+
+  const allActiveKasbons = kasbonList.filter((kb) => !isArchivedRecord(kb));
+  const allArchivedKasbons = kasbonList.filter((kb) => isArchivedRecord(kb));
+
+  const baseListForTab = sectionTab === 'archive' ? allArchivedKasbons : allActiveKasbons;
+
   // Filtered Kasbon List
-  const filteredKasbons = kasbonList.filter((kb) => {
+  const filteredKasbons = baseListForTab.filter((kb) => {
     if (projectFilter !== 'ALL' && kb.projectId !== projectFilter) {
       return false;
+    }
+    if (roleFilter !== 'ALL') {
+      const roleNorm = kb.employeeRole === 'Kenek' ? 'Helper' : kb.employeeRole;
+      if (roleNorm !== roleFilter) return false;
     }
     if (employeeFilter !== 'ALL' && kb.employeeId !== employeeFilter) {
       return false;
     }
-    if (statusFilter !== 'ALL') {
+    if (sectionTab === 'active' && statusFilter !== 'ALL') {
       if (statusFilter === 'BELUM_LUNAS') {
         if (kb.status !== 'Disetujui' && kb.status !== 'Dipotong sebagian') return false;
       } else if (kb.status !== statusFilter) {
@@ -369,20 +477,22 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
     }
     const q = searchQuery.trim().toLowerCase();
     if (q) {
+      const empObj = employees.find((e) => e.id === kb.employeeId);
+      const empNik = (empObj?.nik || '').toLowerCase();
       const matchName = kb.employeeName.toLowerCase().includes(q);
       const matchNum = kb.kasbonNumber.toLowerCase().includes(q);
       const matchReason = (kb.reason || '').toLowerCase().includes(q);
       const matchProj = (kb.projectName || '').toLowerCase().includes(q);
-      if (!matchName && !matchNum && !matchReason && !matchProj) return false;
+      const matchId = (kb.employeeId || '').toLowerCase().includes(q);
+      if (!matchName && !matchNum && !matchReason && !matchProj && !matchId && !empNik.includes(q)) return false;
     }
     return true;
   });
 
   // Summary Metrics based on active filter (excluding rejected)
-  const validKasbons = filteredKasbons.filter((k) => k.status !== 'Ditolak');
-  const totalKasbon = validKasbons.reduce((sum, k) => sum + Number(k.amount || 0), 0);
-  const totalPembayaran = validKasbons.reduce((sum, k) => sum + Number(k.deductedAmount || 0), 0);
-  const sisaKasbon = validKasbons.reduce((sum, k) => sum + Number(k.remainingAmount || 0), 0);
+  const validKasbons = kasbonList.filter((k) => k.status !== 'Ditolak');
+  const lunasCount = allArchivedKasbons.length;
+  const belumLunasCount = validKasbons.filter((k) => !isArchivedRecord(k)).length;
 
   // Group per employee for Riwayat Kasbon Masing-Masing Karyawan
   const employeeSummaryMap = new Map<
@@ -432,529 +542,711 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
     : [];
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Header */}
-      <div className="glass-panel rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
-              PT. ASTA BRATA MATAHARI TERBIT
-            </span>
-            <span className="text-slate-300">·</span>
-            <span className="text-xs text-slate-500 font-medium">Modul Mandiri Kasbon Karyawan</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight mt-1">
-            Kasbon Karyawan Proyek
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Kelola pengajuan kasbon berdasarkan proyek dan karyawan, bukti pendukung, pencatatan pelunasan manual, serta riwayat kasbon masing-masing karyawan.
-          </p>
-        </div>
-
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={handleOpenCreateModal}
-            className="bg-[#4693FD] hover:bg-[#357ee8] text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-[0_4px_14px_rgba(70,147,253,0.3)] shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Input Pengajuan Kasbon</span>
-          </button>
-        )}
-      </div>
-
-      {/* 3 Kartu Ringkasan Utama: Total Kasbon, Total Pembayaran, Sisa Kasbon */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="glass-card p-5 rounded-2xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Total Kasbon</span>
-            <div className="w-8 h-8 rounded-lg bg-blue-50/80 border border-blue-200/60 text-[#4693FD] flex items-center justify-center">
-              <Wallet className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
-            {formatRupiah(totalKasbon)}
-          </p>
-          <span className="text-[11px] text-slate-500 mt-1 block">
-            {validKasbons.length} pengajuan kasbon tercatat
-          </span>
-        </div>
-
-        <div className="glass-card p-5 rounded-2xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Total Pembayaran / Pelunasan</span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50/80 border border-emerald-200/60 text-emerald-600 flex items-center justify-center">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold font-mono text-emerald-600 mt-2 tabular-nums">
-            {formatRupiah(totalPembayaran)}
-          </p>
-          <span className="text-[11px] text-slate-500 mt-1 block">
-            Akumulasi pembayaran kasbon karyawan
-          </span>
-        </div>
-
-        <div className="glass-card p-5 rounded-2xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Sisa Kasbon</span>
-            <div className="w-8 h-8 rounded-lg bg-rose-50/80 border border-rose-200/60 text-rose-600 flex items-center justify-center">
-              <AlertCircle className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold font-mono text-rose-600 mt-2 tabular-nums">
-            {formatRupiah(sisaKasbon)}
-          </p>
-          <span className="text-[11px] text-slate-500 mt-1 block">
-            Sisa kasbon yang belum dilunasi
-          </span>
-        </div>
-      </div>
-
-      {/* Main Content Card */}
-      <div className="glass-table rounded-2xl overflow-hidden">
-        {/* Top Bar with View Switch */}
-        <div className="p-4 border-b border-white/60 bg-white/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-4 pb-20">
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] overflow-hidden">
+        {/* Top Header Bar */}
+        <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-sm font-bold text-slate-900">Data & Riwayat Kasbon Karyawan</h2>
-            <p className="text-xs text-[#667085]">
-              Filter berdasarkan proyek, nama karyawan, rentang tanggal, atau status pelunasan
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-bold text-slate-900">Data Kasbon Karyawan</h1>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#EFF5FF] text-[#155EEF] border border-[#D0E2FF]">
+                {filteredKasbons.length} {sectionTab === 'archive' ? 'Arsip Lunas' : 'Kasbon Aktif'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Kelola kewajiban kasbon aktif, konfirmasi pelunasan penuh, dan riwayat arsip pelunasan karyawan.
             </p>
           </div>
 
-          <div className="inline-flex bg-[#F2F4F7] p-1 rounded-xl border border-[#EAECF0] self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={() => setViewMode('transactions')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'transactions'
-                  ? 'bg-white text-[#155EEF] shadow-2xs'
-                  : 'text-[#667085] hover:text-[#1D2939]'
-              }`}
-            >
-              Daftar Kasbon ({filteredKasbons.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('employees')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'employees'
-                  ? 'bg-white text-[#155EEF] shadow-2xs'
-                  : 'text-[#667085] hover:text-[#1D2939]'
-              }`}
-            >
-              Riwayat Per Karyawan ({employeeSummaries.length})
-            </button>
-          </div>
-        </div>
-
-        {/* Search & Filter Toolbar */}
-        <div className="p-4 bg-[#F9FAFB] border-b border-[#EAECF0] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 text-xs">
-          <div>
-            <label className="block text-[11px] font-medium text-[#667085] mb-1">Cari Nama / No. Kasbon</label>
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-[#98A2B3] absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Nama, nomor, alasan..."
-                className="w-full pl-8 pr-2.5 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
-              />
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-2 text-xs mr-1">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#EFF8FF] text-[#175CD3] font-medium text-[11px]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />
+                {belumLunasCount} Kasbon Aktif
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#E1F3EA] text-[#166534] font-medium text-[11px]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#15803D]" />
+                {lunasCount} Arsip Lunas
+              </span>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-[11px] font-medium text-[#667085] mb-1">Filter Proyek</label>
-            <select
-              value={projectFilter}
-              onChange={(e) => setProjectFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
-            >
-              <option value="ALL">Semua Proyek</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.code})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-medium text-[#667085] mb-1">Filter Karyawan</label>
-            <select
-              value={employeeFilter}
-              onChange={(e) => setEmployeeFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
-            >
-              <option value="ALL">Semua Karyawan</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name} ({e.role})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-medium text-[#667085] mb-1">Dari Tanggal</label>
-            <input
-              type="date"
-              value={startDateFilter}
-              onChange={(e) => setStartDateFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-medium text-[#667085] mb-1">Sampai Tanggal</label>
-            <input
-              type="date"
-              value={endDateFilter}
-              onChange={(e) => setEndDateFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-medium text-[#667085] mb-1">Status</label>
-            <div className="flex items-center gap-1.5">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+            <div className="inline-flex bg-slate-100 p-0.5 rounded-xl border border-slate-200/80">
+              <button
+                type="button"
+                onClick={() => setViewMode('transactions')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
+                  viewMode === 'transactions'
+                    ? 'bg-white text-[#155EEF] shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
               >
-                <option value="ALL">Semua Status</option>
-                <option value="BELUM_LUNAS">Belum Lunas (Aktif)</option>
-                <option value="Disetujui">Disetujui (Belum Dibayar)</option>
-                <option value="Dipotong sebagian">Dibayar Sebagian</option>
-                <option value="Lunas">Lunas</option>
-                <option value="Menunggu persetujuan">Menunggu Persetujuan</option>
-                <option value="Ditolak">Ditolak</option>
-              </select>
-              {(searchQuery ||
-                projectFilter !== 'ALL' ||
-                employeeFilter !== 'ALL' ||
-                statusFilter !== 'ALL' ||
-                startDateFilter ||
-                endDateFilter) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setProjectFilter('ALL');
-                    setEmployeeFilter('ALL');
-                    setStatusFilter('ALL');
-                    setStartDateFilter('');
-                    setEndDateFilter('');
-                  }}
-                  className="px-2 py-1.5 bg-white hover:bg-[#F2F4F7] text-[#475467] border border-[#D0D5DD] rounded-lg text-[11px] font-semibold shrink-0"
-                >
-                  Reset
-                </button>
-              )}
+                Transaksi ({filteredKasbons.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('employees')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
+                  viewMode === 'employees'
+                    ? 'bg-white text-[#155EEF] shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Per Karyawan ({employeeSummaries.length})
+              </button>
             </div>
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={handleOpenCreateModal}
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Ajukan Kasbon</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Content: Transactions Table or Employee History */}
+        {/* Two Main Sections Tab Bar: A. KASBON AKTIF vs B. ARSIP PELUNASAN */}
+        <div className="px-5 py-3 bg-white border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="inline-flex bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setSectionTab('active');
+                setStatusFilter('ALL');
+              }}
+              className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                sectionTab === 'active'
+                  ? 'bg-white text-[#155EEF] shadow-xs border border-slate-200/60'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Wallet className="w-3.5 h-3.5" />
+              <span>A. Kasbon Aktif</span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  sectionTab === 'active'
+                    ? 'bg-[#EFF5FF] text-[#155EEF]'
+                    : 'bg-slate-200/70 text-slate-600'
+                }`}
+              >
+                {allActiveKasbons.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSectionTab('archive');
+                setStatusFilter('ALL');
+              }}
+              className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                sectionTab === 'archive'
+                  ? 'bg-white text-[#166534] shadow-xs border border-slate-200/60'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>B. Arsip Pelunasan</span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  sectionTab === 'archive'
+                    ? 'bg-[#E1F3EA] text-[#166534]'
+                    : 'bg-slate-200/70 text-slate-600'
+                }`}
+              >
+                {allArchivedKasbons.length}
+              </span>
+            </button>
+          </div>
+
+          <div className="text-[11px] text-slate-500">
+            {sectionTab === 'active' ? (
+              <span>Menampilkan karyawan yang masih memiliki kewajiban kasbon aktif atau belum diarsipkan.</span>
+            ) : (
+              <span>Menampilkan arsip kasbon karyawan yang telah dilunasi sepenuhnya beserta riwayat pembayarannya.</span>
+            )}
+          </div>
+        </div>
+
+        {/* Search & Filter Bar */}
+        <div className="px-5 py-3.5 bg-slate-50/60 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Cari nama, ID, NIK, nomor kasbon, alasan..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-500/10 transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 text-xs">
+            <div className="flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-slate-500 font-medium">Jabatan:</span>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#2563EB]"
+              >
+                <option value="ALL">Semua Jabatan</option>
+                <option value="Mandor">Mandor</option>
+                <option value="Tukang">Tukang</option>
+                <option value="Helper">Helper</option>
+                <option value="Driver">Driver</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-medium">Proyek:</span>
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#2563EB]"
+              >
+                <option value="ALL">Semua Proyek</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {sectionTab === 'active' && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 font-medium">Status:</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#2563EB]"
+                >
+                  <option value="ALL">Semua Status Aktif</option>
+                  <option value="BELUM_LUNAS">Belum Lunas</option>
+                  <option value="Disetujui">Disetujui (Belum Cicil)</option>
+                  <option value="Dipotong sebagian">Dibayar Sebagian</option>
+                  <option value="Lunas">Dipulihkan dari Arsip (Lunas)</option>
+                  <option value="Ditolak">Ditolak</option>
+                </select>
+              </div>
+            )}
+
+            {(searchQuery ||
+              projectFilter !== 'ALL' ||
+              roleFilter !== 'ALL' ||
+              employeeFilter !== 'ALL' ||
+              statusFilter !== 'ALL' ||
+              startDateFilter ||
+              endDateFilter) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setProjectFilter('ALL');
+                  setRoleFilter('ALL');
+                  setEmployeeFilter('ALL');
+                  setStatusFilter('ALL');
+                  setStartDateFilter('');
+                  setEndDateFilter('');
+                }}
+                className="text-xs text-[#2563EB] hover:underline font-medium px-1.5"
+              >
+                Reset Filter
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Content: Transactions Table or Employee History (Bounded to max 10 visible rows with internal vertical scroll) */}
         {viewMode === 'transactions' ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="bg-[#F9FAFB] text-[#475467] font-medium border-b border-[#EAECF0]">
-                  <th className="py-3 px-4">No. Kasbon</th>
-                  <th className="py-3 px-4">Tanggal</th>
-                  <th className="py-3 px-4">Proyek</th>
-                  <th className="py-3 px-4">Karyawan</th>
-                  <th className="py-3 px-4 text-right">Total Kasbon</th>
-                  <th className="py-3 px-4 text-right">Total Pembayaran</th>
-                  <th className="py-3 px-4 text-right">Sisa Kasbon</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-center">Bukti</th>
-                  <th className="py-3 px-4">Alasan</th>
-                  <th className="py-3 px-4 text-center">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
-                {loading ? (
-                  <tr>
-                    <td colSpan={11} className="py-10 text-center text-[#667085]">
-                      Memuat data kasbon...
-                    </td>
-                  </tr>
-                ) : filteredKasbons.length === 0 ? (
-                  <tr>
-                    <td colSpan={11} className="py-10 text-center text-[#667085]">
-                      Belum ada data kasbon yang sesuai filter.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredKasbons.map((kb) => {
-                    const projObj = projects.find((p) => p.id === kb.projectId);
-                    const pName = kb.projectName || projObj?.name || 'Proyek Umum';
-                    const pCode = kb.projectCode || projObj?.code || '';
+          <div>
+            <div className="overflow-x-auto max-h-[680px] overflow-y-auto overscroll-contain">
+              <table className="w-full text-left text-xs border-collapse">
+                <tbody className="divide-y divide-slate-200/75 text-slate-700">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-500">
+                        Memuat data kasbon...
+                      </td>
+                    </tr>
+                  ) : filteredKasbons.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-500">
+                        {sectionTab === 'archive'
+                          ? 'Belum ada data kasbon pada Arsip Pelunasan.'
+                          : 'Belum ada data kasbon aktif yang sesuai filter.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredKasbons.map((kb, idx) => {
+                      const projObj = projects.find((p) => p.id === kb.projectId);
+                      const empObj = employees.find((e) => e.id === kb.employeeId);
+                      const pName = projObj?.location || kb.projectName || projObj?.name || 'Proyek Umum';
+                      const roleName = kb.employeeRole === 'Kenek' ? 'Helper' : kb.employeeRole || 'Tukang';
+                      const isDriver = isDriverRole(roleName);
+                      const avatarClass = avatarPalettes[idx % avatarPalettes.length];
 
-                    return (
-                      <tr key={kb.id} className="hover:bg-[#F9FAFB] transition-colors">
-                        <td className="py-3 px-4 font-mono font-medium text-[#4693FD] whitespace-nowrap">
-                          {kb.kasbonNumber}
-                        </td>
-                        <td className="py-3 px-4 text-[#667085] whitespace-nowrap">
-                          {formatDateID(kb.requestDate)}
-                        </td>
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#F2F4F7] text-[#344054] font-medium text-[11px]">
-                            <Building2 className="w-3 h-3 text-[#667085]" />
-                            <span>{pName}</span>
-                            {pCode && <span className="font-mono text-[#667085]">({pCode})</span>}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="font-semibold text-[#1D2939] block">{kb.employeeName}</span>
-                          <span className="text-[11px] text-[#667085] font-mono">
-                            {kb.employeeId} · {kb.employeeRole}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-medium text-[#1D2939] whitespace-nowrap">
-                          {formatRupiah(kb.amount)}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-medium text-[#027A48] whitespace-nowrap">
-                          {formatRupiah(kb.deductedAmount || 0)}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-[#B42318] whitespace-nowrap">
-                          {formatRupiah(kb.remainingAmount)}
-                        </td>
-                        <td className="py-3 px-4 text-center whitespace-nowrap">
-                          <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${
-                              kb.status === 'Disetujui'
-                                ? 'bg-[#EFF8FF] text-[#175CD3] border-[#B2DDFF]'
-                                : kb.status === 'Lunas'
-                                ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5]'
-                                : kb.status === 'Dipotong sebagian'
-                                ? 'bg-[#FEF6EE] text-[#B54708] border-[#F9DBAF]'
-                                : kb.status === 'Ditolak'
-                                ? 'bg-[#FEF3F2] text-[#B42318] border-[#FECDCA]'
-                                : 'bg-gray-100 text-gray-700 border-gray-200'
-                            }`}
-                          >
-                            {kb.status === 'Dipotong sebagian' ? 'Dibayar Sebagian' : kb.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center whitespace-nowrap">
-                          {(kb.attachments && kb.attachments.length > 0) || kb.attachmentFilePath ? (
-                            <button
-                              type="button"
-                              onClick={() => setViewingProofKasbon(kb)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#EFF5FF] text-[#155EEF] hover:bg-[#D0E2FF] border border-[#D0E2FF] text-xs font-semibold transition-colors"
+                      const rolePillStyle =
+                        roleName === 'Mandor'
+                          ? 'bg-[#EDE6DF] text-[#44403C]'
+                          : roleName === 'Tukang'
+                          ? 'bg-[#E1EBF9] text-[#284B80]'
+                          : roleName === 'Driver'
+                          ? 'bg-[#E3EEDF] text-[#335426]'
+                          : 'bg-[#DCEFE9] text-[#1D5647]';
+
+                      const hasProof =
+                        (kb.attachments && kb.attachments.length > 0) || Boolean(kb.attachmentFilePath);
+
+                      const statusPill =
+                        kb.status === 'Lunas'
+                          ? {
+                              bg: 'bg-[#E1F3EA] text-[#166534]',
+                              dot: 'bg-[#15803D]',
+                              label: kb.isArchived === false ? 'Lunas (Dipulihkan)' : 'Lunas',
+                            }
+                          : kb.status === 'Dipotong sebagian'
+                          ? {
+                              bg: 'bg-[#FEF6EE] text-[#B54708]',
+                              dot: 'bg-[#D97706]',
+                              label: 'Dibayar Sebagian',
+                            }
+                          : kb.status === 'Disetujui'
+                          ? {
+                              bg: 'bg-[#EFF8FF] text-[#175CD3]',
+                              dot: 'bg-[#2563EB]',
+                              label: 'Belum Lunas',
+                            }
+                          : kb.status === 'Ditolak'
+                          ? {
+                              bg: 'bg-[#FEF3F2] text-[#B42318]',
+                              dot: 'bg-[#DC2626]',
+                              label: 'Ditolak',
+                            }
+                          : {
+                              bg: 'bg-[#F1F5F9] text-[#475569]',
+                              dot: 'bg-[#94A3B8]',
+                              label: kb.status,
+                            };
+
+                      return (
+                        <tr key={kb.id} className="hover:bg-slate-50/80 transition-colors group">
+                          {/* Column 1: Avatar + Name + Subtitle */}
+                          <td className="py-4 px-6">
+                            <div className="flex items-center gap-3.5">
+                              <div
+                                className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold tracking-tight shrink-0 ${avatarClass}`}
+                              >
+                                {getInitials(kb.employeeName)}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-slate-900 text-[13.5px] leading-snug">
+                                  {kb.employeeName}
+                                </div>
+                                <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-1.5">
+                                  <span>{roleName}</span>
+                                  <span className="text-slate-300">·</span>
+                                  <span className="font-mono text-slate-500">{kb.employeeId}</span>
+                                  <span className="text-slate-300">·</span>
+                                  <span className="font-mono text-slate-400">
+                                    {empObj?.nik ? `NIK: ${empObj.nik}` : kb.kasbonNumber}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Column 2: Role Badge with Icon */}
+                          <td className="py-4 px-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium ${rolePillStyle}`}
                             >
-                              <ImageIcon className="w-3.5 h-3.5" />
-                              <span>Lihat Bukti</span>
-                            </button>
-                          ) : (
-                            <span className="text-[#98A2B3] text-[11px]">Tanpa Bukti</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 max-w-[180px] truncate text-[#667085]" title={kb.reason}>
-                          {kb.reason}
-                        </td>
-                        <td className="py-3 px-4 text-center whitespace-nowrap">
-                          <div className="inline-flex items-center justify-center gap-1.5">
-                            {isAdmin && kb.status === 'Menunggu persetujuan' && (
-                              <>
+                              {isDriver ? (
+                                <Truck className="w-3.5 h-3.5 opacity-80" />
+                              ) : (
+                                <HardHat className="w-3.5 h-3.5 opacity-80" />
+                              )}
+                              <span>{roleName}</span>
+                            </span>
+                          </td>
+
+                          {/* Column 3: Project Dot + Reason */}
+                          <td className="py-4 px-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full shrink-0 bg-[#D97706]" />
+                              <span className="text-xs font-medium text-slate-700">{pName}</span>
+                            </div>
+                            <div
+                              className="text-[11px] text-slate-400 pl-4 mt-0.5 max-w-[180px] truncate"
+                              title={kb.reason}
+                            >
+                              {kb.reason || '-'}
+                            </div>
+                          </td>
+
+                          {/* Column 4: Financial Stack */}
+                          <td className="py-4 px-4 whitespace-nowrap">
+                            <div className="text-xs font-medium text-slate-700 font-mono tabular-nums">
+                              Pinjaman: {formatRupiah(kb.amount)}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono tabular-nums mt-0.5">
+                              {sectionTab === 'archive' ? (
+                                <span className="text-emerald-700 font-medium">
+                                  Total Bayar: {formatRupiah(kb.deductedAmount || kb.amount)} · Sisa: Rp0
+                                </span>
+                              ) : (
+                                <>
+                                  Sisa: <span className="font-semibold text-rose-600">{formatRupiah(kb.remainingAmount)}</span>
+                                  {kb.deductedAmount > 0 ? ` · Bayar: ${formatRupiah(kb.deductedAmount)}` : ''}
+                                </>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Column 5: Date & Kasbon Number / Paid Off Date */}
+                          <td className="py-4 px-4 whitespace-nowrap">
+                            <div className="text-xs font-medium text-slate-700 tabular-nums">
+                              Pinjam: {formatDateID(kb.requestDate)}
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono tabular-nums mt-0.5">
+                              {sectionTab === 'archive' && kb.paidOffDate
+                                ? `Lunas: ${formatDateID(kb.paidOffDate)}`
+                                : kb.kasbonNumber}
+                            </div>
+                          </td>
+
+                          {/* Column 6: Status Pill */}
+                          <td className="py-4 px-4 text-center whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${statusPill.bg}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${statusPill.dot}`} />
+                              <span>{statusPill.label}</span>
+                            </span>
+                          </td>
+
+                          {/* Column 7: Actions */}
+                          <td className="py-4 px-6 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center justify-end gap-1.5">
+                              {hasProof && (
                                 <button
                                   type="button"
-                                  onClick={() => handleStatusChange(kb, 'approve')}
-                                  className="px-2 py-1 bg-[#ECFDF3] hover:bg-[#D1FADF] text-[#027A48] border border-[#A6F4C5] rounded-lg text-[11px] font-semibold"
+                                  onClick={() => setViewingProofKasbon(kb)}
+                                  className="p-1.5 text-slate-400 hover:text-[#2563EB] hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Lihat Bukti Foto Kasbon"
                                 >
-                                  Setujui
+                                  <ImageIcon className="w-4 h-4" />
                                 </button>
+                              )}
+
+                              {isAdmin && kb.status === 'Menunggu persetujuan' && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStatusChange(kb, 'approve')}
+                                    className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                    title="Setujui Kasbon"
+                                  >
+                                    <Check className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStatusChange(kb, 'reject')}
+                                    className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                    title="Tolak Kasbon"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+
+                              {isAdmin && sectionTab === 'active' && kb.remainingAmount > 0 && kb.status !== 'Ditolak' && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenPayModal(kb, 'full')}
+                                    className="px-2.5 py-1 bg-[#16A34A] hover:bg-[#15803D] text-white rounded-lg text-[11px] font-semibold transition-colors shadow-2xs"
+                                    title="Konfirmasi Pelunasan Kasbon"
+                                  >
+                                    Pelunasan
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenPayModal(kb, 'partial')}
+                                    className="px-2.5 py-1 bg-[#EFF8FF] hover:bg-[#D1E9FF] text-[#175CD3] border border-[#B2DDFF] rounded-lg text-[11px] font-semibold transition-colors"
+                                    title="Catat Cicilan / Pembayaran Sebagian"
+                                  >
+                                    Cicil
+                                  </button>
+                                </>
+                              )}
+
+                              {isAdmin && sectionTab === 'active' && kb.status === 'Lunas' && kb.isArchived === false && (
                                 <button
                                   type="button"
-                                  onClick={() => handleStatusChange(kb, 'reject')}
-                                  className="px-2 py-1 bg-[#FEF3F2] hover:bg-[#FEE4E2] text-[#B42318] border border-[#FECDCA] rounded-lg text-[11px] font-semibold"
+                                  onClick={() => handleArchiveKasbon(kb)}
+                                  className="px-2.5 py-1 bg-[#E1F3EA] hover:bg-[#D1FADF] text-[#166534] border border-[#A6F4C5] rounded-lg text-[11px] font-semibold transition-colors"
+                                  title="Pindahkan Kembali ke Arsip Pelunasan"
                                 >
-                                  Tolak
+                                  Arsipkan
                                 </button>
-                              </>
-                            )}
+                              )}
 
-                            {isAdmin && kb.remainingAmount > 0 && kb.status !== 'Ditolak' && (
+                              {isAdmin && sectionTab === 'archive' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenRestoreModal(kb)}
+                                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[11px] font-semibold transition-colors inline-flex items-center gap-1"
+                                  title="Keluarkan dari Arsip Pelunasan kembali ke Kasbon Aktif"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  <span>Keluarkan dari Arsip</span>
+                                </button>
+                              )}
+
                               <button
                                 type="button"
-                                onClick={() => handleOpenPayModal(kb)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#ECFDF3] hover:bg-[#D1FADF] text-[#027A48] border border-[#A6F4C5] rounded-lg text-[11px] font-semibold"
-                                title="Catat Pembayaran / Pelunasan Manual"
+                                onClick={() => setDetailKasbon(kb)}
+                                className="p-1.5 text-slate-400 hover:text-[#2563EB] hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Lihat Detail & Riwayat Pembayaran"
                               >
-                                <Wallet className="w-3.5 h-3.5" />
-                                <span>Bayar</span>
+                                <Eye className="w-4 h-4" />
                               </button>
-                            )}
 
-                            <button
-                              type="button"
-                              onClick={() => setDetailKasbon(kb)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#F9FAFB] text-[#344054] border border-[#D0D5DD] rounded-lg text-[11px] font-semibold"
-                            >
-                              <History className="w-3 h-3" />
-                              <span>Riwayat</span>
-                            </button>
-
-                            {isAdmin && kb.deductedAmount === 0 && (
-                              <button
-                                type="button"
-                                onClick={() => setKasbonToDelete(kb)}
-                                className="p-1 text-[#667085] hover:text-[#D92D20] hover:bg-[#FEF3F2] rounded-lg transition-colors"
-                                title="Hapus Kasbon"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+                              {isAdmin && sectionTab === 'active' && kb.deductedAmount === 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setKasbonToDelete(kb)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                  title="Hapus Kasbon"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {filteredKasbons.length > 0 && (
+              <div className="px-6 py-2.5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                <span>
+                  Menampilkan <strong>{Math.min(filteredKasbons.length, 10)}</strong> baris terlihat dari total{' '}
+                  <strong>{filteredKasbons.length}</strong> transaksi{' '}
+                  {sectionTab === 'archive' ? 'Arsip Pelunasan' : 'Kasbon Aktif'}
+                </span>
+                {filteredKasbons.length > 10 && (
+                  <span className="text-[#2563EB] font-medium">
+                    Gunakan scroll vertikal di dalam tabel untuk melihat baris ke-11 dst.
+                  </span>
                 )}
-              </tbody>
-            </table>
+              </div>
+            )}
           </div>
         ) : (
-          /* Riwayat Kasbon Masing-Masing Karyawan */
-          <div className="p-4 space-y-3">
-            {employeeSummaries.length === 0 ? (
-              <div className="py-10 text-center text-xs text-[#667085]">
-                Belum ada riwayat kasbon karyawan sesuai filter.
-              </div>
-            ) : (
-              employeeSummaries.map((empSum) => {
-                const isExpanded = expandedEmployeeId === empSum.employeeId;
-                return (
-                  <div
-                    key={empSum.employeeId}
-                    className="border border-[#EAECF0] rounded-xl overflow-hidden bg-white"
-                  >
-                    <div
-                      onClick={() => setExpandedEmployeeId(isExpanded ? null : empSum.employeeId)}
-                      className="p-4 bg-[#F9FAFB] hover:bg-[#F2F4F7] transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <User className="w-4 h-4 text-[#4693FD]" />
-                          <span className="font-bold text-sm text-[#1D2939]">{empSum.employeeName}</span>
-                          <span className="text-[11px] font-mono px-2 py-0.5 bg-white border border-[#D0D5DD] rounded text-[#475467]">
-                            {empSum.employeeId} · {empSum.employeeRole}
+          /* Riwayat Kasbon Masing-Masing Karyawan (Bounded to max 10 visible rows with internal vertical scroll) */
+          <div>
+            <div className="divide-y divide-slate-200/75 max-h-[680px] overflow-y-auto overscroll-contain">
+              {employeeSummaries.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500">
+                  Belum ada riwayat kasbon karyawan sesuai filter.
+                </div>
+              ) : (
+                employeeSummaries.map((empSum, idx) => {
+                  const isExpanded = expandedEmployeeId === empSum.employeeId;
+                  const empObj = employees.find((e) => e.id === empSum.employeeId);
+                  const roleName = empSum.employeeRole === 'Kenek' ? 'Helper' : empSum.employeeRole || 'Tukang';
+                  const isDriver = isDriverRole(roleName);
+                  const avatarClass = avatarPalettes[idx % avatarPalettes.length];
+
+                  const rolePillStyle =
+                    roleName === 'Mandor'
+                      ? 'bg-[#EDE6DF] text-[#44403C]'
+                      : roleName === 'Tukang'
+                      ? 'bg-[#E1EBF9] text-[#284B80]'
+                      : roleName === 'Driver'
+                      ? 'bg-[#E3EEDF] text-[#335426]'
+                      : 'bg-[#DCEFE9] text-[#1D5647]';
+
+                  return (
+                    <div key={empSum.employeeId} className="bg-white">
+                      <div
+                        onClick={() => setExpandedEmployeeId(isExpanded ? null : empSum.employeeId)}
+                        className="py-4 px-6 hover:bg-slate-50/80 transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold tracking-tight shrink-0 ${avatarClass}`}
+                          >
+                            {getInitials(empSum.employeeName)}
+                          </div>
+                          <div>
+                            <div className="font-semibold text-slate-900 text-[13.5px] leading-snug">
+                              {empSum.employeeName}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-1.5">
+                              <span>{roleName}</span>
+                              <span className="text-slate-300">·</span>
+                              <span className="font-mono text-slate-500">{empSum.employeeId}</span>
+                              {empObj?.nik && (
+                                <>
+                                  <span className="text-slate-300">·</span>
+                                  <span className="font-mono text-slate-400">NIK: {empObj.nik}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-6 text-xs">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium ${rolePillStyle}`}
+                          >
+                            {isDriver ? (
+                              <Truck className="w-3.5 h-3.5 opacity-80" />
+                            ) : (
+                              <HardHat className="w-3.5 h-3.5 opacity-80" />
+                            )}
+                            <span>{roleName}</span>
                           </span>
-                          {Array.from(empSum.projectNames).map((pn) => (
+
+                          <div>
+                            <div className="text-xs font-medium text-slate-700 font-mono tabular-nums">
+                              {formatRupiah(empSum.totalKasbon)}
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono tabular-nums mt-0.5">
+                              Sisa: {formatRupiah(empSum.totalRemaining)} · Bayar: {formatRupiah(empSum.totalPaid)}
+                            </div>
+                          </div>
+
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+                              empSum.totalRemaining === 0
+                                ? 'bg-[#E1F3EA] text-[#166534]'
+                                : 'bg-[#EFF8FF] text-[#175CD3]'
+                            }`}
+                          >
                             <span
-                              key={pn}
-                              className="text-[11px] px-2 py-0.5 bg-[#EFF5FF] text-[#155EEF] rounded font-medium"
-                            >
-                              {pn}
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                empSum.totalRemaining === 0 ? 'bg-[#15803D]' : 'bg-[#2563EB]'
+                              }`}
+                            />
+                            <span>
+                              {empSum.totalRemaining === 0 ? 'Lunas' : `${empSum.records.length} Kasbon`}
                             </span>
-                          ))}
+                          </span>
+
+                          <ChevronRight
+                            className={`w-4 h-4 text-slate-400 transition-transform ${
+                              isExpanded ? 'rotate-90' : ''
+                            }`}
+                          />
                         </div>
-                        <p className="text-[11px] text-[#667085]">
-                          {empSum.records.length} catatan pengajuan kasbon
-                        </p>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-5 text-xs">
-                        <div>
-                          <span className="text-[#667085] block text-[10px]">Total Kasbon</span>
-                          <span className="font-mono font-semibold text-[#1D2939]">
-                            {formatRupiah(empSum.totalKasbon)}
-                          </span>
+                      {isExpanded && (
+                        <div className="px-6 pb-4 pt-2 bg-slate-50/50 border-t border-slate-100">
+                          <div className="overflow-x-auto bg-white rounded-xl border border-slate-200/80">
+                            <table className="w-full text-left text-xs">
+                              <tbody className="divide-y divide-slate-200/70">
+                                {empSum.records.map((kb) => (
+                                  <tr key={kb.id} className="hover:bg-slate-50">
+                                    <td className="py-3 px-4 font-mono font-medium text-[#2563EB]">
+                                      {kb.kasbonNumber}
+                                    </td>
+                                    <td className="py-3 px-4 text-slate-500">
+                                      Pinjam: {formatDateID(kb.requestDate)}
+                                      {kb.paidOffDate ? ` · Lunas: ${formatDateID(kb.paidOffDate)}` : ''}
+                                    </td>
+                                    <td className="py-3 px-4 text-slate-700">
+                                      {kb.projectName || projects.find((p) => p.id === kb.projectId)?.name || '-'}
+                                    </td>
+                                    <td className="py-3 px-4 text-slate-600">{kb.reason}</td>
+                                    <td className="py-3 px-4 text-right font-mono">{formatRupiah(kb.amount)}</td>
+                                    <td className="py-3 px-4 text-right font-mono text-emerald-700">
+                                      {formatRupiah(kb.deductedAmount || 0)}
+                                    </td>
+                                    <td className="py-3 px-4 text-right font-mono font-bold text-rose-700">
+                                      {formatRupiah(kb.remainingAmount)}
+                                    </td>
+                                    <td className="py-3 px-4 text-right">
+                                      <div className="inline-flex items-center gap-1.5">
+                                        {isAdmin && sectionTab === 'active' && kb.remainingAmount > 0 && kb.status !== 'Ditolak' && (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenPayModal(kb, 'full')}
+                                              className="px-2.5 py-1 bg-[#16A34A] text-white rounded-lg text-[11px] font-semibold"
+                                            >
+                                              Pelunasan
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleOpenPayModal(kb, 'partial')}
+                                              className="px-2.5 py-1 bg-[#EFF8FF] text-[#175CD3] border border-[#B2DDFF] rounded-lg text-[11px] font-semibold"
+                                            >
+                                              Cicil
+                                            </button>
+                                          </>
+                                        )}
+                                        {isAdmin && sectionTab === 'archive' && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenRestoreModal(kb)}
+                                            className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-[11px] font-semibold"
+                                          >
+                                            Keluarkan dari Arsip
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={() => setDetailKasbon(kb)}
+                                          className="px-2.5 py-1 bg-white text-slate-700 border border-slate-200 rounded-lg text-[11px] font-semibold"
+                                        >
+                                          Detail
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                        <div>
-                          <span className="text-[#667085] block text-[10px]">Total Pembayaran</span>
-                          <span className="font-mono font-semibold text-[#027A48]">
-                            {formatRupiah(empSum.totalPaid)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[#667085] block text-[10px]">Sisa Kasbon</span>
-                          <span className="font-mono font-bold text-[#B42318]">
-                            {formatRupiah(empSum.totalRemaining)}
-                          </span>
-                        </div>
-                        <ChevronRight
-                          className={`w-4 h-4 text-[#667085] transition-transform ${
-                            isExpanded ? 'rotate-90' : ''
-                          }`}
-                        />
-                      </div>
+                      )}
                     </div>
-
-                    {isExpanded && (
-                      <div className="p-4 border-t border-[#EAECF0] bg-white overflow-x-auto">
-                        <table className="w-full text-left text-xs">
-                          <thead>
-                            <tr className="bg-[#F9FAFB] text-[#475467] border-b border-[#EAECF0]">
-                              <th className="py-2 px-3">No. Kasbon</th>
-                              <th className="py-2 px-3">Tanggal</th>
-                              <th className="py-2 px-3">Proyek</th>
-                              <th className="py-2 px-3">Alasan</th>
-                              <th className="py-2 px-3 text-right">Total Kasbon</th>
-                              <th className="py-2 px-3 text-right">Terbayar</th>
-                              <th className="py-2 px-3 text-right">Sisa</th>
-                              <th className="py-2 px-3 text-center">Status</th>
-                              <th className="py-2 px-3 text-center">Aksi</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-[#EAECF0]">
-                            {empSum.records.map((kb) => (
-                              <tr key={kb.id} className="hover:bg-[#F9FAFB]">
-                                <td className="py-2.5 px-3 font-mono font-medium text-[#4693FD]">
-                                  {kb.kasbonNumber}
-                                </td>
-                                <td className="py-2.5 px-3 text-[#667085]">{formatDateID(kb.requestDate)}</td>
-                                <td className="py-2.5 px-3 text-[#344054]">
-                                  {kb.projectName || projects.find((p) => p.id === kb.projectId)?.name || '-'}
-                                </td>
-                                <td className="py-2.5 px-3 text-[#344054]">{kb.reason}</td>
-                                <td className="py-2.5 px-3 text-right font-mono">{formatRupiah(kb.amount)}</td>
-                                <td className="py-2.5 px-3 text-right font-mono text-[#027A48]">
-                                  {formatRupiah(kb.deductedAmount || 0)}
-                                </td>
-                                <td className="py-2.5 px-3 text-right font-mono font-bold text-[#B42318]">
-                                  {formatRupiah(kb.remainingAmount)}
-                                </td>
-                                <td className="py-2.5 px-3 text-center">
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F2F4F7] text-[#344054]">
-                                    {kb.status === 'Dipotong sebagian' ? 'Dibayar Sebagian' : kb.status}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-3 text-center">
-                                  <div className="inline-flex items-center gap-1.5">
-                                    {isAdmin && kb.remainingAmount > 0 && kb.status !== 'Ditolak' && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenPayModal(kb)}
-                                        className="px-2 py-1 bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] rounded text-[11px] font-semibold"
-                                      >
-                                        Bayar
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => setDetailKasbon(kb)}
-                                      className="px-2 py-1 bg-white text-[#344054] border border-[#D0D5DD] rounded text-[11px] font-semibold"
-                                    >
-                                      Detail & Riwayat
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
+                  );
+                })
+              )}
+            </div>
+            {employeeSummaries.length > 0 && (
+              <div className="px-6 py-2.5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                <span>
+                  Menampilkan maksimal <strong>10</strong> karyawan terlihat sekaligus dari{' '}
+                  <strong>{employeeSummaries.length}</strong> karyawan
+                </span>
+                {employeeSummaries.length > 10 && (
+                  <span className="text-[#2563EB] font-medium">
+                    Scroll daftar ke bawah untuk melihat karyawan ke-11 dst.
+                  </span>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -962,11 +1254,11 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
 
       {/* MODAL 1: INPUT PENGAJUAN KASBON BARU */}
       {isAdmin && isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md overflow-y-auto animate-in fade-in">
-          <div className="glass-modal rounded-2xl max-w-lg w-full overflow-hidden my-8 animate-in fade-in zoom-in-95">
-            <div className="px-5 py-4 bg-white/50 border-b border-white/60 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in">
+          <div className="glass-modal kms-modal-md bg-white border border-slate-200 shadow-xl rounded-2xl w-[calc(100%-24px)] sm:w-full max-w-[600px] max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-50/80 border border-blue-200/60 text-[#155EEF] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 text-[#155EEF] flex items-center justify-center shrink-0">
                   <Wallet className="w-4 h-4" />
                 </div>
                 <div>
@@ -984,7 +1276,8 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="p-5 space-y-4 text-xs max-h-[82vh] overflow-y-auto">
+            <form onSubmit={handleCreateSubmit} className="flex flex-col flex-1 overflow-hidden text-xs">
+              <div className="p-5 space-y-4 overflow-y-auto flex-1">
               {/* 1. Pilih Proyek */}
               <div>
                 <label className="block font-semibold text-[#344054] mb-1.5">
@@ -1185,8 +1478,9 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
                   className="w-full px-3.5 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
                 />
               </div>
+              </div>
 
-              <div className="pt-3 border-t border-[#EAECF0] flex items-center justify-end gap-2">
+              <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
@@ -1208,17 +1502,19 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
         </div>
       )}
 
-      {/* MODAL 2: PENCATATAN PEMBAYARAN / PELUNASAN MANUAL */}
+      {/* MODAL 2: KONFIRMASI PELUNASAN / CICILAN KASBON */}
       {isAdmin && kasbonToPay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
-          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="p-5 border-b border-white/60 flex items-center justify-between bg-white/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in">
+          <div className="glass-modal kms-modal-sm bg-white border border-slate-200 shadow-xl rounded-2xl w-[calc(100%-24px)] sm:w-full max-w-[440px] max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-emerald-50/80 border border-emerald-200/60 text-[#027A48] flex items-center justify-center">
-                  <Wallet className="w-4 h-4" />
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-[#027A48] flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800">Catat Pembayaran / Pelunasan Kasbon</h3>
+                  <h3 className="text-sm font-bold text-slate-800">
+                    {payMode === 'full' ? 'Konfirmasi Pelunasan Kasbon' : 'Catat Pembayaran Cicilan Kasbon'}
+                  </h3>
                   <p className="text-[11px] text-slate-500">
                     {kasbonToPay.kasbonNumber} · {kasbonToPay.employeeName}
                   </p>
@@ -1234,107 +1530,155 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
               </button>
             </div>
 
-            <form onSubmit={handlePaySubmit} className="p-5 space-y-4 text-xs">
-              <div className="p-3.5 bg-[#F8F9FA] rounded-xl border border-[#EAECF0] space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-[#667085]">Total Kasbon:</span>
-                  <span className="font-mono font-semibold text-[#1D2939]">{formatRupiah(kasbonToPay.amount)}</span>
+            <form onSubmit={handlePaySubmit} className="flex flex-col flex-1 overflow-hidden text-xs">
+              <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+                {/* Mode Toggle: Pelunasan Penuh vs Pembayaran Sebagian */}
+                <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPayMode('full');
+                      setPaymentForm({
+                        ...paymentForm,
+                        amount: String(kasbonToPay.remainingAmount),
+                      });
+                    }}
+                    className={`py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                      payMode === 'full'
+                        ? 'bg-white text-[#027A48] shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Pelunasan Penuh (LUNAS)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPayMode('partial');
+                      setPaymentForm({
+                        ...paymentForm,
+                        amount: String(Math.round(kasbonToPay.remainingAmount / 2)),
+                      });
+                    }}
+                    className={`py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                      payMode === 'partial'
+                        ? 'bg-white text-[#155EEF] shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Cicilan / Sebagian
+                  </button>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-[#667085]">Total Sudah Dibayar:</span>
-                  <span className="font-mono font-semibold text-[#027A48]">
-                    {formatRupiah(kasbonToPay.deductedAmount || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between pt-1.5 border-t border-[#EAECF0]">
-                  <span className="font-semibold text-[#344054]">Sisa Kasbon Saat Ini:</span>
-                  <span className="font-mono font-bold text-sm text-[#B42318]">
-                    {formatRupiah(kasbonToPay.remainingAmount)}
-                  </span>
-                </div>
-              </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="font-semibold text-[#344054]">
-                    Nominal Pembayaran (Rp) <span className="text-[#D92D20]">*</span>
-                  </label>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPaymentForm({
-                          ...paymentForm,
-                          amount: String(Math.round(kasbonToPay.remainingAmount / 2)),
-                        })
-                      }
-                      className="px-2 py-0.5 bg-[#F2F4F7] hover:bg-[#E4E7EC] text-[#344054] rounded text-[10px] font-semibold"
-                    >
-                      50%
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPaymentForm({
-                          ...paymentForm,
-                          amount: String(kasbonToPay.remainingAmount),
-                        })
-                      }
-                      className="px-2 py-0.5 bg-[#ECFDF3] hover:bg-[#D1FADF] text-[#027A48] border border-[#A6F4C5] rounded text-[10px] font-semibold"
-                    >
-                      Lunasi Penuh
-                    </button>
+                <div className="p-3.5 bg-[#F8F9FA] rounded-xl border border-[#EAECF0] space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-[#667085]">Nama Karyawan:</span>
+                    <span className="font-semibold text-[#1D2939]">{kasbonToPay.employeeName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#667085]">Total Pinjaman Kasbon:</span>
+                    <span className="font-mono font-semibold text-[#1D2939]">{formatRupiah(kasbonToPay.amount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#667085]">Sudah Dibayar Sebelumnya:</span>
+                    <span className="font-mono font-semibold text-[#027A48]">
+                      {formatRupiah(kasbonToPay.deductedAmount || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-1.5 border-t border-[#EAECF0]">
+                    <span className="font-semibold text-[#344054]">Sisa Kewajiban Kasbon:</span>
+                    <span className="font-mono font-bold text-sm text-[#B42318]">
+                      {formatRupiah(kasbonToPay.remainingAmount)}
+                    </span>
                   </div>
                 </div>
-                <input
-                  type="number"
-                  min="1"
-                  max={kasbonToPay.remainingAmount}
-                  step="any"
-                  required
-                  value={paymentForm.amount}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-white border border-[#D0D5DD] rounded-xl font-mono font-bold text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
-                />
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {payMode === 'full' ? (
+                  <div className="p-3.5 bg-[#ECFDF3] border border-[#A6F4C5] rounded-xl space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#027A48]">Nominal Pelunasan:</span>
+                      <span className="font-mono font-bold text-sm text-[#027A48]">
+                        {formatRupiah(kasbonToPay.remainingAmount)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#027A48]/90 leading-relaxed">
+                      Setelah dikonfirmasi, status kasbon akan diubah menjadi <strong>LUNAS</strong>, tanggal pelunasan disimpan, dan data otomatis dipindahkan dari <strong>Kasbon Aktif</strong> ke <strong>Arsip Pelunasan</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="font-semibold text-[#344054]">
+                        Nominal Pembayaran (Rp) <span className="text-[#D92D20]">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPaymentForm({
+                            ...paymentForm,
+                            amount: String(Math.round(kasbonToPay.remainingAmount / 2)),
+                          })
+                        }
+                        className="px-2 py-0.5 bg-[#F2F4F7] hover:bg-[#E4E7EC] text-[#344054] rounded text-[10px] font-semibold"
+                      >
+                        50% ({formatRupiah(Math.round(kasbonToPay.remainingAmount / 2))})
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      max={kasbonToPay.remainingAmount}
+                      step="any"
+                      required
+                      value={paymentForm.amount}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-white border border-[#D0D5DD] rounded-xl font-mono font-bold text-xs text-[#1D2939] focus:outline-none focus:border-[#4693FD]"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Jika membayar sebagian, status tetap <strong>Belum Lunas (Dibayar Sebagian)</strong> dan tetap berada pada daftar <strong>Kasbon Aktif</strong>.
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-[#344054] mb-1.5">Tanggal Pelunasan / Bayar *</label>
+                    <input
+                      type="date"
+                      required
+                      value={paymentForm.paymentDate}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#1D2939]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-[#344054] mb-1.5">Metode Bayar *</label>
+                    <select
+                      value={paymentForm.paymentMethod}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#1D2939]"
+                    >
+                      <option value="Tunai">Tunai / Kas Lapangan</option>
+                      <option value="Transfer Bank">Transfer Bank</option>
+                      <option value="Potong Gaji">Potong Gaji</option>
+                      <option value="E-Wallet">E-Wallet</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block font-semibold text-[#344054] mb-1.5">Tanggal Bayar *</label>
+                  <label className="block font-semibold text-[#344054] mb-1.5">Catatan Pelunasan (Opsional)</label>
                   <input
-                    type="date"
-                    required
-                    value={paymentForm.paymentDate}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
+                    type="text"
+                    placeholder="Contoh: Pelunasan penuh kasbon atau cicilan ke-1..."
+                    value={paymentForm.notes}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
                     className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#1D2939]"
                   />
                 </div>
-                <div>
-                  <label className="block font-semibold text-[#344054] mb-1.5">Metode Bayar *</label>
-                  <select
-                    value={paymentForm.paymentMethod}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#1D2939]"
-                  >
-                    <option value="Tunai">Tunai / Kas Lapangan</option>
-                    <option value="Transfer Bank">Transfer Bank</option>
-                    <option value="E-Wallet">E-Wallet</option>
-                  </select>
-                </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-[#344054] mb-1.5">Catatan Pelunasan (Opsional)</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Cicilan ke-1 atau pelunasan tunai..."
-                  value={paymentForm.notes}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#1D2939]"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-[#EAECF0] flex justify-end gap-2">
+              <div className="px-4 sm:px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setKasbonToPay(null)}
@@ -1346,9 +1690,107 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
                 <button
                   type="submit"
                   disabled={submittingPayment}
-                  className="px-4 py-2 bg-[#12B76A] hover:bg-[#027A48] text-white rounded-xl text-xs font-semibold disabled:opacity-50"
+                  className="px-4 py-2 bg-[#16A34A] hover:bg-[#15803D] text-white rounded-xl text-xs font-semibold disabled:opacity-50"
                 >
-                  {submittingPayment ? 'Menyimpan...' : 'Simpan Pembayaran'}
+                  {submittingPayment
+                    ? 'Memproses...'
+                    : payMode === 'full'
+                    ? 'Konfirmasi Pelunasan (Lunas)'
+                    : 'Simpan Cicilan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2B: KONFIRMASI KELUARKAN DARI ARSIP PELUNASAN */}
+      {isAdmin && kasbonToRestore && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in">
+          <div className="glass-modal kms-modal-sm bg-white border border-slate-200 shadow-xl rounded-2xl w-[calc(100%-24px)] sm:w-full max-w-[440px] max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-4 sm:p-5 bg-amber-50 border-b border-amber-200 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-amber-950">Keluarkan dari Arsip Pelunasan?</h3>
+                  <p className="text-[11px] text-amber-700">
+                    {kasbonToRestore.kasbonNumber} · {kasbonToRestore.employeeName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setKasbonToRestore(null)}
+                disabled={restoringKasbon}
+                className="p-1 text-amber-800 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmRestore} className="flex flex-col flex-1 overflow-hidden text-xs">
+              <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
+                <p className="text-slate-700 leading-relaxed">
+                  Apakah Anda yakin ingin mengeluarkan data kasbon{' '}
+                  <strong>{kasbonToRestore.employeeName}</strong> dari <strong>Arsip Pelunasan</strong> dan mengembalikannya ke daftar <strong>Kasbon Aktif</strong>?
+                </p>
+
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Total Pinjaman:</span>
+                    <span className="font-mono font-semibold text-slate-800">
+                      {formatRupiah(kasbonToRestore.amount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Total Riwayat Pembayaran:</span>
+                    <span className="font-mono font-semibold text-emerald-700">
+                      {formatRupiah(kasbonToRestore.deductedAmount || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Tanggal Pelunasan:</span>
+                    <span className="font-semibold text-slate-700">
+                      {kasbonToRestore.paidOffDate ? formatDateID(kasbonToRestore.paidOffDate) : '-'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl text-[11px] text-slate-700">
+                  Seluruh riwayat pembayaran sebelumnya tetap tersimpan utuh dan tidak dihapus. Aktivitas pemulihan ini juga akan tercatat pada log sistem.
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5">
+                    Alasan / Catatan Pemulihan (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Koreksi administrasi atau peninjauan ulang..."
+                    value={restoreReason}
+                    onChange={(e) => setRestoreReason(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="px-4 sm:px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setKasbonToRestore(null)}
+                  disabled={restoringKasbon}
+                  className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={restoringKasbon}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold disabled:opacity-50"
+                >
+                  {restoringKasbon ? 'Memproses...' : 'Ya, Keluarkan dari Arsip'}
                 </button>
               </div>
             </form>
@@ -1358,12 +1800,12 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
 
       {/* MODAL 3: DETAIL & RIWAYAT PEMBAYARAN KASBON */}
       {detailKasbon && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
-          <div className="glass-modal rounded-2xl max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
-            <div className="p-5 border-b border-white/60 flex items-center justify-between bg-white/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in">
+          <div className="glass-modal kms-modal-md bg-white border border-slate-200 shadow-xl rounded-2xl w-[calc(100%-24px)] sm:w-full max-w-[600px] max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-[#155EEF] bg-blue-50/80 px-2 py-0.5 rounded border border-blue-200/60">
+                  <span className="font-mono text-xs font-bold text-[#155EEF] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                     {detailKasbon.kasbonNumber}
                   </span>
                   <h3 className="text-base font-bold text-slate-800">{detailKasbon.employeeName}</h3>
@@ -1384,10 +1826,10 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-3 bg-[#F8F9FA] rounded-xl border border-[#EAECF0]">
-                  <span className="text-[#667085] block">Total Kasbon</span>
+                  <span className="text-[#667085] block">Total Pinjaman Kasbon</span>
                   <span className="text-base font-bold font-mono text-[#1D2939] mt-0.5 block">
                     {formatRupiah(detailKasbon.amount)}
                   </span>
@@ -1399,7 +1841,7 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
                   </span>
                 </div>
                 <div className="p-3 bg-[#FEF3F2] rounded-xl border border-[#FECDCA]">
-                  <span className="text-[#B42318] block">Sisa Kasbon</span>
+                  <span className="text-[#B42318] block">Sisa Kewajiban</span>
                   <span className="text-base font-bold font-mono text-[#B42318] mt-0.5 block">
                     {formatRupiah(detailKasbon.remainingAmount)}
                   </span>
@@ -1408,9 +1850,15 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
 
               <div className="p-3.5 bg-[#F9FAFB] rounded-xl border border-[#EAECF0] space-y-1.5">
                 <div className="flex justify-between">
-                  <span className="text-[#667085]">Tanggal Pengajuan:</span>
+                  <span className="text-[#667085]">Tanggal Pinjaman:</span>
                   <span className="font-semibold text-[#1D2939]">{formatDateID(detailKasbon.requestDate)}</span>
                 </div>
+                {detailKasbon.paidOffDate && (
+                  <div className="flex justify-between">
+                    <span className="text-[#667085]">Tanggal Pelunasan:</span>
+                    <span className="font-semibold text-[#027A48]">{formatDateID(detailKasbon.paidOffDate)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-[#667085]">Alasan Pengajuan:</span>
                   <span className="font-semibold text-[#1D2939]">{detailKasbon.reason}</span>
@@ -1426,16 +1874,37 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
               {/* Riwayat Pembayaran Manual */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-[#1D2939]">Riwayat Pembayaran / Pelunasan Manual</h4>
-                  {isAdmin && detailKasbon.remainingAmount > 0 && detailKasbon.status !== 'Ditolak' && (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenPayModal(detailKasbon)}
-                      className="px-2.5 py-1 bg-[#12B76A] hover:bg-[#027A48] text-white rounded-lg text-[11px] font-semibold"
-                    >
-                      + Catat Pembayaran
-                    </button>
-                  )}
+                  <h4 className="font-bold text-[#1D2939]">Riwayat Pembayaran Lengkap</h4>
+                  <div className="flex items-center gap-1.5">
+                    {isAdmin && detailKasbon.remainingAmount > 0 && detailKasbon.status !== 'Ditolak' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPayModal(detailKasbon, 'full')}
+                          className="px-2.5 py-1 bg-[#16A34A] hover:bg-[#15803D] text-white rounded-lg text-[11px] font-semibold"
+                        >
+                          Pelunasan
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPayModal(detailKasbon, 'partial')}
+                          className="px-2.5 py-1 bg-[#EFF8FF] hover:bg-[#D1E9FF] text-[#175CD3] border border-[#B2DDFF] rounded-lg text-[11px] font-semibold"
+                        >
+                          + Catat Cicilan
+                        </button>
+                      </>
+                    )}
+                    {isAdmin && isArchivedRecord(detailKasbon) && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenRestoreModal(detailKasbon)}
+                        className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[11px] font-semibold inline-flex items-center gap-1"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Keluarkan dari Arsip</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {!detailKasbon.payments || detailKasbon.payments.length === 0 ? (
@@ -1489,7 +1958,7 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
               )}
             </div>
 
-            <div className="px-5 py-3.5 bg-[#F9FAFB] border-t border-[#EAECF0] flex justify-end">
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0">
               <button
                 type="button"
                 onClick={() => setDetailKasbon(null)}
@@ -1504,11 +1973,11 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
 
       {/* MODAL 4: KONFIRMASI HAPUS KASBON */}
       {isAdmin && kasbonToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
-          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="p-5 bg-rose-50/70 border-b border-rose-200/50 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-[2px] animate-in fade-in">
+          <div className="glass-modal kms-modal-sm bg-white border border-slate-200 shadow-xl rounded-2xl w-[calc(100%-24px)] sm:w-full max-w-[420px] max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-4 sm:p-5 bg-rose-50 border-b border-rose-200 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-rose-100/80 border border-rose-200/60 text-[#D92D20] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-rose-100 border border-rose-200 text-[#D92D20] flex items-center justify-center shrink-0">
                   <Trash2 className="w-4 h-4" />
                 </div>
                 <div>
@@ -1526,29 +1995,30 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
               </button>
             </div>
 
-            <div className="p-5 space-y-3 text-xs">
+            <div className="p-4 sm:p-5 space-y-3 text-xs overflow-y-auto flex-1">
               <p className="text-[#344054]">
                 Anda yakin ingin menghapus pengajuan kasbon <strong>{kasbonToDelete.employeeName}</strong> sebesar{' '}
                 <strong className="font-mono">{formatRupiah(kasbonToDelete.amount)}</strong>?
               </p>
-              <div className="flex justify-end gap-2 pt-3 border-t border-[#EAECF0]">
-                <button
-                  type="button"
-                  onClick={() => setKasbonToDelete(null)}
-                  disabled={deletingKasbon}
-                  className="px-4 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs font-semibold text-[#344054]"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmDelete}
-                  disabled={deletingKasbon}
-                  className="px-4 py-2 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-xl text-xs font-semibold"
-                >
-                  {deletingKasbon ? 'Menghapus...' : 'Ya, Hapus'}
-                </button>
-              </div>
+            </div>
+
+            <div className="px-4 sm:px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setKasbonToDelete(null)}
+                disabled={deletingKasbon}
+                className="px-4 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs font-semibold text-[#344054]"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deletingKasbon}
+                className="px-4 py-2 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-xl text-xs font-semibold"
+              >
+                {deletingKasbon ? 'Menghapus...' : 'Ya, Hapus'}
+              </button>
             </div>
           </div>
         </div>
@@ -1567,8 +2037,8 @@ export const KasbonPage: React.FC<KasbonPageProps> = ({ showToast, onDataChanged
               };
 
         return (
-          <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 backdrop-blur-md">
-            <div className="bg-[#0F172A] rounded-2xl max-w-4xl w-full border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-[2px]">
+            <div className="bg-[#0F172A] rounded-2xl w-[calc(100%-24px)] sm:w-full max-w-[800px] border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] sm:max-h-[85vh]">
               <div className="px-5 py-3.5 bg-[#1E293B] border-b border-white/10 flex items-center justify-between">
                 <div className="text-xs text-white">
                   <span className="font-mono font-bold text-[#4693FD]">{viewingProofKasbon.kasbonNumber}</span> ·{' '}

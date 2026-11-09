@@ -238,7 +238,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
 
       {/* Owner Notice */}
       {isOwner && (
-        <div className="bg-[#FEF6EE]/90 backdrop-blur-md border border-[#F9DBAF] rounded-2xl p-4 flex items-center justify-between text-xs text-[#B54708]">
+        <div className="bg-[#FEF6EE] border border-[#F9DBAF] rounded-2xl p-4 flex items-center justify-between text-xs text-[#B54708]">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-[#B54708] shrink-0" />
             <span>
@@ -259,17 +259,17 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
                 placeholder="Cari aktivitas, admin, atau detail..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3.5 py-2 bg-white/70 hover:bg-white/90 focus:bg-white border border-white/80 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#4693FD]"
+                className="w-full pl-9 pr-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#4693FD]"
               />
             </div>
 
-            <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
               <div className="flex items-center gap-2 text-xs">
                 <label className="text-slate-500 font-medium">Modul:</label>
                 <select
                   value={moduleFilter}
                   onChange={(e) => setModuleFilter(e.target.value)}
-                  className="bg-white/80 border border-white/80 rounded-xl px-2.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-[#4693FD]"
+                  className="bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-[#4693FD]"
                 >
                   <option value="all">Semua Modul</option>
                   <option value="Karyawan">Karyawan</option>
@@ -288,7 +288,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
               <button
                 onClick={fetchLogs}
                 disabled={loadingLogs}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-white/80 hover:bg-white text-slate-700 text-xs font-semibold rounded-xl border border-white/80 shadow-xs transition-colors shrink-0"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-300 shadow-2xs transition-colors shrink-0"
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loadingLogs ? 'animate-spin' : ''}`} />
                 <span>Segarkan</span>
@@ -497,9 +497,9 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
 
       {/* Add / Edit User Modal */}
       {isUserModalOpen && (
-        <div className="kms-modal-overlay fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
-          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="p-5 border-b border-white/60 flex items-center justify-between bg-white/50">
+        <div className="fixed inset-0 z-50 bg-slate-900/45 flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 shadow-xl rounded-2xl max-w-[600px] w-[calc(100%-24px)] sm:w-full max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
               <div>
                 <h3 className="text-base font-semibold text-slate-800">
                   {editingUser ? `Edit Akun: ${editingUser.username}` : 'Tambah Pengguna Baru'}
@@ -516,75 +516,77 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveUser} className="p-5 space-y-4 text-xs">
-              <div>
-                <label className="block font-medium text-[#344054] mb-1">Nama Lengkap *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Bpk. Ir. H. Bambang Prakoso"
-                  value={userFormData.name}
-                  onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleSaveUser} className="flex flex-col flex-1 min-h-0 bg-white">
+              <div className="p-5 space-y-4 text-xs overflow-y-auto flex-1">
                 <div>
-                  <label className="block font-medium text-[#344054] mb-1">Username *</label>
+                  <label className="block font-medium text-[#344054] mb-1">Nama Lengkap *</label>
                   <input
                     type="text"
                     required
-                    disabled={!!editingUser}
-                    placeholder="Contoh: admin atau owner"
-                    value={userFormData.username}
-                    onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
-                    className="w-full px-3 py-2 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg text-xs font-mono text-[#262626]"
+                    placeholder="Contoh: Bpk. Ir. H. Bambang Prakoso"
+                    value={userFormData.name}
+                    onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626]"
                   />
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1">Username *</label>
+                    <input
+                      type="text"
+                      required
+                      disabled={!!editingUser}
+                      placeholder="Contoh: admin atau owner"
+                      value={userFormData.username}
+                      onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
+                      className="w-full px-3 py-2 bg-white disabled:bg-[#F9FAFB] border border-[#D0D5DD] rounded-lg text-xs font-mono text-[#262626]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1">Peran (Hak Akses) *</label>
+                    <select
+                      value={userFormData.role}
+                      onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value as any })}
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-medium text-[#262626]"
+                    >
+                      <option value="admin">ADMIN (Akses Penuh)</option>
+                      <option value="owner">OWNER (Baca-Saja)</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block font-medium text-[#344054] mb-1">Peran (Hak Akses) *</label>
-                  <select
-                    value={userFormData.role}
-                    onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value as any })}
-                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-medium text-[#262626]"
-                  >
-                    <option value="admin">ADMIN (Akses Penuh)</option>
-                    <option value="owner">OWNER (Baca-Saja)</option>
-                  </select>
+                  <label className="block font-medium text-[#344054] mb-1">Email</label>
+                  <input
+                    type="email"
+                    placeholder="user@astabrata.com"
+                    value={userFormData.email}
+                    onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-medium text-[#344054] mb-1">
+                    {editingUser ? 'Ganti Password (Kosongkan jika tidak diubah)' : 'Password Akun *'}
+                  </label>
+                  <input
+                    type="password"
+                    required={!editingUser}
+                    placeholder="Minimal 6 karakter"
+                    value={userFormData.password}
+                    onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626]"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block font-medium text-[#344054] mb-1">Email</label>
-                <input
-                  type="email"
-                  placeholder="user@astabrata.com"
-                  value={userFormData.email}
-                  onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium text-[#344054] mb-1">
-                  {editingUser ? 'Ganti Password (Kosongkan jika tidak diubah)' : 'Password Akun *'}
-                </label>
-                <input
-                  type="password"
-                  required={!editingUser}
-                  placeholder="Minimal 6 karakter"
-                  value={userFormData.password}
-                  onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
-                  className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626]"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-[#EAECF0] flex justify-end gap-2.5">
+              <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsUserModalOpen(false)}
-                  className="px-4 py-2 border border-[#D0D5DD] rounded-lg text-xs font-medium text-[#344054] hover:bg-[#F9FAFB]"
+                  className="px-4 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-medium text-[#344054] hover:bg-[#F9FAFB]"
                 >
                   Batal
                 </button>
@@ -602,11 +604,11 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
 
       {/* Modal Konfirmasi Hapus Pengguna */}
       {userToDelete && (
-        <div className="kms-modal-overlay fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
-          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="p-5 border-b border-rose-200/60 flex items-center justify-between bg-rose-50/70">
+        <div className="fixed inset-0 z-50 bg-slate-900/45 flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 shadow-xl rounded-2xl max-w-[420px] w-[calc(100%-24px)] sm:w-full max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-5 border-b border-rose-200 flex items-center justify-between bg-rose-50 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-rose-100/80 border border-rose-200/60 text-[#D92D20] flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-rose-100 border border-rose-200 text-[#D92D20] flex items-center justify-center shrink-0">
                   <Trash2 className="w-5 h-5" />
                 </div>
                 <div>
@@ -621,7 +623,7 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-5 space-y-3 text-xs text-[#344054]">
+            <div className="p-5 space-y-3 text-xs text-[#344054] overflow-y-auto flex-1 bg-white">
               <p>
                 Apakah Anda yakin ingin menghapus akun pengguna{' '}
                 <strong className="text-[#101828]">
@@ -629,24 +631,24 @@ export const AuditLogPage: React.FC<AuditLogPageProps> = ({ showToast }) => {
                 </strong>
                 ?
               </p>
-              <div className="pt-3 border-t border-[#EAECF0] flex justify-end gap-2">
-                <button
-                  type="button"
-                  disabled={deletingUser}
-                  onClick={() => setUserToDelete(null)}
-                  className="px-4 py-2 border border-[#D0D5DD] rounded-lg text-xs font-medium text-[#344054] hover:bg-[#F9FAFB]"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  disabled={deletingUser}
-                  onClick={confirmDeleteUser}
-                  className="px-4 py-2 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-lg text-xs font-medium shadow-xs disabled:opacity-50"
-                >
-                  {deletingUser ? 'Menghapus...' : 'Ya, Hapus Akun'}
-                </button>
-              </div>
+            </div>
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={deletingUser}
+                onClick={() => setUserToDelete(null)}
+                className="px-4 py-2 bg-white border border-[#D0D5DD] rounded-lg text-xs font-medium text-[#344054] hover:bg-[#F9FAFB]"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={deletingUser}
+                onClick={confirmDeleteUser}
+                className="px-4 py-2 bg-[#D92D20] hover:bg-[#B42318] text-white rounded-lg text-xs font-medium shadow-xs disabled:opacity-50"
+              >
+                {deletingUser ? 'Menghapus...' : 'Ya, Hapus Akun'}
+              </button>
             </div>
           </div>
         </div>

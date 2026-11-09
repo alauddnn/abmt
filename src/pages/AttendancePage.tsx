@@ -18,6 +18,8 @@ import {
   Upload,
   Image as ImageIcon,
   AlertCircle,
+  HardHat,
+  Truck,
 } from 'lucide-react';
 import { Attendance, Employee, EmployeeRole } from '../types.js';
 import { api } from '../lib/api.js';
@@ -30,9 +32,27 @@ import {
   calculateOvertimePayFromHoursMinutes,
   calculateOvertimePayFromDecimal,
   formatOvertimeDuration,
+  isDriverRole,
 } from '../lib/utils.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useCompany } from '../context/CompanyContext.js';
+
+const avatarPalettes = [
+  'bg-[#DCE7F9] text-[#1E293B]',
+  'bg-[#F9E2D2] text-[#1E293B]',
+  'bg-[#EDE3DA] text-[#1E293B]',
+  'bg-[#D9EFE6] text-[#1E293B]',
+  'bg-[#E5EEDF] text-[#1E293B]',
+];
+
+const getInitials = (name: string) => {
+  const cleaned = (name || 'Karyawan').trim();
+  const parts = cleaned.split(/\s+/);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+  return cleaned.slice(0, 2).toUpperCase();
+};
 
 interface AttendancePageProps {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
@@ -48,6 +68,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
   const [loading, setLoading] = useState(true);
 
   // Filters
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [filterRole, setFilterRole] = useState<'all' | 'Mandor' | 'Tukang' | 'Helper' | 'Driver'>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -404,14 +425,27 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
       a.employeeRole === filterRole ||
       (filterRole === 'Helper' && a.employeeRole === 'Kenek');
     const matchesStatus = filterStatus === 'all' || a.status === filterStatus;
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      const empObj = employees.find((e) => e.id === a.employeeId);
+      const empNik = (empObj?.nik || '').toLowerCase();
+      const matchName = (a.employeeName || '').toLowerCase().includes(q);
+      const matchId = (a.employeeId || '').toLowerCase().includes(q);
+      const matchRole = (a.employeeRole || '').toLowerCase().includes(q);
+      const matchNotes = (a.notes || '').toLowerCase().includes(q);
+      if (!matchName && !matchId && !empNik.includes(q) && !matchRole && !matchNotes) {
+        return false;
+      }
+    }
     return matchesDate && matchesRole && matchesStatus;
   });
 
   // Calculate summary metrics on current filtered view
   const totalHadirPenuh = filteredAttendance.filter((a) => a.status === 'Hadir').length;
   const totalSetengahHari = filteredAttendance.filter((a) => a.status === 'Setengah Hari').length;
-  const totalLemburHours = Number(filteredAttendance.reduce((sum, a) => sum + (a.overtimeHours || 0), 0).toFixed(2));
-  const totalDailyPay = filteredAttendance.reduce((sum, a) => sum + (a.totalDailyPay || 0), 0);
+  const totalTidakHadir = filteredAttendance.filter(
+    (a) => a.status !== 'Hadir' && a.status !== 'Setengah Hari'
+  ).length;
 
   // Live preview for Single Modal
   const selectedSingleEmp =
@@ -438,170 +472,170 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
       : 0;
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Header */}
-      <div className="glass-panel rounded-2xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[#4693FD] text-xs font-semibold tracking-tight">
-              PT. Asta Brata Matahari Terbit
-            </span>
-            <span className="text-[#D0D5DD]">·</span>
-            <span className="text-xs text-[#667085] font-medium font-mono">
-              {totalHadirPenuh} Hadir Penuh | {totalSetengahHari} Setengah Hari | {formatOvertimeDuration(totalLemburHours)} Lembur ({formatRupiah(totalDailyPay)})
-            </span>
+    <div className="space-y-4 pb-20">
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-[0_1px_3px_rgba(15,23,42,0.03)] overflow-hidden">
+        {/* Top Header Bar */}
+        <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-bold text-slate-900">Data Absensi Karyawan</h1>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#EFF5FF] text-[#155EEF] border border-[#D0E2FF]">
+                {filteredAttendance.length} Presensi
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Kelola kehadiran harian penuh, setengah hari, dan durasi lembur aktual karyawan langsung dengan sinkronisasi master perusahaan.
+            </p>
           </div>
-          <h1 className="text-2xl font-semibold text-[#262626] tracking-tight mt-1">
-            Absensi & Gaji Harian Karyawan
-          </h1>
-          <p className="text-xs text-[#667085] mt-1">
-            Pencatatan kehadiran harian penuh (100%), setengah hari (50%), durasi lembur aktual (jam & menit), serta kasbon terintegrasi.
-          </p>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex items-center gap-2 text-xs mr-1">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#E1F3EA] text-[#166534] font-medium text-[11px]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#15803D]" />
+                {totalHadirPenuh} Hadir
+              </span>
+              {totalSetengahHari > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#EFF8FF] text-[#175CD3] font-medium text-[11px]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />
+                  {totalSetengahHari} Setengah Hari
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F1F5F9] text-[#475569] font-medium text-[11px]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#94A3B8]" />
+                {totalTidakHadir} Tidak Hadir
+              </span>
+            </div>
+
+            {isAdmin && (
+              <>
+                <button
+                  type="button"
+                  onClick={openBulkModal}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-2xs transition-colors"
+                >
+                  <Layers className="w-4 h-4 text-[#2563EB]" />
+                  <span>Absensi Massal</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSingleModal()}
+                  className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Catat Kehadiran</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        {isAdmin && (
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <button
-              onClick={openBulkModal}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white/80 hover:bg-white text-[#344054] text-xs font-medium rounded-xl border border-slate-200/90 shadow-2xs transition-colors backdrop-blur-sm"
-              title="Catat seluruh karyawan aktif sekaligus untuk tanggal terpilih"
-            >
-              <Layers className="w-4 h-4 text-[#4693FD]" />
-              <span>Absensi Massal Karyawan</span>
-            </button>
-            <button
-              onClick={() => openSingleModal()}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white text-xs font-medium rounded-xl shadow-xs transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Input Tunggal</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Filter Toolbar */}
-      <div className="glass-panel p-4 sm:p-5 rounded-2xl flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-[#667085]" />
-            <label className="text-xs font-medium text-[#344054]">Tanggal:</label>
+        {/* Search & Filter Bar */}
+        <div className="px-5 py-3.5 bg-slate-50/60 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-white border border-[#D0D5DD] rounded-lg px-2.5 py-1 text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+              type="text"
+              placeholder="Cari nama, ID, NIK, peran, catatan..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-blue-500/10 transition-all"
             />
-            {selectedDate && (
+            {searchQuery && (
               <button
-                onClick={() => setSelectedDate('')}
-                className="text-xs text-[#4693FD] hover:underline"
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                Lihat Semua
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
 
-          {/* Role Filter */}
-          <div className="flex items-center bg-[#F2F4F7] p-0.5 rounded-lg text-xs border border-[#EAECF0]">
-            <button
-              onClick={() => setFilterRole('all')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                filterRole === 'all' ? 'bg-white text-[#262626] shadow-xs' : 'text-[#667085] hover:text-[#262626]'
-              }`}
-            >
-              Semua ({attendanceList.length})
-            </button>
-            <button
-              onClick={() => setFilterRole('Mandor')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                filterRole === 'Mandor' ? 'bg-white text-[#7F56D9] shadow-xs' : 'text-[#667085] hover:text-[#7F56D9]'
-              }`}
-            >
-              Mandor
-            </button>
-            <button
-              onClick={() => setFilterRole('Tukang')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                filterRole === 'Tukang' ? 'bg-white text-[#4693FD] shadow-xs' : 'text-[#667085] hover:text-[#4693FD]'
-              }`}
-            >
-              Tukang
-            </button>
-            <button
-              onClick={() => setFilterRole('Helper')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                filterRole === 'Helper' ? 'bg-white text-[#D99A23] shadow-xs' : 'text-[#667085] hover:text-[#D99A23]'
-              }`}
-            >
-              Helper
-            </button>
-            <button
-              onClick={() => setFilterRole('Driver')}
-              className={`px-2.5 py-1 font-medium rounded-md transition-colors ${
-                filterRole === 'Driver' ? 'bg-white text-[#0E9384] shadow-xs' : 'text-[#667085] hover:text-[#0E9384]'
-              }`}
-            >
-              Driver
-            </button>
-          </div>
+          <div className="flex flex-wrap items-center gap-2.5 text-xs">
+            <div className="flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-slate-500 font-medium">Jabatan:</span>
+              <select
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value as any)}
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#2563EB]"
+              >
+                <option value="all">Semua Jabatan</option>
+                <option value="Mandor">Mandor</option>
+                <option value="Tukang">Tukang</option>
+                <option value="Helper">Helper</option>
+                <option value="Driver">Driver</option>
+              </select>
+            </div>
 
-          {/* Status Filter */}
-          <div className="flex items-center gap-1.5">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="bg-white border border-[#D0D5DD] rounded-lg px-2.5 py-1 text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-            >
-              <option value="all">Semua Status</option>
-              <option value="Hadir">Hadir (Penuh)</option>
-              <option value="Setengah Hari">Setengah Hari (50%)</option>
-              <option value="Izin">Izin</option>
-              <option value="Sakit">Sakit</option>
-              <option value="Libur">Libur</option>
-              <option value="Tidak Hadir">Tidak Hadir</option>
-            </select>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-medium">Status:</span>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#2563EB]"
+              >
+                <option value="all">Semua Status</option>
+                <option value="Hadir">Hadir (Penuh)</option>
+                <option value="Setengah Hari">Setengah Hari (50%)</option>
+                <option value="Izin">Izin</option>
+                <option value="Sakit">Sakit</option>
+                <option value="Libur">Libur</option>
+                <option value="Tidak Hadir">Tidak Hadir</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500 font-medium">Tanggal:</span>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#2563EB]"
+              />
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate('')}
+                  className="text-xs text-[#2563EB] hover:underline font-medium px-1"
+                >
+                  Semua Tanggal
+                </button>
+              )}
+            </div>
+
+            {(searchQuery || filterRole !== 'all' || filterStatus !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setFilterRole('all');
+                  setFilterStatus('all');
+                }}
+                className="text-xs text-[#2563EB] hover:underline font-medium px-1.5"
+              >
+                Reset Filter
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="text-xs text-[#667085]">
-          Menampilkan <span className="font-semibold text-[#262626]">{filteredAttendance.length}</span> catatan
-        </div>
-      </div>
-
-      {/* Attendance Table */}
-      <div className="glass-table rounded-2xl overflow-hidden">
+        {/* Directory-Style Attendance Rows */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="bg-slate-50/60 backdrop-blur-xs text-[#475467] font-medium border-b border-slate-200/80">
-                <th className="py-3 px-4">Tanggal</th>
-                <th className="py-3 px-4">Nama Karyawan</th>
-                <th className="py-3 px-4">Jabatan</th>
-                <th className="py-3 px-4">Kehadiran</th>
-                <th className="py-3 px-4">Jam Kerja</th>
-                <th className="py-3 px-4">Durasi Lembur</th>
-                <th className="py-3 px-4">Tarif Harian</th>
-                <th className="py-3 px-4">Upah Kehadiran</th>
-                <th className="py-3 px-4">Upah Lembur</th>
-                <th className="py-3 px-4">Total Harian</th>
-                <th className="py-3 px-4">Catatan</th>
-                <th className="py-3 px-4 text-center">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#EAECF0] text-[#344054]">
+          <table className="w-full text-left text-xs border-collapse">
+            <tbody className="divide-y divide-slate-200/75 text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={12} className="py-10 text-center text-[#667085]">
+                  <td colSpan={7} className="py-12 text-center text-slate-500">
                     Memuat catatan absensi...
                   </td>
                 </tr>
               ) : filteredAttendance.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-10 text-center">
+                  <td colSpan={7} className="py-12 text-center">
                     <AlertTriangle className="w-6 h-6 text-[#D99A23] mx-auto mb-1.5" />
-                    <p className="font-medium text-[#262626]">Belum Ada Data Absensi</p>
-                    <p className="text-xs text-[#667085] mt-0.5">
+                    <p className="font-medium text-slate-800">Belum Ada Data Absensi</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
                       {selectedDate
                         ? `Tidak ada absensi pada tanggal ${formatDateID(selectedDate)}. Klik tombol "Absensi Massal" untuk mencatat sekaligus.`
                         : 'Belum ada absensi yang dicatat dalam sistem.'}
@@ -609,99 +643,160 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
                   </td>
                 </tr>
               ) : (
-                filteredAttendance.map((a) => {
+                filteredAttendance.map((a, idx) => {
+                  const empObj = employees.find((e) => e.id === a.employeeId);
+                  const roleName = a.employeeRole === 'Kenek' ? 'Helper' : a.employeeRole || 'Tukang';
+                  const isDriver = isDriverRole(roleName);
+                  const avatarClass = avatarPalettes[idx % avatarPalettes.length];
+
+                  const rolePillStyle =
+                    roleName === 'Mandor'
+                      ? 'bg-[#EDE6DF] text-[#44403C]'
+                      : roleName === 'Tukang'
+                      ? 'bg-[#E1EBF9] text-[#284B80]'
+                      : roleName === 'Driver'
+                      ? 'bg-[#E3EEDF] text-[#335426]'
+                      : 'bg-[#DCEFE9] text-[#1D5647]';
+
                   const rowBasicPay = calculateBasicPayByStatus(a.status, a.dailyWageSnapshot);
-                  const rowOtPay = calculateOvertimePayFromDecimal(a.overtimeHours, a.overtimeWageSnapshot);
+                  const statusPill =
+                    a.status === 'Hadir'
+                      ? {
+                          bg: 'bg-[#E1F3EA] text-[#166534]',
+                          dot: 'bg-[#15803D]',
+                          label: 'Hadir',
+                        }
+                      : a.status === 'Setengah Hari'
+                      ? {
+                          bg: 'bg-[#EFF8FF] text-[#175CD3]',
+                          dot: 'bg-[#2563EB]',
+                          label: 'Setengah Hari (½)',
+                        }
+                      : a.status === 'Izin' || a.status === 'Sakit'
+                      ? {
+                          bg: 'bg-[#FEF6EE] text-[#B54708]',
+                          dot: 'bg-[#D97706]',
+                          label: a.status,
+                        }
+                      : {
+                          bg: 'bg-[#FEF3F2] text-[#B42318]',
+                          dot: 'bg-[#DC2626]',
+                          label: a.status,
+                        };
+
                   return (
-                    <tr key={a.id} className="h-11 hover:bg-[#F9FAFB] transition-colors">
-                      <td className="py-3 px-4 font-mono text-[#667085] whitespace-nowrap">
-                        {formatDateID(a.date)}
+                    <tr key={a.id} className="hover:bg-slate-50/80 transition-colors group">
+                      {/* Column 1: Avatar + Name + Subtitle */}
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-3.5">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold tracking-tight shrink-0 ${avatarClass}`}
+                          >
+                            {getInitials(a.employeeName)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-900 text-[13.5px] leading-snug">
+                              {a.employeeName}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-1.5">
+                              <span>{roleName}</span>
+                              <span className="text-slate-300">·</span>
+                              <span className="font-mono text-slate-500">{a.employeeId}</span>
+                              {empObj?.nik && (
+                                <>
+                                  <span className="text-slate-300">·</span>
+                                  <span className="font-mono text-slate-400">NIK: {empObj.nik}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </td>
-                      <td className="py-3 px-4 font-medium text-[#262626] whitespace-nowrap">{a.employeeName}</td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        {a.employeeRole === 'Mandor' && (
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-[#F9F5FF] text-[#7F56D9] border border-[#E9D7FE]">
-                            Mandor
-                          </span>
-                        )}
-                        {a.employeeRole === 'Tukang' && (
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-[#EFF5FF] text-[#4693FD] border border-[#D1E9FF]">
-                            Tukang
-                          </span>
-                        )}
-                        {(a.employeeRole === 'Helper' || a.employeeRole === 'Kenek') && (
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-[#FEF7EC] text-[#D99A23] border border-[#FEDF89]">
-                            Helper
-                          </span>
-                        )}
-                        {a.employeeRole === 'Driver' && (
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-[#F0FDF9] text-[#0E9384] border border-[#99F6E0]">
-                            Driver
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
+
+                      {/* Column 2: Role Badge with Icon */}
+                      <td className="py-4 px-4 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
-                            a.status === 'Hadir'
-                              ? 'bg-[#ECFDF3] text-[#16A36A]'
-                              : a.status === 'Setengah Hari'
-                              ? 'bg-[#EFF8FF] text-[#175CD3] border border-[#B2DDFF]'
-                              : a.status === 'Izin' || a.status === 'Sakit'
-                              ? 'bg-[#FEF7EC] text-[#D99A23]'
-                              : 'bg-[#FEF3F2] text-[#D64545]'
-                          }`}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium ${rolePillStyle}`}
                         >
-                          {a.status === 'Setengah Hari' ? 'Setengah Hari (50%)' : a.status}
+                          {isDriver ? (
+                            <Truck className="w-3.5 h-3.5 opacity-80" />
+                          ) : (
+                            <HardHat className="w-3.5 h-3.5 opacity-80" />
+                          )}
+                          <span>{roleName}</span>
                         </span>
                       </td>
-                      <td className="py-3 px-4 font-mono text-[11px] text-[#667085] whitespace-nowrap">
-                        {a.status === 'Hadir' || a.status === 'Setengah Hari' ? `${a.checkIn} - ${a.checkOut}` : '-'}
+
+                      {/* Column 3: Location Dot + Notes */}
+                      <td className="py-4 px-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full shrink-0 bg-[#D97706]" />
+                          <span className="text-xs font-medium text-slate-700">
+                            {a.projectName || 'Proyek Lapangan'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 pl-4 mt-0.5 max-w-[180px] truncate">
+                          {a.notes || '-'}
+                        </div>
                       </td>
-                      <td className="py-3 px-4 font-mono text-xs text-[#262626] whitespace-nowrap">
-                        {a.overtimeHours > 0 ? (
-                          <span className="font-medium text-[#4693FD]">{formatOvertimeDuration(a.overtimeHours)}</span>
-                        ) : (
-                          <span className="text-[#98A2B3]">-</span>
-                        )}
+
+                      {/* Column 4: Wages Stack */}
+                      <td className="py-4 px-4 whitespace-nowrap">
+                        <div className="text-xs font-medium text-slate-700 font-mono tabular-nums">
+                          {formatRupiah(rowBasicPay)} / hari
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-mono tabular-nums mt-0.5">
+                          {a.overtimeHours > 0
+                            ? `Lembur: ${formatOvertimeDuration(a.overtimeHours)}`
+                            : isDriver
+                            ? 'Tanpa lembur'
+                            : `Lembur: ${formatRupiah(a.overtimeWageSnapshot)}/jam`}
+                        </div>
                       </td>
-                      <td className="py-3 px-4 font-mono text-[#667085] whitespace-nowrap tabular-nums">
-                        {formatRupiah(a.dailyWageSnapshot)}
+
+                      {/* Column 5: Date & Work Hours */}
+                      <td className="py-4 px-4 whitespace-nowrap">
+                        <div className="text-xs font-medium text-slate-700 tabular-nums">
+                          {formatDateID(a.date)}
+                        </div>
+                        <div className="text-[11px] text-slate-400 tabular-nums mt-0.5">
+                          {a.status === 'Hadir' || a.status === 'Setengah Hari'
+                            ? `${a.checkIn} - ${a.checkOut}`
+                            : 'Tidak hadir'}
+                        </div>
                       </td>
-                      <td className="py-3 px-4 font-mono font-medium text-[#262626] whitespace-nowrap tabular-nums">
-                        {formatRupiah(rowBasicPay)}
+
+                      {/* Column 6: Status Pill */}
+                      <td className="py-4 px-4 text-center whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${statusPill.bg}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${statusPill.dot}`} />
+                          <span>{statusPill.label}</span>
+                        </span>
                       </td>
-                      <td className="py-3 px-4 font-mono text-[#667085] whitespace-nowrap tabular-nums">
-                        {formatRupiah(rowOtPay)}
-                      </td>
-                      <td className="py-3 px-4 font-mono font-semibold text-[#262626] whitespace-nowrap tabular-nums">
-                        {formatRupiah(a.totalDailyPay)}
-                      </td>
-                      <td className="py-3 px-4 max-w-xs truncate text-[#667085]">
-                        {a.notes || '-'}
-                      </td>
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
+
+                      {/* Column 7: Actions */}
+                      <td className="py-4 px-6 text-right whitespace-nowrap">
                         {isAdmin ? (
-                          <div className="inline-flex items-center justify-center gap-1.5">
+                          <div className="inline-flex items-center justify-end gap-1">
                             <button
                               onClick={() => openSingleModal(a)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#EFF5FF] text-[#344054] hover:text-[#155EEF] font-medium rounded-md border border-[#D0D5DD] hover:border-[#4693FD] transition-colors text-xs"
+                              className="p-1.5 text-slate-400 hover:text-[#2563EB] hover:bg-blue-50 rounded-lg transition-colors"
                               title="Edit Data Absensi"
                             >
-                              <Edit2 className="w-3 h-3" />
-                              <span>Edit</span>
+                              <Edit2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => openDeleteModal(a)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-[#FEF3F2] text-[#D92D20] hover:text-[#B42318] font-medium rounded-md border border-[#FECDCA] hover:border-[#F04438] transition-colors text-xs"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                               title="Hapus Data Absensi"
                             >
-                              <Trash2 className="w-3 h-3" />
-                              <span>Hapus</span>
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         ) : (
-                          <span className="text-[#98A2B3] text-[11px]">Hanya Lihat (Owner)</span>
+                          <span className="text-slate-400 text-[11px]">Hanya Lihat</span>
                         )}
                       </td>
                     </tr>
@@ -715,9 +810,9 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
 
       {/* Single Attendance Modal (Create & Edit with Integrated Kasbon) */}
       {isSingleModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md overflow-y-auto">
-          <div className="glass-modal rounded-2xl max-w-lg w-full overflow-hidden my-8">
-            <div className="px-6 py-4 bg-white/40 backdrop-blur-sm text-[#262626] border-b border-white/70 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-[2px]">
+          <div className="glass-modal kms-modal-md bg-white border border-slate-200 shadow-xl rounded-2xl w-[calc(100%-24px)] sm:w-full max-w-[600px] max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="px-5 sm:px-6 py-4 bg-slate-50 text-[#262626] border-b border-slate-200 flex items-center justify-between shrink-0">
               <h3 className="font-semibold text-sm">
                 {editingAtt ? `Edit Absensi: ${editingAtt.employeeName}` : 'Catat Kehadiran Karyawan'}
               </h3>
@@ -725,14 +820,15 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
                 type="button"
                 onClick={() => setIsSingleModalOpen(false)}
                 disabled={savingSingle}
-                className="text-[#667085] hover:text-[#262626] p-1 rounded-md hover:bg-[#F2F4F7]"
+                className="text-[#667085] hover:text-[#262626] p-1 rounded-md hover:bg-slate-200/60"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveSingle} className="p-6 space-y-4 text-xs max-h-[82vh] overflow-y-auto">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleSaveSingle} className="flex flex-col flex-1 overflow-hidden text-xs">
+              <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-medium text-[#344054] mb-1">Tanggal *</label>
                   <input
@@ -789,7 +885,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
 
               {(singleForm.status === 'Hadir' || singleForm.status === 'Setengah Hari') && (
                 <>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block font-medium text-[#344054] mb-1">Jam Masuk</label>
                       <input
@@ -903,20 +999,21 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
                   className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                 />
               </div>
+              </div>
 
-              <div className="pt-3 border-t border-[#EAECF0] flex items-center justify-end gap-2.5">
+              <div className="px-5 sm:px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsSingleModalOpen(false)}
                   disabled={savingSingle}
-                  className="px-3.5 py-1.5 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-lg border border-[#D0D5DD] text-xs transition-colors"
+                  className="px-3.5 py-2 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-lg border border-[#D0D5DD] text-xs transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={savingSingle}
-                  className="px-4 py-1.5 bg-[#4693FD] hover:bg-[#357ee8] text-white font-medium rounded-lg text-xs shadow-xs transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white font-medium rounded-lg text-xs shadow-xs transition-colors disabled:opacity-50"
                 >
                   {savingSingle ? 'Menyimpan...' : editingAtt ? 'Simpan Perubahan' : 'Simpan Presensi'}
                 </button>
@@ -928,9 +1025,9 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
 
       {/* Bulk Attendance Modal */}
       {isBulkModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md overflow-y-auto">
-          <div className="glass-modal rounded-2xl max-w-5xl w-full overflow-hidden my-8">
-            <div className="px-6 py-4 bg-white/40 backdrop-blur-sm text-[#262626] border-b border-white/70 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-[2px]">
+          <div className="glass-modal kms-modal-lg bg-white border border-slate-200 shadow-xl rounded-2xl w-[calc(100%-24px)] sm:w-full max-w-[800px] max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="px-5 sm:px-6 py-4 bg-slate-50 text-[#262626] border-b border-slate-200 flex items-center justify-between shrink-0">
               <div>
                 <h3 className="font-semibold text-sm">Absensi Massal Karyawan ({bulkEntries.length} Karyawan)</h3>
                 <p className="text-[11px] text-[#667085]">
@@ -939,14 +1036,14 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
               </div>
               <button
                 onClick={() => setIsBulkModalOpen(false)}
-                className="text-[#667085] hover:text-[#262626] p-1 rounded-md hover:bg-[#F2F4F7]"
+                className="text-[#667085] hover:text-[#262626] p-1 rounded-md hover:bg-slate-200/60"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-3 pb-3 border-b border-[#EAECF0]">
+            <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="flex flex-wrap items-center gap-3 pb-3 border-b border-[#EAECF0]">
                 <Calendar className="w-4 h-4 text-[#4693FD]" />
                 <label className="text-xs font-medium text-[#344054]">Pilih Tanggal Absensi:</label>
                 <input
@@ -957,7 +1054,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
                 />
               </div>
 
-              <div className="overflow-x-auto max-h-[50vh] border border-[#EAECF0] rounded-lg">
+              <div className="overflow-x-auto border border-[#EAECF0] rounded-lg">
                 <table className="w-full text-left text-xs">
                   <thead className="sticky top-0 bg-[#F9FAFB] text-[#475467] font-medium border-b border-[#EAECF0] z-10">
                     <tr>
@@ -1062,21 +1159,21 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
               </div>
             </div>
 
-            <div className="px-6 py-4 bg-[#F9FAFB] border-t border-[#EAECF0] flex items-center justify-between">
+            <div className="px-5 sm:px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0">
               <span className="text-xs text-[#667085]">
                 {bulkEntries.filter((e) => e.status === 'Hadir').length} hadir penuh,{' '}
                 {bulkEntries.filter((e) => e.status === 'Setengah Hari').length} setengah hari dari {bulkEntries.length} karyawan.
               </span>
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-end gap-2.5">
                 <button
                   onClick={() => setIsBulkModalOpen(false)}
-                  className="px-3.5 py-1.5 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-lg border border-[#D0D5DD] text-xs transition-colors"
+                  className="px-3.5 py-2 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-lg border border-[#D0D5DD] text-xs transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   onClick={handleSaveBulk}
-                  className="px-4 py-1.5 bg-[#4693FD] hover:bg-[#357ee8] text-white font-medium rounded-lg text-xs shadow-xs transition-colors"
+                  className="px-4 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white font-medium rounded-lg text-xs shadow-xs transition-colors"
                 >
                   Simpan Absensi Massal
                 </button>
@@ -1095,9 +1192,9 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
         );
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
-            <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden">
-              <div className="p-5 bg-rose-50/70 border-b border-rose-200/60 flex items-center justify-between backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-[2px]">
+            <div className="glass-modal kms-modal-sm bg-white border border-slate-200 shadow-xl rounded-2xl w-[calc(100%-24px)] sm:w-full max-w-[420px] max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden">
+              <div className="p-4 sm:p-5 bg-rose-50 border-b border-rose-200 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-[#FEE4E2] text-[#D92D20] flex items-center justify-center shrink-0">
                     <Trash2 className="w-5 h-5" />
@@ -1122,7 +1219,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
                 </button>
               </div>
 
-              <div className="p-5 space-y-4">
+              <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
                 <div className="p-3.5 bg-[#F8F9FA] rounded-xl border border-[#EAECF0] space-y-2 text-xs">
                   <div className="flex justify-between items-center py-0.5">
                     <span className="text-[#667085]">Nama Karyawan:</span>
@@ -1193,7 +1290,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ showToast, onDat
                 )}
               </div>
 
-              <div className="px-5 py-3.5 bg-[#F9FAFB] border-t border-[#EAECF0] flex items-center justify-end gap-2.5">
+              <div className="px-4 sm:px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => {

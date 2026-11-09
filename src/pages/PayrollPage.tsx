@@ -300,7 +300,7 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
 
           {/* Preview Table */}
           <div className="glass-table rounded-2xl overflow-hidden">
-            <div className="p-4 bg-white/40 border-b border-white/60 flex items-center justify-between">
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="font-semibold text-xs text-slate-800">
                   Kalkulasi Penggajian Periode {formatDateID(periodStart)} s/d {formatDateID(periodEnd)}
@@ -309,7 +309,7 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
                   Rumus: Total Upah Kotor = Upah Harian Penuh + Upah Setengah Hari + Upah Lembur (Jam & Menit). Total Bersih = Kotor − Kasbon.
                 </p>
               </div>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#EFF5FF] text-[#4693FD]">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-[#EFF5FF] text-[#4693FD]">
                 {previewList.length} Karyawan Aktif
               </span>
             </div>
@@ -474,7 +474,7 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
       ) : (
         /* History Tab */
         <div className="glass-table rounded-2xl overflow-hidden">
-          <div className="p-4 border-b border-white/60 bg-white/40 flex items-center justify-between">
+          <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-semibold text-xs text-slate-800">
               Riwayat Pembayaran Gaji Karyawan ({paymentsHistory.length} Transaksi)
             </h3>
@@ -603,132 +603,134 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
 
       {/* Process Payment Dialog */}
       {processingEmp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
-          <div className="glass-modal rounded-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="px-6 py-4 bg-white/50 border-b border-white/60 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 animate-in fade-in">
+          <div className="bg-white border border-slate-200 shadow-xl rounded-2xl max-w-[600px] w-[calc(100%-24px)] sm:w-full max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="px-5 sm:px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="font-semibold text-sm text-slate-800">Proses Pembayaran Gaji Karyawan</h3>
-                <p className="text-[11px] text-slate-500">
+                <h3 className="font-semibold text-sm text-slate-900">Proses Pembayaran Gaji Karyawan</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
                   {processingEmp.employeeName || processingEmp.name} ({processingEmp.employeeRole || processingEmp.role})
                 </p>
               </div>
               <button
                 onClick={() => setProcessingEmp(null)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-white/60 transition-colors"
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200/60 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleConfirmPayment} className="p-6 space-y-4 text-xs">
-              {/* Financial Calculation Review */}
-              <div className="p-3.5 bg-[#F9FAFB] rounded-lg border border-[#EAECF0] space-y-2">
-                <div className="flex items-center justify-between text-[#667085]">
-                  <span>Upah Harian Penuh ({processingEmp.fullWorkDays ?? processingEmp.totalWorkDays ?? 0} hari):</span>
-                  <span className="font-medium text-[#262626] font-mono tabular-nums">
-                    {formatRupiah(processingEmp.fullDaySalary ?? processingEmp.totalBasicSalary ?? 0)}
-                  </span>
-                </div>
-                {(processingEmp.halfWorkDays ?? 0) > 0 && (
-                  <div className="flex items-center justify-between text-[#175CD3]">
-                    <span>Upah Setengah Hari ({processingEmp.halfWorkDays} × ½ hari):</span>
-                    <span className="font-medium font-mono tabular-nums">
-                      {formatRupiah(processingEmp.halfDaySalary ?? 0)}
+            <form onSubmit={handleConfirmPayment} className="flex flex-col flex-1 overflow-hidden text-xs">
+              <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
+                {/* Financial Calculation Review */}
+                <div className="p-3.5 bg-[#F9FAFB] rounded-xl border border-[#EAECF0] space-y-2">
+                  <div className="flex items-center justify-between text-[#667085]">
+                    <span>Upah Harian Penuh ({processingEmp.fullWorkDays ?? processingEmp.totalWorkDays ?? 0} hari):</span>
+                    <span className="font-medium text-[#262626] font-mono tabular-nums">
+                      {formatRupiah(processingEmp.fullDaySalary ?? processingEmp.totalBasicSalary ?? 0)}
                     </span>
                   </div>
-                )}
-                <div className="flex items-center justify-between text-[#667085]">
-                  <span>Upah Lembur ({formatOvertimeDuration(processingEmp.approvedOvertimeHours ?? 0)}):</span>
-                  <span className="font-medium text-[#262626] font-mono tabular-nums">
-                    {formatRupiah(processingEmp.totalOvertimePay ?? processingEmp.overtimePay ?? 0)}
-                  </span>
+                  {(processingEmp.halfWorkDays ?? 0) > 0 && (
+                    <div className="flex items-center justify-between text-[#175CD3]">
+                      <span>Upah Setengah Hari ({processingEmp.halfWorkDays} × ½ hari):</span>
+                      <span className="font-medium font-mono tabular-nums">
+                        {formatRupiah(processingEmp.halfDaySalary ?? 0)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-[#667085]">
+                    <span>Upah Lembur ({formatOvertimeDuration(processingEmp.approvedOvertimeHours ?? 0)}):</span>
+                    <span className="font-medium text-[#262626] font-mono tabular-nums">
+                      {formatRupiah(processingEmp.totalOvertimePay ?? processingEmp.overtimePay ?? 0)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[#262626] font-medium pt-1 border-t border-[#EAECF0]">
+                    <span>Total Upah Kotor:</span>
+                    <span className="font-mono tabular-nums">
+                      {formatRupiah(processingEmp.grossSalary ?? 0)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[#D64545]">
+                    <span>Potongan Kasbon Otomatis:</span>
+                    <span className="font-medium font-mono tabular-nums">
+                      - {formatRupiah(processingEmp.proposedKasbonDeduction ?? 0)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-[#EAECF0] font-semibold text-[#16A36A]">
+                    <span className="uppercase text-[11px]">Total Upah Bersih Dibayarkan:</span>
+                    <span className="text-sm font-mono tabular-nums">
+                      {formatRupiah(processingEmp.netSalary ?? 0)}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between text-[#262626] font-medium pt-1 border-t border-[#EAECF0]">
-                  <span>Total Upah Kotor:</span>
-                  <span className="font-mono tabular-nums">
-                    {formatRupiah(processingEmp.grossSalary ?? 0)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-[#D64545]">
-                  <span>Potongan Kasbon Otomatis:</span>
-                  <span className="font-medium font-mono tabular-nums">
-                    - {formatRupiah(processingEmp.proposedKasbonDeduction ?? 0)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-[#EAECF0] font-semibold text-[#16A36A]">
-                  <span className="uppercase text-[11px]">Total Upah Bersih Dibayarkan:</span>
-                  <span className="text-sm font-mono tabular-nums">
-                    {formatRupiah(processingEmp.netSalary ?? 0)}
-                  </span>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1.5">Tanggal Bayar *</label>
+                    <input
+                      type="date"
+                      required
+                      value={payForm.paymentDate}
+                      onChange={(e) => setPayForm({ ...payForm, paymentDate: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-[#344054] mb-1.5">Metode Pembayaran *</label>
+                    <select
+                      value={payForm.paymentMethod}
+                      onChange={(e) =>
+                        setPayForm({
+                          ...payForm,
+                          paymentMethod: e.target.value as SalaryPayment['paymentMethod'],
+                        })
+                      }
+                      className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    >
+                      <option value="Transfer BCA">Transfer BCA</option>
+                      <option value="Transfer Mandiri">Transfer Mandiri</option>
+                      <option value="Transfer BRI">Transfer BRI</option>
+                      <option value="Kas Tunai">Kas Tunai Proyek</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block font-medium text-[#344054] mb-1">Tanggal Bayar *</label>
+                  <label className="block font-medium text-[#344054] mb-1.5">
+                    Nomor Referensi Transaksi (Opsional)
+                  </label>
                   <input
-                    type="date"
-                    required
-                    value={payForm.paymentDate}
-                    onChange={(e) => setPayForm({ ...payForm, paymentDate: e.target.value })}
-                    className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                    type="text"
+                    placeholder="Contoh: TRF-BCA-202610-091"
+                    value={payForm.referenceNumber}
+                    onChange={(e) => setPayForm({ ...payForm, referenceNumber: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                   />
                 </div>
+
                 <div>
-                  <label className="block font-medium text-[#344054] mb-1">Metode Pembayaran *</label>
-                  <select
-                    value={payForm.paymentMethod}
-                    onChange={(e) =>
-                      setPayForm({
-                        ...payForm,
-                        paymentMethod: e.target.value as SalaryPayment['paymentMethod'],
-                      })
-                    }
-                    className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                  >
-                    <option value="Transfer BCA">Transfer BCA</option>
-                    <option value="Transfer Mandiri">Transfer Mandiri</option>
-                    <option value="Transfer BRI">Transfer BRI</option>
-                    <option value="Kas Tunai">Kas Tunai Proyek</option>
-                  </select>
+                  <label className="block font-medium text-[#344054] mb-1.5">Catatan Pembayaran</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Catatan pada slip pembayaran gaji..."
+                    value={payForm.notes}
+                    onChange={(e) => setPayForm({ ...payForm, notes: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block font-medium text-[#344054] mb-1">
-                  Nomor Referensi Transaksi (Opsional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Contoh: TRF-BCA-202610-091"
-                  value={payForm.referenceNumber}
-                  onChange={(e) => setPayForm({ ...payForm, referenceNumber: e.target.value })}
-                  className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-medium text-[#344054] mb-1">Catatan Pembayaran</label>
-                <textarea
-                  rows={2}
-                  placeholder="Catatan pada slip pembayaran gaji..."
-                  value={payForm.notes}
-                  onChange={(e) => setPayForm({ ...payForm, notes: e.target.value })}
-                  className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-[#EAECF0] flex items-center justify-end gap-2.5">
+              <div className="px-5 sm:px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setProcessingEmp(null)}
-                  className="px-3.5 py-1.5 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-lg border border-[#D0D5DD] text-xs transition-colors"
+                  className="px-4 py-2 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-xl border border-[#D0D5DD] text-xs transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-[#4693FD] hover:bg-[#357ee8] text-white font-medium rounded-lg text-xs shadow-xs transition-colors"
+                  className="px-4 py-2 bg-[#4693FD] hover:bg-[#357ee8] text-white font-semibold rounded-xl text-xs shadow-xs transition-colors"
                 >
                   Konfirmasi & Cetak Slip
                 </button>
@@ -740,51 +742,51 @@ export const PayrollPage: React.FC<PayrollPageProps> = ({ showToast, onDataChang
 
       {/* Cancel Payment Dialog */}
       {cancellingPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
-          <div className="glass-modal rounded-2xl max-w-sm w-full overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="px-6 py-4 bg-white/50 border-b border-white/60 flex items-center justify-between">
-              <h3 className="font-semibold text-sm text-slate-800">Batalkan Pembayaran Gaji</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 animate-in fade-in">
+          <div className="bg-white border border-slate-200 shadow-xl rounded-2xl max-w-[420px] w-[calc(100%-24px)] sm:w-full max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="px-5 sm:px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+              <h3 className="font-semibold text-sm text-slate-900">Batalkan Pembayaran Gaji</h3>
               <button
                 onClick={() => setCancellingPayment(null)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-white/60 transition-colors"
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200/60 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-6 space-y-4 text-xs">
+            <div className="p-5 sm:p-6 space-y-4 text-xs overflow-y-auto flex-1">
               <p className="text-[#667085]">
                 Anda akan membatalkan pembayaran <span className="font-semibold text-[#262626]">{cancellingPayment.paymentNumber}</span> untuk <span className="font-semibold text-[#262626]">{cancellingPayment.employeeName}</span> sebesar <span className="font-semibold text-[#262626]">{formatRupiah(cancellingPayment.netSalary)}</span>.
               </p>
-              <div className="p-3 bg-[#FEF7EC] rounded-lg border border-[#FEDF89] text-[#D99A23]">
+              <div className="p-3 bg-[#FEF7EC] rounded-xl border border-[#FEDF89] text-[#D99A23]">
                 Potongan kasbon sebesar {formatRupiah(cancellingPayment.kasbonDeduction)} akan otomatis dikembalikan ke saldo kasbon aktif karyawan.
               </div>
               <div>
-                <label className="block font-medium text-[#344054] mb-1">Alasan Pembatalan</label>
+                <label className="block font-medium text-[#344054] mb-1.5">Alasan Pembatalan</label>
                 <textarea
                   rows={2}
                   required
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
                   placeholder="Contoh: Kesalahan input hari kerja atau revisi lembur..."
-                  className="w-full px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
+                  className="w-full px-3 py-2 bg-white border border-[#D0D5DD] rounded-xl text-xs text-[#262626] focus:outline-none focus:border-[#4693FD]"
                 />
               </div>
-              <div className="pt-3 border-t border-[#EAECF0] flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setCancellingPayment(null)}
-                  className="px-3.5 py-1.5 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-lg border border-[#D0D5DD] text-xs transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancelPayment}
-                  className="px-4 py-1.5 bg-[#D64545] hover:bg-[#b93838] text-white font-medium rounded-lg text-xs shadow-xs transition-colors"
-                >
-                  Konfirmasi Pembatalan
-                </button>
-              </div>
+            </div>
+            <div className="px-5 sm:px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setCancellingPayment(null)}
+                className="px-4 py-2 bg-white hover:bg-[#F9FAFB] text-[#344054] font-medium rounded-xl border border-[#D0D5DD] text-xs transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelPayment}
+                className="px-4 py-2 bg-[#D64545] hover:bg-[#b93838] text-white font-semibold rounded-xl text-xs shadow-xs transition-colors"
+              >
+                Konfirmasi Pembatalan
+              </button>
             </div>
           </div>
         </div>

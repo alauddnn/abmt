@@ -279,6 +279,15 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  restoreProjectKasbon: (projectId: string, kasbonId: string, reason?: string) =>
+    request<KasbonRecord>(`/projects/${projectId}/kasbon/${kasbonId}/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+  archiveProjectKasbon: (projectId: string, kasbonId: string) =>
+    request<KasbonRecord>(`/projects/${projectId}/kasbon/${kasbonId}/archive`, {
+      method: 'POST',
+    }),
   deleteProjectKasbonAttachment: (projectId: string, kasbonId: string, attachmentId: string) =>
     request<{ message: string }>(`/projects/${projectId}/kasbon/${kasbonId}/attachments/${attachmentId}`, {
       method: 'DELETE',
@@ -417,6 +426,15 @@ export const api = {
     request<KasbonRecord>(`/kasbon/${id}/pay`, {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+  restoreKasbon: (id: string, reason?: string) =>
+    request<KasbonRecord>(`/kasbon/${id}/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+  archiveKasbon: (id: string) =>
+    request<KasbonRecord>(`/kasbon/${id}/archive`, {
+      method: 'POST',
     }),
   deleteKasbon: (id: string) =>
     request<{ message: string }>(`/kasbon/${id}`, {

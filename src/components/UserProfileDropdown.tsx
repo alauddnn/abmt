@@ -89,10 +89,10 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: align === 'bottom-left' ? 6 : -6 }}
             transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-            className={`absolute ${alignmentClasses} w-72 bg-white/85 backdrop-blur-2xl rounded-2xl shadow-[0_20px_50px_rgba(15,23,42,0.14),inset_0_1px_0_rgba(255,255,255,0.95)] border border-white/80 py-2 z-50 text-slate-700 select-none overflow-hidden`}
+            className={`absolute ${alignmentClasses} w-72 max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 text-slate-700 select-none overflow-hidden`}
           >
             {/* User Header Summary */}
-            <div className="px-4 py-3 border-b border-white/60 bg-white/40 backdrop-blur-sm flex items-center gap-3">
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/70 flex items-center gap-3">
               <div className="relative shrink-0">
                 <div
                   className={`w-11 h-11 rounded-full border flex items-center justify-center font-bold text-sm overflow-hidden ${

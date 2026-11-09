@@ -31,13 +31,13 @@ export const Header: React.FC<HeaderProps> = ({
   });
 
   return (
-    <header className="sticky top-0 z-20 bg-white/75 backdrop-blur-2xl border-b border-white/80 h-16 shrink-0 transition-colors shadow-[0_4px_24px_rgba(15,23,42,0.03)]">
-      <div className="h-full px-4 sm:px-6 lg:px-10 max-w-[1440px] mx-auto flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-20 bg-white border-b border-slate-200 h-16 shrink-0 transition-colors shadow-2xs">
+      <div className="h-full px-4 sm:px-6 lg:px-10 max-w-[1440px] mx-auto flex items-center justify-between gap-3">
         {/* Left: Mobile Toggle, Animated Breadcrumb & Title */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={onToggleMobileMenu}
-            className="lg:hidden p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+            className="lg:hidden min-w-[40px] min-h-[40px] flex items-center justify-center p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
             aria-label="Buka Menu"
           >
             <Menu className="w-5 h-5" />
